@@ -23,7 +23,7 @@ typedef struct TOKEN {
 } Token, *Token_p;
 
 extern Item   create_item             (int id);
-extern Item   create_item_with_token  (int id, int tokens[][2], int num_tokens);
+extern Item   create_item_with_tokens (int id, int tokens[][2], int num_tokens);
 extern Item   create_item_from_file   (char * corpus, int item_id);
 extern int    item_get_id             (Item item);
 extern int    item_get_total_tokens   (Item item);

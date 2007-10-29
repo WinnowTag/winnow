@@ -104,15 +104,14 @@ int item_get_token(Item item, int token_id, Token_p token) {
   Word_t * frequency;
   JLG(frequency, item->tokens, token_id);
   
+  token->id = token_id;
   if (NULL == frequency) {
-    token->id = 0;
     token->frequency = 0;
   } else {
-    token->id = token_id;
     token->frequency = *frequency;
   }
   
-  return 1;
+  return 0;
 }
 
 char * item_get_path(Item item) {

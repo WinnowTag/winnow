@@ -61,9 +61,24 @@ START_TEST (check_token_count) {
   item = create_item_from_file(CORPUS, 1234);
   get_token_return = item_get_token(item, 253866, &token);
   
-  assert_equal(1, get_token_return);
+  assert_equal(0, get_token_return);
   assert_equal(253866, token.id);
   assert_equal(2, token.frequency);
+  
+  free_item(item);
+} END_TEST
+
+START_TEST (check_nonexistant_token_returns_0) {
+  Item item;
+  Token token;
+  int get_token_return;
+  
+  item = create_item_from_file(CORPUS, 1234);
+  get_token_return = item_get_token(item, 1, &token);
+  
+  assert_equal(0, get_token_return);
+  assert_equal(1, token.id);
+  assert_equal(0, token.frequency);
   
   free_item(item);
 } END_TEST
@@ -105,6 +120,7 @@ item_loader_suite(void) {
   tcase_add_test(tc_item_loader, missing_item);
   tcase_add_test(tc_item_loader, check_item_path);
   tcase_add_test(tc_item_loader, check_item_creation);
+  tcase_add_test(tc_item_loader, check_nonexistant_token_returns_0);
   suite_add_tcase(s, tc_item_loader);  
   
   return s;
