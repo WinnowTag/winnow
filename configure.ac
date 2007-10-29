@@ -11,6 +11,9 @@ PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
 
 AC_HEADER_STDC
 AC_CHECK_HEADERS([Judy.h], [], [AC_MSG_ERROR(Judy.his missing)])
+AC_CHECK_HEADERS([sys/param.h errno.h stdarg.h])
+
+AC_FUNC_MALLOC
 
 # Output Files
 AC_CONFIG_HEADERS([config.h])

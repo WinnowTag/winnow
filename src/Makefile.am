@@ -1,6 +1,6 @@
-lib_LTLIBRARIES = libclassifier.la libitem_loader.la
+lib_LTLIBRARIES = libclassifier.la libitem.la
 libclassifier_la_SOURCES = classifier.c classifier.h
-libitem_loader_la_SOURCES = item_loader.c item_loader.h
+libitem_la_SOURCES = item.c item.h
 
 bin_PROGRAMS = classifier
 classifier_SOURCES = main.c
