@@ -9,10 +9,7 @@
 #include <math.h>
 #include <check.h>
 #include "../src/classifier.h"
-
-#ifndef assert
-#define assert_equal_f(expected, actual) fail_unless(fabs(expected - actual) <= 0.000001, "expected %f but got %f", expected, actual)
-#endif
+#include "assertions.h"
 
 /*************************************************************
  *   Unit tests for chi2q(double, int)

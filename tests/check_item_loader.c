@@ -9,32 +9,47 @@
 #include <check.h>
 #include <string.h>
 #include "../src/item.h"
+#include "assertions.h"
 
 #ifndef CORPUS
 #define CORPUS "fixtures"
 #endif
 
-#ifndef assert_equal
-#define assert_equal(expected, actual) fail_unless(expected == actual, "expected %d but got %d", expected, actual)
-#endif
+START_TEST (check_item_creation) {
+  Item item;
+  Token token;
+  int tokens[][2] = {1,2,3,4};
+  
+  item = create_item_with_tokens(1, tokens, 2);
+  assert_not_null(item);
+  assert_equal(1, item_get_id(item));
+  assert_equal(6, item_get_total_tokens(item));
+  assert_equal(2, item_get_num_tokens(item));
 
-#ifndef assert_equal_s
-#define assert_equal_s(e, a) fail_unless(strcmp(e,a) == 0, "expected %s but got %d", e, a)
-#endif
+  item_get_token(item, 1, &token);
+  assert_equal(1, token.id);
+  assert_equal(2, token.frequency);
+  
+  item_get_token(item, 3, &token);
+  assert_equal(3, token.id);
+  assert_equal(4, token.frequency);
+  
+  free_item(item);
+} END_TEST
 
 START_TEST (check_item_id) {
   Item item;
   
-  item = load_item(CORPUS, 1234);
+  item = create_item_from_file(CORPUS, 1234);
   assert_equal(1234, item_get_id(item));
   free_item(item);
 } END_TEST
 
-START_TEST (check_item_token_list_length) {
+START_TEST (check_item_total_tokens) {
   Item item;
   
-  item = load_item(CORPUS, 1234);
-  assert_equal(82, item_get_count(item));
+  item = create_item_from_file(CORPUS, 1234);
+  assert_equal(125, item_get_total_tokens(item));
   free_item(item);
 } END_TEST
 
@@ -43,7 +58,7 @@ START_TEST (check_token_count) {
   Token token;
   int get_token_return;
   
-  item = load_item(CORPUS, 1234);
+  item = create_item_from_file(CORPUS, 1234);
   get_token_return = item_get_token(item, 253866, &token);
   
   assert_equal(1, get_token_return);
@@ -62,19 +77,19 @@ START_TEST (item_path_too_long) {
     strncat(corpus, "a", 1024);
   }
   
-  item = load_item(corpus, 12345);
+  item = create_item_from_file(corpus, 12345);
   assert_equal(NULL, item);
 } END_TEST
 
 START_TEST (missing_item) {
   Item item;
-  item = load_item(CORPUS, 123456);
+  item = create_item_from_file(CORPUS, 123456);
   assert_equal(NULL, item);
 } END_TEST
 
 START_TEST (check_item_path) {
   Item item;
-  item = load_item(CORPUS, 1234);
+  item = create_item_from_file(CORPUS, 1234);
   assert_equal_s("fixtures/1234.tokens", item_get_path(item));
 } END_TEST
 
@@ -84,11 +99,12 @@ item_loader_suite(void) {
   
   TCase *tc_item_loader = tcase_create("Item Loader");
   tcase_add_test(tc_item_loader, check_token_count);
-  tcase_add_test(tc_item_loader, check_item_token_list_length);
+  tcase_add_test(tc_item_loader, check_item_total_tokens);
   tcase_add_test(tc_item_loader, check_item_id);
   tcase_add_test(tc_item_loader, item_path_too_long);
   tcase_add_test(tc_item_loader, missing_item);
   tcase_add_test(tc_item_loader, check_item_path);
+  tcase_add_test(tc_item_loader, check_item_creation);
   suite_add_tcase(s, tc_item_loader);  
   
   return s;

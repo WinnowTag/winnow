@@ -20,9 +20,6 @@
 #if HAVE_STRING_H
 #include <string.h>
 #endif
-#if HAVE_JUDY_H
-#include <Judy.h>
-#endif
 
 #ifndef MAXPATHLEN
 #define MAXPATHLEN 1024
@@ -32,16 +29,39 @@
 void error(const char * format, ...);
 int item_set_path(Item item, const char * itempath);
 
-struct ITEM {
-  int id;
-  int count;
-  char * path;
-  Pvoid_t tokens;
-};
-
 static const int ERR = 1;
+
+Item create_item(int id) {
+  Item item;
   
-Item load_item(char * corpus, int item_id) {
+  item = malloc(sizeof(Item));
+  if (NULL != item) {      
+    int error = 0;
+    int i;
+    item->id = id;
+    item->total_tokens = 0;
+    item->path = NULL;
+    item->tokens = NULL;
+  }
+  
+  return item;
+}
+
+Item create_item_with_tokens(int id, int tokens[][2], int num_tokens) {
+  Item item;
+  
+  item = create_item(id);
+  if (NULL != item) {  
+    if (load_tokens_from_array(item, tokens, num_tokens)) {
+      free_item(item);
+      item = NULL;
+    }
+  }
+  
+  return item;
+}
+
+Item create_item_from_file(char * corpus, int item_id) {
   Item item;  
   char itempath[MAXPATHLEN];
   int itempath_length;
@@ -50,12 +70,8 @@ Item load_item(char * corpus, int item_id) {
     return NULL;
   }
   
-  item = malloc(sizeof(Item));
-  if (NULL != item) {      
-    item->id = item_id;
-    item->path = NULL;
-    item->tokens = NULL;
-    
+  item = create_item(item_id);
+  if (NULL != item) {    
     if (item_set_path(item, itempath)) {
       free_item(item);
       item = NULL;
@@ -74,8 +90,14 @@ int item_get_id(Item item) {
   return item->id;
 }
 
-int item_get_count(Item item) {
-  return item->count;
+int item_get_num_tokens(Item item) {
+  Word_t count;
+  JLC(count, item->tokens, 0, -1);
+  return (int) count;
+}
+
+int item_get_total_tokens(Item item) {
+  return item->total_tokens;
 }
 
 int item_get_token(Item item, int token_id, Token_p token) {
@@ -83,8 +105,8 @@ int item_get_token(Item item, int token_id, Token_p token) {
   JLG(frequency, item->tokens, token_id);
   
   if (NULL == frequency) {
-    token->id = NULL;
-    token->frequency = NULL;
+    token->id = 0;
+    token->frequency = 0;
   } else {
     token->id = token_id;
     token->frequency = *frequency;
@@ -158,8 +180,8 @@ int read_token_file(Item item, const char * itempath) {
       error("Token file is not an atomized file");
       return_code = ERR;
     } else {    
-      item->count = getw(token_file);
-      if (item->count == EOF) {
+      int count = getw(token_file);
+      if (count == EOF) {
         error("Token file corrupt");
         return_code = ERR;
       } else {
@@ -169,18 +191,9 @@ int read_token_file(Item item, const char * itempath) {
           int items_read;
           items_read = fread(token, 4, 2, token_file);
           if (2 == items_read) {
-            // Insert it into a Judy Array
-            Word_t token_id;
-            Word_t * token_frequency;
-            token_id = (Word_t) token[0];
-            
-            JLI(token_frequency, item->tokens, token_id);
-            if (PJERR == token_frequency) {
-              error("Could not malloc memory for token array");
-              return_code = ERR;
+            item->total_tokens += token[1];
+            if (JudyInsert(item, token[0], token[1])) {
               break;
-            } else {
-              *token_frequency = (Word_t) token[1];
             }
           } else {
             if (1 == items_read) {
@@ -197,6 +210,41 @@ int read_token_file(Item item, const char * itempath) {
     }
   }
     
+  return return_code;
+}
+
+int load_tokens_from_array(Item item, int tokens[][2], int num_tokens) {
+  int i;
+  int return_code = 0;
+  for (i = 0; i < num_tokens; i++) {
+    int token_id = tokens[i][0];
+    int token_frequency = tokens[i][1];      
+    item->total_tokens += token_frequency;
+    
+    if (JudyInsert(item, token_id, token_frequency)) {
+      return_code = 1;
+      break;
+    }      
+  }
+  
+  return return_code;
+}
+
+int JudyInsert(Item item, int id, int token_frequency) {
+  int return_code = 0;  
+  Word_t token_id;
+  Word_t * token_frequency_p;
+  
+  token_id = (Word_t) id;
+  
+  JLI(token_frequency_p, item->tokens, token_id);
+  if (PJERR == token_frequency_p) {
+    error("Could not malloc memory for token array");
+    return_code = ERR;
+  } else {
+    *token_frequency_p = token_frequency;
+  }
+  
   return return_code;
 }
 
