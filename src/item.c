@@ -9,26 +9,22 @@
 #include "misc.h"
 
 #include <stdio.h>
-#if HAVE_SYS_PARAM_H
-#include <sys/param.h>
-#endif
-#if HAVE_ERRNO_H
-#include <errno.h>
-#endif
+
 #if HAVE_STRING_H
 #include <string.h>
 #endif
 
 /* Some prototypes */
-void error(const char * format, ...);
-int item_set_path(Item item, const char * itempath);
-
-static const int ERR = 1;
+static int item_set_path(Item item, const char * itempath);
+static int read_token_file(Item item, const char * itempath);
+static int JudyInsert(Item item, int id, int frequency);
+static int build_item_path(const char * corpus, int item, char * buffer, int size);
+static int load_tokens_from_array(Item item, int tokens[][2], int num_tokens);
 
 Item create_item(int id) {
   Item item;
   
-  item = malloc(sizeof(Item));
+  item = malloc(sizeof(struct ITEM));
   if (NULL != item) {      
     int error = 0;
     int i;
@@ -112,24 +108,6 @@ char * item_get_path(Item item) {
   return item->path;
 }
 
-int item_set_path(Item item, const char * itempath) {  
-  int return_code = 0;
-  int itempath_length;
-  
-  itempath_length = sizeof(char) * strlen(itempath) + 1;
-  item->path = malloc(itempath_length);
-  
-  if (NULL == item->path) {
-    error("Couldn't malloc item->path");
-    return_code = ERR;
-  } else if (strlcpy(item->path, itempath, itempath_length) >= itempath_length) {
-    error("item->path was too short (%d) for '%s'", itempath_length, itempath);
-    return_code = ERR;
-  }
-  
-  return return_code;
-}
-
 int item_next_token(Item item, Token_p token) {
   int success = true;  
   PWord_t frequency = NULL;
@@ -166,7 +144,7 @@ void free_item(Item item) {
 
 /******  "Private" functions ***************/
 
-int build_item_path(char * corpus, int item_id, char * buffer, int length) {
+int build_item_path(const char * corpus, int item_id, char * buffer, int length) {
   int return_code = 0;
     
   if ((strlcpy(buffer, corpus, length) >= length)
@@ -267,6 +245,24 @@ int JudyInsert(Item item, int id, int token_frequency) {
     return_code = ERR;
   } else {
     *token_frequency_p = token_frequency;
+  }
+  
+  return return_code;
+}
+
+int item_set_path(Item item, const char * itempath) {  
+  int return_code = 0;
+  int itempath_length;
+  
+  itempath_length = sizeof(char) * strlen(itempath) + 1;
+  item->path = malloc(itempath_length);
+  
+  if (NULL == item->path) {
+    error("Couldn't malloc item->path");
+    return_code = ERR;
+  } else if (strlcpy(item->path, itempath, itempath_length) >= itempath_length) {
+    error("item->path was too short (%d) for '%s'", itempath_length, itempath);
+    return_code = ERR;
   }
   
   return return_code;

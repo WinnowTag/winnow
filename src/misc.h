@@ -8,6 +8,8 @@
 #ifndef MISC
 #define MISC_H 1
 
+#include <config.h>
+
 #if HAVE_STDBOOL_H
 #include <stdbool.h>
 #else
@@ -15,8 +17,19 @@
 #define false 0
 #endif
 
+#if HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
+
 #ifndef MAXPATHLEN
 #define MAXPATHLEN 1024
 #endif
 
+#if HAVE_ERRNO_H
+#include <errno.h>
+#endif
+
+#ifndef ERR
+#define ERR 1
+#endif
 #endif

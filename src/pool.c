@@ -9,7 +9,7 @@
 #include "misc.h"
 
 Pool new_pool(void) {
-  Pool pool = malloc(sizeof(Pool));
+  Pool pool = malloc(sizeof(struct POOL));
   if (NULL != pool) {
     pool->total_tokens = 0;
     pool->tokens = NULL;
