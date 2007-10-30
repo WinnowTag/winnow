@@ -131,7 +131,7 @@ START_TEST (token_iteration_with_null_pool_doesnt_crash) {
 } END_TEST
 
 Suite *
-classifier_suite(void) {
+pool_suite(void) {
   Suite *s = suite_create("Pool");
   
   TCase *tc_pool = tcase_create("Pool");
@@ -146,14 +146,4 @@ classifier_suite(void) {
   suite_add_tcase(s, tc_pool);  
   
   return s;
-}
-
-int main(void) {
-  int number_failed;
-  Suite *s = classifier_suite();
-  SRunner *sr = srunner_create(s);
-  srunner_run_all(sr, CK_NORMAL);
-  number_failed = srunner_ntests_failed(sr);
-  srunner_free(sr);
-  return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -148,7 +148,7 @@ START_TEST (iterate_over_null_item_doesnt_crash) {
 
 
 Suite *
-item_loader_suite(void) {
+item_suite(void) {
   Suite *s = suite_create("ItemLoader");
   
   TCase *tc_item_loader = tcase_create("Item Loader");
@@ -166,14 +166,4 @@ item_loader_suite(void) {
   suite_add_tcase(s, tc_item_loader);  
   
   return s;
-}
-
-int main(void) {
-  int number_failed;
-  Suite *s = item_loader_suite();
-  SRunner *sr = srunner_create(s);
-  srunner_run_all(sr, CK_NORMAL);
-  number_failed = srunner_ntests_failed(sr);
-  srunner_free(sr);
-  return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
