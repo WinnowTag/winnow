@@ -11,4 +11,4 @@ check_item_loader_LDADD = @CHECK_LIBS@ $(top_builddir)/src/libitem.la
 
 check_pool_SOURCES = check_pool.c $(top_builddir)/src/pool.h
 check_pool_CFLAGS = @CHECK_CFLAGS@
-check_pool_LDADD = @CHECK_LIBS@ $(top_builddir)/src/libpool.la
+check_pool_LDADD = @CHECK_LIBS@ $(top_builddir)/src/libpool.la $(top_builddir)/src/libitem.la

@@ -6,6 +6,7 @@
 // Please contact info@peerworks.org for further information.
 
 #include "item.h"
+#include "misc.h"
 
 #include <stdio.h>
 #if HAVE_SYS_PARAM_H
@@ -14,15 +15,8 @@
 #if HAVE_ERRNO_H
 #include <errno.h>
 #endif
-#if HAVE_STDARG_H
-#include <stdarg.h>
-#endif
 #if HAVE_STRING_H
 #include <string.h>
-#endif
-
-#ifndef MAXPATHLEN
-#define MAXPATHLEN 1024
 #endif
 
 /* Some prototypes */
@@ -136,10 +130,41 @@ int item_set_path(Item item, const char * itempath) {
   return return_code;
 }
 
-void free_item(Item item) {
-  free(item->path);
-  return free(item);
+int item_next_token(Item item, Token_p token) {
+  int success = true;  
+  PWord_t frequency = NULL;
+  Word_t  token_id = token->id;
+  
+  if (NULL != item) {
+    if (0 == token_id) {    
+      JLF(frequency, item->tokens, token_id);
+    } else {
+      JLN(frequency, item->tokens, token_id);
+    }  
+  }
+ 
+  if (NULL == frequency) {
+    success = false;
+    token->id = 0;
+    token->frequency = 0;
+  } else {
+    token->id = token_id;
+    token->frequency = *frequency;
+  }
+  
+  return success;
 }
+
+void free_item(Item item) {
+  if (NULL != item) {
+    free(item->path);
+    int freed_bytes;
+    JLFA(freed_bytes, item->tokens);
+    free(item);    
+  }
+}
+
+/******  "Private" functions ***************/
 
 int build_item_path(char * corpus, int item_id, char * buffer, int length) {
   int return_code = 0;
@@ -245,13 +270,4 @@ int JudyInsert(Item item, int id, int token_frequency) {
   }
   
   return return_code;
-}
-
-void error(const char *fmt, ...) {
-	va_list argp;
-	fprintf(stderr, "error: ");
-	va_start(argp, fmt);
-	vfprintf(stderr, fmt, argp);
-	va_end(argp);
-	fprintf(stderr, "\n");
 }

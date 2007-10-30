@@ -5,6 +5,9 @@
 //
 // Please contact info@peerworks.org for further information.
 
+#ifndef ITEM_H
+#define ITEM_H 1
+
 #include <config.h>
 #if HAVE_JUDY_H
 #include <Judy.h>
@@ -30,4 +33,7 @@ extern int    item_get_total_tokens   (Item item);
 extern int    item_get_num_tokens     (Item item);
 extern int    item_get_token          (Item item, int token_id, Token_p token);
 extern char * item_get_path           (Item item);
+extern int    item_next_token         (Item item, Token_p token);
 extern void   free_item               (Item item);
+
+#endif

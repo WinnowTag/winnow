@@ -93,20 +93,59 @@ START_TEST (item_path_too_long) {
   }
   
   item = create_item_from_file(corpus, 12345);
-  assert_equal(NULL, item);
+  assert_null(item);
 } END_TEST
 
 START_TEST (missing_item) {
   Item item;
   item = create_item_from_file(CORPUS, 123456);
-  assert_equal(NULL, item);
+  assert_null(item);
 } END_TEST
 
 START_TEST (check_item_path) {
   Item item;
   item = create_item_from_file(CORPUS, 1234);
   assert_equal_s("fixtures/1234.tokens", item_get_path(item));
+  free_item(item);
 } END_TEST
+
+START_TEST (passing_null_to_free_item_doesnt_crash) {
+  free_item(NULL);
+} END_TEST
+
+START_TEST (check_token_iterator) {
+  Item item;
+  Token token;
+  token.id = 0;
+  int tokens[][2] = {1,2,3,4};
+  int ret_val;
+  
+  item = create_item_with_tokens(1, tokens, 2);
+  ret_val = item_next_token(item, &token);
+  assert_equal(1, ret_val);
+  assert_equal(1, token.id);
+  assert_equal(2, token.frequency);
+  
+  ret_val = item_next_token(item, &token);
+  assert_equal(1, ret_val);
+  assert_equal(3, token.id);
+  assert_equal(4, token.frequency);
+  
+  ret_val = item_next_token(item, &token);
+  assert_equal(0, ret_val);
+  assert_equal(0, token.id);
+  assert_equal(0, token.frequency);
+  
+  free_item(item);
+} END_TEST
+
+START_TEST (iterate_over_null_item_doesnt_crash) {
+  Token token;
+  assert_equal(0, item_next_token(NULL, &token));
+  assert_equal(0, token.id);
+  assert_equal(0, token.frequency);
+} END_TEST
+
 
 Suite *
 item_loader_suite(void) {
@@ -121,6 +160,9 @@ item_loader_suite(void) {
   tcase_add_test(tc_item_loader, check_item_path);
   tcase_add_test(tc_item_loader, check_item_creation);
   tcase_add_test(tc_item_loader, check_nonexistant_token_returns_0);
+  tcase_add_test(tc_item_loader, passing_null_to_free_item_doesnt_crash);
+  tcase_add_test(tc_item_loader, check_token_iterator);
+  tcase_add_test(tc_item_loader, iterate_over_null_item_doesnt_crash);
   suite_add_tcase(s, tc_item_loader);  
   
   return s;
