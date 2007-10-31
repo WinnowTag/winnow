@@ -14,7 +14,7 @@
 static int build_tagging_path(const char *, const char *, char *, int);
 static int read_tagging_file(TagList taglist, const char *, const char *);
 static Tag add_tag(TagList, const char *, const char *);
-static const int * fill_example_array(Pvoid_t tag_examples, int size);
+static int * fill_example_array(Pvoid_t tag_examples, int size);
 static int tag_add_example(Tag tag, int example, float strength);
 
 
@@ -39,7 +39,7 @@ TagList load_tags_from_file(const char * corpus, const char * user) {
   return taglist;
 }
 
-Tag taglist_get_tag(TagList taglist, int index) {
+Tag taglist_tag_at(TagList taglist, int index) {
   Tag tag = NULL;
   PWord_t tag_pointer;
   Word_t J_index;
@@ -111,11 +111,11 @@ void free_tag(Tag tag) {
   }
 }
 
-char * tag_get_user(Tag tag) {
+const char * tag_user(Tag tag) {
   return tag->user;
 }
 
-char * tag_get_tag_name(Tag tag) {
+const char * tag_tag_name(Tag tag) {
   return tag->tag_name;
 }
 
@@ -135,8 +135,8 @@ int tag_negative_examples_size(Tag tag) {
  *
  *  The array must be freed by the caller.
  */
-const int * tag_positive_examples(Tag tag) {
-  const int * examples = NULL;
+int * tag_positive_examples(Tag tag) {
+  int * examples = NULL;
   int size = tag_positive_examples_size(tag);
   
   if (0 < size) {
@@ -150,8 +150,8 @@ const int * tag_positive_examples(Tag tag) {
  *
  *  The array must be freed by the caller.
  */
-const int * tag_negative_examples(Tag tag) {
-  const int * examples = NULL;
+int * tag_negative_examples(Tag tag) {
+  int * examples = NULL;
   int size = tag_negative_examples_size(tag);
   
   if (0 < size) {
@@ -161,7 +161,7 @@ const int * tag_negative_examples(Tag tag) {
   return examples;
 }
 
-const int * fill_example_array(Pvoid_t tag_examples, int size) {
+int * fill_example_array(Pvoid_t tag_examples, int size) {
   int * examples = malloc(size * sizeof(int));
   
   if (NULL != examples) {

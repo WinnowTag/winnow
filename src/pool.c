@@ -52,6 +52,23 @@ int pool_add_item(Pool pool, Item item) {
     return false;    
 }
 
+/** Not Re-entrant */
+int pool_add_items(Pool pool, const int items[], int size, const ItemSource is) {
+  int success = true;
+  int i;
+  
+  for (i = 0; i < size; i++) {
+    Item item = is_fetch_item(is, items[i]);
+    if (NULL != item) {
+      pool_add_item(pool, item);
+    } else {
+      error("Missing item %d", items[i]);
+    }
+  }
+  
+  return true;
+}
+
 int pool_num_tokens(Pool pool) {
   int num_tokens = 0;
   if (NULL != pool) {

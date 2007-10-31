@@ -25,9 +25,9 @@ START_TEST (all_tags_have_user_name_set) {
   assert_equal(2, taglist_size(tags));
   
   for (i = 1; i <= 2; i++) {
-    tag = taglist_get_tag(tags, i);
+    tag = taglist_tag_at(tags, i);
     assert_not_null(tag);
-    assert_equal_s("user", tag_get_user(tag));
+    assert_equal_s("user", tag_user(tag));
   }
   
   free_taglist(tags);
@@ -37,22 +37,22 @@ START_TEST (tags_have_tag_set) {
   Tag tag;
   TagList tags = load_tags_from_file("fixtures", "user");
   
-  tag = taglist_get_tag(tags, 1);
+  tag = taglist_tag_at(tags, 1);
   assert_not_null(tag);
-  assert_equal_s("tag1", tag_get_tag_name(tag));
+  assert_equal_s("tag1", tag_tag_name(tag));
 
-  tag = taglist_get_tag(tags, 2);
+  tag = taglist_tag_at(tags, 2);
   assert_not_null(tag);
-  assert_equal_s("tag with space", tag_get_tag_name(tag));
+  assert_equal_s("tag with space", tag_tag_name(tag));
   
   free_taglist(tags);
 } END_TEST
 
 START_TEST (tag_negative_examples_test) {
-  const int *negative_examples;
+  int *negative_examples;
   Tag tag;
   TagList tags = load_tags_from_file("fixtures", "user");
-  tag = taglist_get_tag(tags, 1);
+  tag = taglist_tag_at(tags, 1);
   
   assert_equal(1, tag_negative_examples_size(tag));
   negative_examples = tag_negative_examples(tag);
@@ -62,10 +62,10 @@ START_TEST (tag_negative_examples_test) {
 } END_TEST
 
 START_TEST (tag_positive_examples_test) {
-  const int *positive;
+  int *positive;
   Tag tag;
   TagList tags = load_tags_from_file("fixtures", "user");
-  tag = taglist_get_tag(tags, 1);
+  tag = taglist_tag_at(tags, 1);
   
   assert_equal(2, tag_positive_examples_size(tag));
   positive = tag_positive_examples(tag);

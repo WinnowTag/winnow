@@ -21,6 +21,7 @@ typedef struct POOL {
 
 extern Pool   new_pool               (void);
 extern int    pool_add_item          (Pool pool, Item item);
+extern int    pool_add_items         (Pool pool, const int items[], int size, const ItemSource is);
 extern int    pool_num_tokens        (Pool pool);
 extern int    pool_total_tokens      (Pool pool);
 extern int    pool_token_frequency   (Pool pool, int token_id);

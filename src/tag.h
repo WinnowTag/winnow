@@ -24,15 +24,15 @@ typedef struct TAG {
 // Tag list functions
 extern TagList  load_tags_from_file   (const char * corpus, const char * user);
 extern int      taglist_size          (TagList taglist);
-extern Tag      taglist_get_tag       (TagList taglist, int index);
+extern Tag      taglist_tag_at       (TagList taglist, int index);
 extern void     free_taglist          (TagList taglist);
 
 // Tag functions
 extern void         free_tag                    (Tag tag);
-extern char *       tag_get_tag_name            (Tag tag);
-extern char *       tag_get_user                (Tag tag);
-extern const int *  tag_positive_examples       (Tag tag);
-extern const int *  tag_negative_examples       (Tag tag);
+extern const char * tag_tag_name            (Tag tag);
+extern const char * tag_user                (Tag tag);
+extern int *        tag_positive_examples       (Tag tag);
+extern int *        tag_negative_examples       (Tag tag);
 extern int          tag_negative_examples_size  (Tag tag);
 extern int          tag_positive_examples_size  (Tag tag);
 #endif

@@ -12,26 +12,7 @@
 #include "../src/item.h"
 #include "../src/misc.h"
 #include "assertions.h"
-
-Item item_1;
-Item item_2;
-Item item_3;
-
-static void setup(void) {
-  int tokens_1[][2] = {1, 10, 2, 3};
-  int tokens_2[][2] = {1, 5, 3, 4};
-  int tokens_3[][2] = {1, 6, 2, 4};
-  
-  item_1 = create_item_with_tokens(1, tokens_1, 2);
-  item_2 = create_item_with_tokens(2, tokens_2, 2);
-  item_3 = create_item_with_tokens(3, tokens_3, 2);
-}
-
-static void teardown(void) {
-  free_item(item_1);
-  free_item(item_2);
-  free_item(item_3);
-}
+#include "mock_item_source.h"
 
 START_TEST (create_pool) {
   Pool pool = new_pool();
@@ -48,7 +29,7 @@ START_TEST (new_pool_is_empty) {
 
 START_TEST (add_1_item) {
   Pool pool = new_pool();
-  pool_add_item(pool, item_1);
+  pool_add_item(pool, is_fetch_item(is, 1));
   assert_equal(2, pool_num_tokens(pool));
   assert_equal(13, pool_total_tokens(pool));
   assert_equal(10, pool_token_frequency(pool, 1));
@@ -59,8 +40,8 @@ START_TEST (add_1_item) {
 
 START_TEST (add_2_items_with_same_tokens) {
   Pool pool = new_pool();
-  pool_add_item(pool, item_1);
-  pool_add_item(pool, item_3);
+  pool_add_item(pool, is_fetch_item(is, 1));
+  pool_add_item(pool, is_fetch_item(is, 3));
   assert_equal(2, pool_num_tokens(pool));
   assert_equal(23, pool_total_tokens(pool));
   assert_equal(16, pool_token_frequency(pool, 1));
@@ -73,11 +54,10 @@ START_TEST (add_2_items_with_same_tokens) {
 START_TEST (add_2_items_with_1_overlapping_token) {
   Pool pool = new_pool();
   int ret_val;
+  int items[] = {1, 2};
   
-  ret_val = pool_add_item(pool, item_1);
+  ret_val = pool_add_items(pool, items, 2, is);
   assert_equal(true, ret_val);  
-  ret_val = pool_add_item(pool, item_2);
-  assert_equal(true, ret_val);
   
   assert_equal(3, pool_num_tokens(pool));
   assert_equal(22, pool_total_tokens(pool));
@@ -91,9 +71,9 @@ START_TEST (add_2_items_with_1_overlapping_token) {
 START_TEST (token_iteration) {
   int ret_val;
   Pool pool = new_pool();
-  pool_add_item(pool, item_1);
-  pool_add_item(pool, item_2);
-  pool_add_item(pool, item_3);
+  pool_add_item(pool, is_fetch_item(is, 1));
+  pool_add_item(pool, is_fetch_item(is, 2));
+  pool_add_item(pool, is_fetch_item(is, 3));
   
   Token token;
   token.id = 0;
@@ -135,7 +115,7 @@ pool_suite(void) {
   Suite *s = suite_create("Pool");
   
   TCase *tc_pool = tcase_create("Pool");
-  tcase_add_checked_fixture (tc_pool, setup, teardown);
+  tcase_add_checked_fixture (tc_pool, setup_mock_item_source, teardown_mock_item_source);
   tcase_add_test(tc_pool, create_pool);
   tcase_add_test(tc_pool, new_pool_is_empty);
   tcase_add_test(tc_pool, add_1_item);
