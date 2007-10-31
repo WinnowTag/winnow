@@ -18,7 +18,6 @@ START_TEST (loads_right_number_of_tags) {
 } END_TEST
 
 START_TEST (all_tags_have_user_name_set) {
-  printf("all_tags_start\n");
   int i;
   Tag tag;
   TagList tags = load_tags_from_file("fixtures", "user");
@@ -35,7 +34,6 @@ START_TEST (all_tags_have_user_name_set) {
 } END_TEST
 
 START_TEST (tags_have_tag_set) {
-  printf("tags_have_tag_set\n");
   Tag tag;
   TagList tags = load_tags_from_file("fixtures", "user");
   
@@ -50,6 +48,36 @@ START_TEST (tags_have_tag_set) {
   free_taglist(tags);
 } END_TEST
 
+START_TEST (tag_negative_examples_test) {
+  printf("negtest\n");
+  const int *negative_examples;
+  Tag tag;
+  TagList tags = load_tags_from_file("fixtures", "user");
+  tag = taglist_get_tag(tags, 1);
+  
+  assert_equal(1, tag_negative_examples_size(tag));
+  negative_examples = tag_negative_examples(tag);
+  assert_equal(1234, negative_examples[0]);
+  free(negative_examples);
+  free_taglist(tags);
+} END_TEST
+
+START_TEST (tag_positive_examples_test) {
+  printf("postest\n");
+  const int *positive;
+  Tag tag;
+  TagList tags = load_tags_from_file("fixtures", "user");
+  tag = taglist_get_tag(tags, 1);
+  
+  assert_equal(2, tag_positive_examples_size(tag));
+  positive = tag_positive_examples(tag);
+  assert_equal(1235, positive[0]);
+  assert_equal(1236, positive[1]);
+  
+  free(positive);
+  free_taglist(tags);
+} END_TEST
+
 Suite *
 tag_suite(void) {
   Suite *s = suite_create("Tag");  
@@ -59,6 +87,8 @@ tag_suite(void) {
   tcase_add_test(tc_tag, loads_right_number_of_tags);
   tcase_add_test(tc_tag, all_tags_have_user_name_set);
   tcase_add_test(tc_tag, tags_have_tag_set);
+  tcase_add_test(tc_tag, tag_negative_examples_test);
+  tcase_add_test(tc_tag, tag_positive_examples_test);
 // END_TESTS
 
   suite_add_tcase(s, tc_tag);

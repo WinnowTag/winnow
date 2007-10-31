@@ -14,6 +14,8 @@
 static int build_tagging_path(const char *, const char *, char *, int);
 static int read_tagging_file(TagList taglist, const char *, const char *);
 static Tag add_tag(TagList, const char *, const char *);
+static const int * fill_example_array(Pvoid_t tag_examples, int size);
+static int tag_add_example(Tag tag, int example, float strength);
 
 
 TagList load_tags_from_file(const char * corpus, const char * user) {
@@ -79,6 +81,9 @@ void free_taglist(TagList taglist) {
 Tag create_tag(const char * user, const char * tag_name) {
   Tag tag = malloc(sizeof(struct TAG));
   if (NULL != tag) {
+    tag->positive_examples = NULL;
+    tag->negative_examples = NULL;
+    
     int length = strlen(user) + 1;
     tag->user = malloc(sizeof(char) * length);
     if (NULL == tag->user) goto create_tag_malloc_error;
@@ -114,6 +119,85 @@ char * tag_get_tag_name(Tag tag) {
   return tag->tag_name;
 }
 
+int tag_positive_examples_size(Tag tag) {
+  Word_t count;
+  J1C(count, tag->positive_examples, 0, -1);
+  return count;
+}
+
+int tag_negative_examples_size(Tag tag) {
+  Word_t count;
+  J1C(count, tag->negative_examples, 0, -1);
+  return count;
+}
+
+/** Returns an array of item ids for positive examples of the tag.
+ *
+ *  The array must be freed by the caller.
+ */
+const int * tag_positive_examples(Tag tag) {
+  const int * examples = NULL;
+  int size = tag_positive_examples_size(tag);
+  
+  if (0 < size) {
+    examples = fill_example_array(tag->positive_examples, size);
+  }
+  
+  return examples;
+}
+
+/** Returns an array of item ids for negative examples of the tag.
+ *
+ *  The array must be freed by the caller.
+ */
+const int * tag_negative_examples(Tag tag) {
+  const int * examples = NULL;
+  int size = tag_negative_examples_size(tag);
+  
+  if (0 < size) {
+    examples = fill_example_array(tag->negative_examples, size);
+  }
+  
+  return examples;
+}
+
+const int * fill_example_array(Pvoid_t tag_examples, int size) {
+  int * examples = malloc(size * sizeof(int));
+  
+  if (NULL != examples) {
+    int i = 0;
+    Word_t example = 0;
+    Word_t index_found;
+    
+    J1F(index_found, tag_examples, example);
+    while(index_found && i < size) {
+      examples[i++] = example;
+      J1N(index_found, tag_examples, example);
+    }
+  } else {
+    error("Error malloc'ing example array");
+  }
+  
+  return examples;
+}
+
+int tag_add_example(Tag tag, int example, float strength) {
+  int failure = false;
+  
+  if (strength == 1.0) {
+    Word_t j_return;
+    J1S(j_return, tag->positive_examples, example);
+  } else if (strength == 0.0) {
+    Word_t j_return;
+    J1S(j_return, tag->negative_examples, example);
+  } else {
+    error("Unknown strength for %i: %f", example, strength);
+    failure = true;
+  }
+  
+  return failure;
+}
+
 /*****************************************
  * Private functions
  */
@@ -131,7 +215,7 @@ int build_tagging_path(const char * corpus, const char * user, char * buffer, in
   return return_code;
 }
 
- int read_tagging_file(TagList taglist, const char * user, const char * filename) {
+int read_tagging_file(TagList taglist, const char * user, const char * filename) {
   int failure = false;
   FILE *file;
   
@@ -143,11 +227,20 @@ int build_tagging_path(const char * corpus, const char * user, char * buffer, in
     int scan_result;
     char tag_name[256];
     int item_id;
-    double strength;
+    float strength;
      
     while (EOF != fscanf(file, "%255[^,],%d,%f\n", tag_name, &item_id, &strength)) {
-      Tag tag = add_tag(taglist, user, tag_name);      
+      Tag tag = add_tag(taglist, user, tag_name);
+      if (NULL == tag) {
+        failure = true;
+        break;
+      } else if (tag_add_example(tag, item_id, strength)) {
+        failure = true;
+        break;
+      }
     }
+    
+    fclose(file);
   }
   
   return failure;

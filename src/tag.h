@@ -17,6 +17,8 @@ typedef struct TAGLIST {
 typedef struct TAG {
   char *user;
   char *tag_name;
+  Pvoid_t positive_examples;
+  Pvoid_t negative_examples;
 } *Tag;
 
 // Tag list functions
@@ -26,8 +28,11 @@ extern Tag      taglist_get_tag       (TagList taglist, int index);
 extern void     free_taglist          (TagList taglist);
 
 // Tag functions
-extern void     free_tag              (Tag tag);
-extern char *   tag_get_tag_name      (Tag tag);
-extern char *   tag_get_user          (Tag tag);
-
+extern void         free_tag                    (Tag tag);
+extern char *       tag_get_tag_name            (Tag tag);
+extern char *       tag_get_user                (Tag tag);
+extern const int *  tag_positive_examples       (Tag tag);
+extern const int *  tag_negative_examples       (Tag tag);
+extern int          tag_negative_examples_size  (Tag tag);
+extern int          tag_positive_examples_size  (Tag tag);
 #endif
