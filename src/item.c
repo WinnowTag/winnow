@@ -21,6 +21,22 @@ static int JudyInsert(Item item, int id, int frequency);
 static int build_item_path(const char * corpus, int item, char * buffer, int size);
 static int load_tokens_from_array(Item item, int tokens[][2], int num_tokens);
 
+/*** ItemSource functions ***/
+ItemSource create_file_item_source(const char * corpus) {
+  ItemSource is = malloc(sizeof(struct ITEMSOURCE));
+  if (NULL != is) {
+    is->fetch_func = create_item_from_file;
+    is->fetch_func_state = corpus;
+  }
+  
+  return is;
+}
+
+Item is_fetch_item(const ItemSource is, const int item_id) {
+  return is->fetch_func(is->fetch_func_state, item_id);
+}
+
+/*** Item creation functions ***/
 Item create_item(int id) {
   Item item;
   
@@ -75,6 +91,8 @@ Item create_item_from_file(char * corpus, int item_id) {
   
   return item;
 }
+
+/*** Item functions ***/
 
 int item_get_id(Item item) {
   return item->id;

@@ -25,6 +25,19 @@ typedef struct TOKEN {
   int frequency;
 } Token, *Token_p;
 
+/** An item source stores a reference to an item loading function
+ *  and some state to pass as the first argument to the item 
+ *  loading function.
+ */
+typedef struct ITEMSOURCE {
+  Item (*fetch_func)(const void*, const int item_id);
+  const void* fetch_func_state;
+} *ItemSource;
+
+/*** Item Source ****/
+extern ItemSource create_file_item_source (const char * corpus_directory);
+extern Item       is_fetch_item           (const ItemSource is, const int item_id);
+
 extern Item   create_item             (int id);
 extern Item   create_item_with_tokens (int id, int tokens[][2], int num_tokens);
 extern Item   create_item_from_file   (char * corpus, int item_id);

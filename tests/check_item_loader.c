@@ -146,6 +146,15 @@ START_TEST (iterate_over_null_item_doesnt_crash) {
   assert_equal(0, token.frequency);
 } END_TEST
 
+/***** Item Source Test *****/
+START_TEST (setup_item_source) {
+  ItemSource source = create_file_item_source("fixtures");
+  assert_not_null(source);
+  Item item = is_fetch_item(source, 1234);
+  assert_not_null(item);
+  assert_equal(1234, item_get_id(item));
+} END_TEST
+
 
 Suite *
 item_suite(void) {
@@ -164,6 +173,10 @@ item_suite(void) {
   tcase_add_test(tc_item_loader, check_token_iterator);
   tcase_add_test(tc_item_loader, iterate_over_null_item_doesnt_crash);
   suite_add_tcase(s, tc_item_loader);  
+  
+  TCase *tc_item_source = tcase_create("Item Source");
+  tcase_add_test(tc_item_source, setup_item_source);
+  suite_add_tcase(s, tc_item_source);
   
   return s;
 }
