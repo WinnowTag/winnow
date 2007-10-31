@@ -36,6 +36,10 @@ Item is_fetch_item(const ItemSource is, const int item_id) {
   return is->fetch_func(is->fetch_func_state, item_id);
 }
 
+void free_item_source(ItemSource is) {
+  free(is);
+}
+
 /*** Item creation functions ***/
 Item create_item(int id) {
   Item item;

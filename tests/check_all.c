@@ -12,6 +12,7 @@ Suite * pool_suite (void);
 Suite * classifier_suite (void);
 Suite * item_suite (void);
 Suite * tag_suite (void);
+Suite * random_background_suite (void);
 
 int main(void) {
   int number_failed;
@@ -20,6 +21,7 @@ int main(void) {
   srunner_add_suite(sr, classifier_suite());
   srunner_add_suite(sr, item_suite());
   srunner_add_suite(sr, tag_suite());
+  srunner_add_suite(sr, random_background_suite());
   
   srunner_run_all(sr, CK_NORMAL);
   number_failed = srunner_ntests_failed(sr);

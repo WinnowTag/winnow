@@ -49,7 +49,6 @@ START_TEST (tags_have_tag_set) {
 } END_TEST
 
 START_TEST (tag_negative_examples_test) {
-  printf("negtest\n");
   const int *negative_examples;
   Tag tag;
   TagList tags = load_tags_from_file("fixtures", "user");
@@ -63,7 +62,6 @@ START_TEST (tag_negative_examples_test) {
 } END_TEST
 
 START_TEST (tag_positive_examples_test) {
-  printf("postest\n");
   const int *positive;
   Tag tag;
   TagList tags = load_tags_from_file("fixtures", "user");

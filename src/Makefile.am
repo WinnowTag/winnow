@@ -1,10 +1,12 @@
-lib_LTLIBRARIES = libclassifier.la libitem.la libpool.la libtag.la
+lib_LTLIBRARIES = libclassifier.la
 
-libclassifier_la_SOURCES = classifier.c classifier.h
-libitem_la_SOURCES = item.c item.h logging.h logging.c
-libpool_la_SOURCES = pool.c pool.h logging.h logging.c
-libtag_la_SOURCES  = tag.c tag.h logging.c logging.h
-
+libclassifier_la_SOURCES = classifier.c classifier.h \
+                           item.c item.h             \
+                           logging.h logging.c       \
+                           pool.c pool.h             \
+                           tag.c tag.h               \
+                           random_background.c       \
+                           random_background.h
 bin_PROGRAMS = classifier
 classifier_SOURCES = main.c
 classifier_LDADD = libclassifier.la

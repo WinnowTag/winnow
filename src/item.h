@@ -37,6 +37,7 @@ typedef struct ITEMSOURCE {
 /*** Item Source ****/
 extern ItemSource create_file_item_source (const char * corpus_directory);
 extern Item       is_fetch_item           (const ItemSource is, const int item_id);
+extern void       free_item_source        (ItemSource is);
 
 extern Item   create_item             (int id);
 extern Item   create_item_with_tokens (int id, int tokens[][2], int num_tokens);

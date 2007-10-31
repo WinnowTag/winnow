@@ -17,7 +17,7 @@ Item item_1;
 Item item_2;
 Item item_3;
 
-void setup(void) {
+static void setup(void) {
   int tokens_1[][2] = {1, 10, 2, 3};
   int tokens_2[][2] = {1, 5, 3, 4};
   int tokens_3[][2] = {1, 6, 2, 4};
@@ -27,7 +27,7 @@ void setup(void) {
   item_3 = create_item_with_tokens(3, tokens_3, 2);
 }
 
-void teardown(void) {
+static void teardown(void) {
   free_item(item_1);
   free_item(item_2);
   free_item(item_3);
