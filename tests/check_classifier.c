@@ -105,7 +105,7 @@ START_TEST (precompute_creates_probabilities_for_each_token_in_tc) {
       negative.pool_size = ns;                      \
       random.token_count = bc;                      \
       random.pool_size = bs;                        \
-      ProbToken foregrounds[] = {&positive};        \ 
+      ProbToken foregrounds[] = {&positive};        \
       ProbToken backgrounds[] = {&negative, &random};\
       int foreground_size = ps;                      \
       int background_size = ns + bs;                 \
@@ -150,6 +150,112 @@ START_TEST (probability_7) {
   TOKEN_PROBS(0,0,0,0,0,0)  
   float prob = probability(foregrounds, 1, backgrounds, 2, foreground_size, background_size);
   assert_equal_f(0.5, prob);
+} END_TEST
+
+/*************************************************************
+ *   Unit tests for classification
+ *
+ *************************************************************/
+struct CLASSIFIER classifier;
+#define assert_tagging(u, t, s, tagging)            \
+      assert_not_null(tagging);                     \
+      assert_equal_s(u, tagging_user(tagging));     \
+      assert_equal_s(t, tagging_tag_name(tagging)); \
+      assert_equal_f(s, tagging_strength(tagging));
+
+static void setup_classifier_test(void) {
+  classifier.user = "user";
+  classifier.tag_name = "tag";
+  classifier.clues = NULL;
+  
+  PWord_t clue_p;
+  JLI(clue_p, classifier.clues, 1);
+  *clue_p = (Word_t)new_clue(1, 0.75);
+  
+  JLI(clue_p, classifier.clues, 2);
+  *clue_p = (Word_t)new_clue(2, 0.51);
+  
+  JLI(clue_p, classifier.clues, 3);
+  *clue_p = (Word_t)new_clue(3, 0.1);
+  
+  JLI(clue_p, classifier.clues, 4);
+  *clue_p = (Word_t)new_clue(4, 0.95);
+}
+
+static void teardown_classifier_test(void) {
+  Word_t bytes;
+  JLFA(bytes, classifier.clues);
+}
+
+START_TEST (classify_1) {
+  int tokens[][2] = {10, 10};
+  Item item = create_item_with_tokens(1, tokens, 1);
+  Tagging tagging = classify(&classifier, item);
+  assert_tagging("user", "tag", 0.5, tagging);
+} END_TEST
+
+START_TEST (classify_2) {
+  int tokens[][2] = {2, 10};
+  Item item = create_item_with_tokens(1, tokens, 1);
+  Tagging tagging = classify(&classifier, item);
+  assert_tagging("user", "tag", 0.5, tagging);
+} END_TEST
+
+START_TEST (classify_3) {
+  int tokens[][2] = {4, 1};
+  Item item = create_item_with_tokens(1, tokens, 1);
+  Tagging tagging = classify(&classifier, item);
+  assert_tagging("user", "tag", 0.89947100800, tagging);
+} END_TEST
+
+START_TEST (classify_4) {
+  int tokens[][2] = {4, 100};
+  Item item = create_item_with_tokens(1, tokens, 1);
+  Tagging tagging = classify(&classifier, item);
+  assert_tagging("user", "tag", 0.89947100800, tagging);
+} END_TEST
+
+START_TEST (classify_5) {
+  int tokens[][2] = {4, 1, 2, 1};
+  Item item = create_item_with_tokens(1, tokens, 2);
+  Tagging tagging = classify(&classifier, item);
+  assert_tagging("user", "tag", 0.89947100800, tagging);
+} END_TEST
+
+START_TEST (classify_6) {
+  int tokens[][2] = {4, 1, 1, 1};
+  Item item = create_item_with_tokens(1, tokens, 2);
+  Tagging tagging = classify(&classifier, item);
+  assert_tagging("user", "tag", 0.90383289433, tagging);
+} END_TEST
+
+START_TEST (classify_7) {
+  int tokens[][2] = {4, 1, 3, 1};
+  Item item = create_item_with_tokens(1, tokens, 2);
+  Tagging tagging = classify(&classifier, item);
+  assert_tagging("user", "tag", 0.59043855740, tagging);
+} END_TEST
+
+START_TEST (classify_8) {
+  int tokens[][2] = {3, 1, 1, 1};
+  Item item = create_item_with_tokens(1, tokens, 2);
+  Tagging tagging = classify(&classifier, item);
+  assert_tagging("user", "tag", 0.59043855740, tagging);
+} END_TEST
+
+
+START_TEST (classify_9) {
+  int tokens[][2] = {3, 1};
+  Item item = create_item_with_tokens(1, tokens, 1);
+  Tagging tagging = classify(&classifier, item);
+  assert_tagging("user", "tag", 0.16771702260, tagging);
+} END_TEST
+
+START_TEST (classify_10) {
+  int tokens[][2] = {1, 1, 2, 1, 3, 1, 4, 1};
+  Item item = create_item_with_tokens(1, tokens, 4);
+  Tagging tagging = classify(&classifier, item);
+  assert_tagging("user", "tag", 0.69125149517, tagging);
 } END_TEST
 
 /*************************************************************
@@ -212,6 +318,20 @@ classifier_suite(void) {
   tcase_add_test(tc_precomputer, probability_6);
   tcase_add_test(tc_precomputer, probability_7);
   suite_add_tcase(s, tc_precomputer);
+  
+  TCase *tc_classifier = tcase_create("Classifier");
+  tcase_add_checked_fixture(tc_classifier, setup_classifier_test, teardown_classifier_test);
+  tcase_add_test(tc_classifier, classify_1);
+  tcase_add_test(tc_classifier, classify_2);
+  tcase_add_test(tc_classifier, classify_3);
+  tcase_add_test(tc_classifier, classify_4);
+  tcase_add_test(tc_classifier, classify_5);
+  tcase_add_test(tc_classifier, classify_6);
+  tcase_add_test(tc_classifier, classify_7);
+  tcase_add_test(tc_classifier, classify_8);
+  tcase_add_test(tc_classifier, classify_9);
+  tcase_add_test(tc_classifier, classify_10);
+  suite_add_tcase(s, tc_classifier);
   
   return s;
 }

@@ -154,7 +154,87 @@ const Classifier precompute(const TrainedClassifier tc, const Pool background) {
     return NULL;
 }
 
+const Tagging classify(const Classifier classifier, const Item item) {
+  if (NULL == classifier || NULL == item) {
+    return NULL;
+  }
+  
+  Tagging tagging = malloc(sizeof(struct TAGGING));
+  if (NULL != tagging) {
+    tagging->user = cls_user(classifier);
+    tagging->tag_name = cls_tag_name(classifier);
+    tagging->strength = -1.0;
+  }
+  return tagging;
+}
 
+/**** Trained classifier functions ****/
+const Pool tc_get_positive_pool(TrainedClassifier tc) {
+  return tc->positive_pool;
+}
+
+const Pool tc_get_negative_pool(TrainedClassifier tc) {
+  return tc->negative_pool;
+}
+
+const char * tc_get_user(TrainedClassifier tc) {
+  return tc->user;
+}
+
+const char * tc_get_tag_name(TrainedClassifier tc) {
+  return tc->tag_name;
+}
+
+void tc_free(TrainedClassifier tc) {
+  free_pool(tc->positive_pool);
+  free_pool(tc->negative_pool);
+  free(tc);
+}
+
+/***** Classifier Functions *****/
+const char * cls_tag_name(Classifier cls) {
+  return cls->tag_name;
+}
+
+const char * cls_user(Classifier cls) {
+  return cls->user;
+}
+
+int cls_num_clues(Classifier cls) {
+  Word_t count;
+  JLC(count, cls->clues, 0, -1);
+  return count;
+}
+
+double cls_probability_for(Classifier cls, int token_id) {
+  double probability = UNKNOWN_WORD_PROB;
+  PWord_t clue_p;
+  JLG(clue_p, cls->clues, token_id);
+  if (NULL != clue_p) {
+    Clue clue = (Clue)(*clue_p);
+    probability = clue_probability(clue);
+  }
+  return probability;
+}
+
+void free_classifier(Classifier cls) {
+  if (NULL != cls) {
+    if (cls->clues) {
+      PWord_t clue;
+      Word_t index = 0;
+      Word_t bytes_freed;
+      JLF(clue, cls->clues, index);
+      while (NULL != clue) {
+        free((Clue)(*clue));
+        JLN(clue, cls->clues, index);
+      }
+      JLFA(bytes_freed, cls->clues);
+    }
+    free(cls);
+  }
+}
+
+/*** "Private" functions ***/
 double probability(const ProbToken foregrounds[], int n_fg,
                   const ProbToken backgrounds[], int n_bg,
                   int fg_total_tokens, int bg_total_tokens) {
@@ -181,7 +261,6 @@ double probability(const ProbToken foregrounds[], int n_fg,
   return probability;
 }
 
-/*** "Private" functions ***/
 
 void compute_ratios(const ProbToken token_prob[], int size, double *ratios) {
   int i;
@@ -254,72 +333,6 @@ double filtered_average(double arr[], int size) {
     return 0;
   } else {
     return sum / denominator;            
-  }
-}
-
-/**** Trained classifier functions ****/
-const Pool tc_get_positive_pool(TrainedClassifier tc) {
-  return tc->positive_pool;
-}
-
-const Pool tc_get_negative_pool(TrainedClassifier tc) {
-  return tc->negative_pool;
-}
-
-const char * tc_get_user(TrainedClassifier tc) {
-  return tc->user;
-}
-
-const char * tc_get_tag_name(TrainedClassifier tc) {
-  return tc->tag_name;
-}
-
-void tc_free(TrainedClassifier tc) {
-  free_pool(tc->positive_pool);
-  free_pool(tc->negative_pool);
-  free(tc);
-}
-
-/***** Classifier Functions *****/
-const char * cls_tag_name(Classifier cls) {
-  return cls->tag_name;
-}
-
-const char * cls_user(Classifier cls) {
-  return cls->user;
-}
-
-int cls_num_clues(Classifier cls) {
-  Word_t count;
-  JLC(count, cls->clues, 0, -1);
-  return count;
-}
-
-double cls_probability_for(Classifier cls, int token_id) {
-  double probability = UNKNOWN_WORD_PROB;
-  PWord_t clue_p;
-  JLG(clue_p, cls->clues, token_id);
-  if (NULL != clue_p) {
-    Clue clue = (Clue)(*clue_p);
-    probability = clue_probability(clue);
-  }
-  return probability;
-}
-
-void free_classifier(Classifier cls) {
-  if (NULL != cls) {
-    if (cls->clues) {
-      PWord_t clue;
-      Word_t index = 0;
-      Word_t bytes_freed;
-      JLF(clue, cls->clues, index);
-      while (NULL != clue) {
-        free((Clue)(*clue));
-        JLN(clue, cls->clues, index);
-      }
-      JLFA(bytes_freed, cls->clues);
-    }
-    free(cls);
   }
 }
 

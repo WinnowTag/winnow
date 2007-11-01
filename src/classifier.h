@@ -30,8 +30,15 @@ typedef struct PROB_TOKEN {
   int pool_size;
 } *ProbToken;
 
+typedef struct TAGGING {
+  const char * user;
+  const char * tag_name;
+  double strength;
+} *Tagging;
+
 const TrainedClassifier    train       (const Tag tag, const ItemSource is);
 const Classifier           precompute  (const TrainedClassifier, const Pool random_background);
+const Tagging              classify    (const Classifier classifier, const Item item);
 double                     chi2Q       (double x, int v);
 double                     probability (const ProbToken foreground[], int n_pos,
                                         const ProbToken background[], int n_neg,
@@ -50,5 +57,10 @@ double        cls_probability_for   (Classifier c, int token_id);
 const char *  cls_tag_name          (Classifier c);
 const char *  cls_user              (Classifier c);
 void          free_classifier       (Classifier c);
+
+/*** Macros for taggings ***/
+#define tagging_tag_name(tagging) tagging->tag_name
+#define tagging_user(tagging)     tagging->user
+#define tagging_strength(tagging) tagging->strength
 
 #endif
