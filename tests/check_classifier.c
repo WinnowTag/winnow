@@ -65,11 +65,37 @@ START_TEST (precompute_keeps_user_and_tag) {
   struct TRAINED_CLASSIFIER tc;
   tc.user = "user";
   tc.tag_name = "tag";
+  tc.positive_pool = NULL;
+  tc.negative_pool = NULL;
   Classifier classifier = precompute(&tc, random_background);
   assert_not_null(classifier);
   assert_equal_s("user", cls_user(classifier));
   assert_equal_s("tag", cls_tag_name(classifier));
+  free_pool(random_background);
 } END_TEST
+
+START_TEST (precompute_creates_probabilities_for_each_token_in_tc) {
+  Pool random_background = new_pool();
+  struct TRAINED_CLASSIFIER tc;
+  tc.user = "user";
+  tc.tag_name = "tag";
+  tc.positive_pool = new_pool();
+  tc.negative_pool = new_pool();
+  pool_add_item(tc.positive_pool, item_1);
+  pool_add_item(tc.negative_pool, item_2);
+  Classifier cls = precompute(&tc, random_background);
+  
+  assert_not_null(cls);
+  assert_equal(3, cls_num_clues(cls));
+  assert_between_ex(0.0, 1.0, cls_probability_for(cls, 1));
+  assert_between_ex(0.0, 1.0, cls_probability_for(cls, 2));
+  assert_between_ex(0.0, 1.0, cls_probability_for(cls, 3));
+  assert_equal(0.5, cls_probability_for(cls, 4));
+  
+  free_classifier(cls);
+  free_pool(random_background);
+} END_TEST
+
 
 #define TOKEN_PROBS(pc, ps, nc, ns, bc, bs)         \
       struct PROB_TOKEN positive, negative, random; \
@@ -177,6 +203,7 @@ classifier_suite(void) {
   TCase *tc_precomputer = tcase_create("Precomputer");
   tcase_add_checked_fixture(tc_precomputer, setup_mock_item_source, teardown_mock_item_source);
   tcase_add_test(tc_precomputer, precompute_keeps_user_and_tag);
+  tcase_add_test(tc_precomputer, precompute_creates_probabilities_for_each_token_in_tc);
   tcase_add_test(tc_precomputer, probability_1);
   tcase_add_test(tc_precomputer, probability_2);
   tcase_add_test(tc_precomputer, probability_3);

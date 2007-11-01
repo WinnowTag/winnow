@@ -33,3 +33,8 @@
 #ifndef assert_equal_f
 #define assert_equal_f(expected, actual) fail_unless(fabs(expected - actual) <= 0.000001, "expected %f but got %f", expected, actual)
 #endif
+
+#ifndef assert_between_ex
+#define assert_between_ex(bottom, top, actual) \
+  fail_unless(bottom < actual && actual < top, "expected %f to be between %f and %f", actual, bottom, top)
+#endif

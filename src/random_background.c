@@ -20,7 +20,7 @@ Pool create_random_background_from_file (const ItemSource is, const char * filen
     while (EOF != fscanf(file, "%d\n", &item_id)) {
       Item item = is_fetch_item(is, item_id);
       if (NULL != item) {
-	pool_add_item(pool, item);
+	      pool_add_item(pool, item);
       }
     }
   } else {

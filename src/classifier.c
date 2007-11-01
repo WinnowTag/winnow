@@ -12,11 +12,13 @@
 #include "pool.h"
 #include "tag.h"
 #include "misc.h"
+#include "clue.h"
 
 #define UNKNOWN_WORD_STRENGTH 0.45
 #define UNKNOWN_WORD_PROB     0.5
 #define S_TIMES_X   UNKNOWN_WORD_PROB * UNKNOWN_WORD_STRENGTH
 
+/** Some  function prototypes */
 static void compute_ratios(const ProbToken token_prob[], int size, double *ratios);
 static double filtered_average(double arr[], int size);
 static double compute_n(const ProbToken foregrounds[], int n_fg, 
@@ -76,13 +78,84 @@ const Classifier precompute(const TrainedClassifier tc, const Pool background) {
   if (NULL != classifier) {
     classifier->user = tc_get_user(tc);
     classifier->tag_name = tc_get_tag_name(tc);
+    classifier->clues = NULL;
+    
+    struct PROB_TOKEN positive_token, negative_token, background_token;
+    const Pool positive_pool = tc_get_positive_pool(tc);
+    const Pool negative_pool = tc_get_negative_pool(tc);
+    const ProbToken foregrounds[] = {&positive_token};
+    const ProbToken backgrounds[] = {&negative_token, &background_token};
+    positive_token.pool_size = pool_total_tokens(positive_pool);
+    negative_token.pool_size = pool_total_tokens(negative_pool);
+    background_token.pool_size = pool_total_tokens(background);
+    const int fg_total_tokens = positive_token.pool_size;
+    const int bg_total_tokens = negative_token.pool_size + background_token.pool_size;
+    Token working_token;
+    working_token.id = 0;
+    
+    // Start with the background as it is probably the biggest
+    while (pool_next_token(background, &working_token)) {
+      PWord_t clue_p;
+      background_token.token_count = working_token.frequency;
+      positive_token.token_count = pool_token_frequency(positive_pool, working_token.id);
+      negative_token.token_count = pool_token_frequency(negative_pool, working_token.id);
+      double prob = probability(foregrounds, 1, backgrounds, 2, fg_total_tokens, bg_total_tokens);
+      const Clue clue = new_clue(working_token.id, prob);
+
+      JLI(clue_p, classifier->clues, working_token.id);
+      if (NULL == clue_p) goto classifier_malloc_error;
+      *clue_p = (Word_t) clue;
+    }
+    
+    // Now do the foreground
+    working_token.id = 0;
+    while (pool_next_token(positive_pool, &working_token)) {
+      PWord_t clue_p;
+      // already done it?
+      JLG(clue_p, classifier->clues, working_token.id);
+      if (NULL == clue_p) {
+        positive_token.token_count = working_token.frequency;
+        negative_token.token_count = pool_token_frequency(negative_pool, working_token.id);
+        background_token.token_count = pool_token_frequency(background, working_token.id);
+      
+        double prob = probability(foregrounds, 1, backgrounds, 2, fg_total_tokens, bg_total_tokens);
+        Clue clue = new_clue(working_token.id, prob);
+       
+        JLI(clue_p, classifier->clues, working_token.id);
+        if (NULL == clue_p) goto classifier_malloc_error;
+        *clue_p = (Word_t) clue;
+      }      
+    }
+    
+    // Now do the background
+    working_token.id = 0;
+    while (pool_next_token(negative_pool, &working_token)) {
+      PWord_t clue_p;
+      // already done it?
+      JLG(clue_p, classifier->clues, working_token.id);
+      if (NULL == clue_p) {
+        negative_token.token_count = working_token.frequency;
+        positive_token.token_count = pool_token_frequency(positive_pool, working_token.id);
+        background_token.token_count = pool_token_frequency(background, working_token.id);
+      
+        double prob = probability(foregrounds, 1, backgrounds, 2, fg_total_tokens, bg_total_tokens);
+        Clue clue = new_clue(working_token.id, prob);
+       
+        JLI(clue_p, classifier->clues, working_token.id);
+        if (NULL == clue_p) goto classifier_malloc_error;
+        *clue_p = (Word_t) clue;
+      }      
+    }
   }
   
   return classifier;
+  classifier_malloc_error:
+    free_classifier(classifier);
+    return NULL;
 }
 
 
-float probability(const ProbToken foregrounds[], int n_fg,
+double probability(const ProbToken foregrounds[], int n_fg,
                   const ProbToken backgrounds[], int n_bg,
                   int fg_total_tokens, int bg_total_tokens) {
   
@@ -216,6 +289,40 @@ const char * cls_user(Classifier cls) {
   return cls->user;
 }
 
+int cls_num_clues(Classifier cls) {
+  Word_t count;
+  JLC(count, cls->clues, 0, -1);
+  return count;
+}
+
+double cls_probability_for(Classifier cls, int token_id) {
+  double probability = UNKNOWN_WORD_PROB;
+  PWord_t clue_p;
+  JLG(clue_p, cls->clues, token_id);
+  if (NULL != clue_p) {
+    Clue clue = (Clue)(*clue_p);
+    probability = clue_probability(clue);
+  }
+  return probability;
+}
+
+void free_classifier(Classifier cls) {
+  if (NULL != cls) {
+    if (cls->clues) {
+      PWord_t clue;
+      Word_t index = 0;
+      Word_t bytes_freed;
+      JLF(clue, cls->clues, index);
+      while (NULL != clue) {
+        free((Clue)(*clue));
+        JLN(clue, cls->clues, index);
+      }
+      JLFA(bytes_freed, cls->clues);
+    }
+    free(cls);
+  }
+}
+
 /* Returns prob(chisq >= x2, with v degrees of freedom)
  *
  * Algorithm taken from http://spambayes.cvs.sourceforge.net/spambayes/spambayes/spambayes/chi2.py?view=markup
@@ -251,4 +358,3 @@ double chi2Q(double x2, int v) {
   
   return chi2;
 }
-
