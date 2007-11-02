@@ -14,16 +14,13 @@
 #include "misc.h"
 #include "clue.h"
 
-#define UNKNOWN_WORD_STRENGTH 0.45
-#define UNKNOWN_WORD_PROB     0.5
-#define S_TIMES_X   UNKNOWN_WORD_PROB * UNKNOWN_WORD_STRENGTH
-
 /** Some  function prototypes */
 static void compute_ratios(const ProbToken token_prob[], int size, double *ratios);
 static double filtered_average(double arr[], int size);
 static double compute_n(const ProbToken foregrounds[], int n_fg, 
                  const ProbToken backgrounds[], int n_bg, 
                  double fg_total_tokens, double bg_total_tokens);
+static double chi2_combine(const Clue *clues, int num_clues);
 
 /** Functions for transitioning classifiers between various states */
 const TrainedClassifier train(Tag tag, ItemSource is) {
@@ -154,6 +151,18 @@ const Classifier precompute(const TrainedClassifier tc, const Pool background) {
     return NULL;
 }
 
+#define TINY_VAL_D 1e-200
+
+/* Computes the probability that the tokens belong to the pool identified by pool_name.
+ *
+ * This method is based on the chi2_spamprob method in SpamBayes. To make it easier to compare
+ * this method with the original method, the ham and spam variable names have been maintained.
+ * In the context of this classifier, spam is belonging to the pool identified by pool_name and
+ * ham is belonging to the other pools.
+ *
+ * This method will follow the algorithm pretty closely, for detail see
+ * http://spambayes.cvs.sourceforge.net/spambayes/spambayes/spambayes/classifier.py?revision=1.31&view=markup
+ */
 const Tagging classify(const Classifier classifier, const Item item) {
   if (NULL == classifier || NULL == item) {
     return NULL;
@@ -163,25 +172,106 @@ const Tagging classify(const Classifier classifier, const Item item) {
   if (NULL != tagging) {
     tagging->user = cls_user(classifier);
     tagging->tag_name = cls_tag_name(classifier);
-    tagging->strength = -1.0;
+    int num_clues;
+    Clue *clues = select_clues(classifier, item, &num_clues);
+    
+    if (num_clues > 0) {
+      tagging->strength = chi2_combine(clues, num_clues);
+    } else {
+      tagging->strength = UNKNOWN_WORD_PROB;
+    }
+    
+    free(clues);
   }
   return tagging;
 }
 
+static double chi2_combine(const Clue *clues, int num_clues) {
+  // Now we can combine all token scores into an item score
+  double h, s;
+  int hExp, sExp, i;
+  h = s = 1.0;
+  hExp = sExp = 0;
+
+  for (i = 0; i < num_clues; i++) {
+    s *= (1.0 - clue_probability(clues[i]));
+    h *= clue_probability(clues[i]);
+  
+    // Check for underflow
+    if (s < TINY_VAL_D) {
+      int e = 0;
+      s = frexp(s, &e);
+      sExp += e;
+    }
+  
+    if (h < TINY_VAL_D) {
+      int e = 0;
+      h = frexp(h, &e);
+      hExp += e;
+    }
+  }
+
+  s = log(s) + sExp * M_LN2;
+  h = log(h) + hExp * M_LN2;
+  s = 1.0 - chi2Q(-2.0 * s, num_clues * 2);
+  h = 1.0 - chi2Q(-2.0 * h, num_clues * 2);
+  return (s - h + 1.0) / 2.0;
+}
+
+static int compare_clues(const void *clue1_p, const void *clue2_p) {
+  Clue clue1 = *((Clue*)clue1_p);
+  Clue clue2 = *((Clue*)clue2_p);
+  double strength_1 = clue_strength(clue1);
+  double strength_2 = clue_strength(clue2);
+  
+  if (strength_1 < strength_2) {
+    return 1;
+  } else if (strength_2 < strength_1) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+Clue * select_clues(const Classifier classifier, const Item item, int *num_clues) {
+  Token token;
+  int i = 0;
+  int num_item_tokens = item_get_num_tokens(item);
+  int max_clues = MAX(MAX_DISCRIMINATORS, MAX_CLUES_RATIO * num_item_tokens);
+  
+  // This is an array that can hold the maximum number of clues
+  // which is one per item token. Use calloc so it is effectively
+  // NULL terminating the array. This will just hold pointers to
+  // the actual clues that are stored in the classifier.
+  Clue *clues = calloc(num_item_tokens, sizeof(Clue));
+  
+  token.id = 0;
+  while (item_next_token(item, &token)) {
+    Clue clue = cls_clue_for(classifier, token.id);
+    if (NULL != clue && MIN_PROB_STRENGTH <= clue_strength(clue)) {
+      clues[i++] = clue;      
+    }
+  }
+  
+  qsort(clues, i, sizeof(Clue), compare_clues); 
+  *num_clues = MIN(i, max_clues);
+  return clues;
+}
+
 /**** Trained classifier functions ****/
-const Pool tc_get_positive_pool(TrainedClassifier tc) {
+const Pool tc_get_positive_pool(const TrainedClassifier tc) {
   return tc->positive_pool;
 }
 
-const Pool tc_get_negative_pool(TrainedClassifier tc) {
+const Pool tc_get_negative_pool(const TrainedClassifier tc) {
   return tc->negative_pool;
 }
 
-const char * tc_get_user(TrainedClassifier tc) {
+const char * tc_get_user(const TrainedClassifier tc) {
   return tc->user;
 }
 
-const char * tc_get_tag_name(TrainedClassifier tc) {
+const char * tc_get_tag_name(const TrainedClassifier tc) {
   return tc->tag_name;
 }
 
@@ -192,21 +282,31 @@ void tc_free(TrainedClassifier tc) {
 }
 
 /***** Classifier Functions *****/
-const char * cls_tag_name(Classifier cls) {
+const char * cls_tag_name(const Classifier cls) {
   return cls->tag_name;
 }
 
-const char * cls_user(Classifier cls) {
+const char * cls_user(const Classifier cls) {
   return cls->user;
 }
 
-int cls_num_clues(Classifier cls) {
+int cls_num_clues(const Classifier cls) {
   Word_t count;
   JLC(count, cls->clues, 0, -1);
   return count;
 }
 
-double cls_probability_for(Classifier cls, int token_id) {
+const Clue cls_clue_for(const Classifier cls, int token_id) {
+  Clue clue = NULL;
+  PWord_t clue_p;
+  JLG(clue_p, cls->clues, token_id);
+  if (NULL != clue_p) {
+    clue = (Clue)(*clue_p);
+  }
+  return clue;
+}
+
+double cls_probability_for(const Classifier cls, int token_id) {
   double probability = UNKNOWN_WORD_PROB;
   PWord_t clue_p;
   JLG(clue_p, cls->clues, token_id);

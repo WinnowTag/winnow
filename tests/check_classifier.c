@@ -10,6 +10,7 @@
 #include <check.h>
 #include "../src/classifier.h"
 #include "../src/tag.h"
+#include "../src/clue.h"
 #include "assertions.h"
 #include "mock_item_source.h"
 
@@ -187,11 +188,37 @@ static void teardown_classifier_test(void) {
   JLFA(bytes, classifier.clues);
 }
 
+START_TEST (clue_selection_filters_out_weak_clues) {
+  int tokens[][2] = {1, 1, 2, 1};
+  Item item = create_item_with_tokens(1, tokens, 2);
+  int num_clues;
+  Clue *clues = select_clues(&classifier, item, &num_clues);
+  assert_not_null(clues);
+  assert_equal(1, num_clues);
+  assert_equal(1, clue_token_id(clues[0]));
+  free_item(item);
+  free(clues);
+} END_TEST
+
+START_TEST (clue_selection_sorted_by_strength) {
+  int tokens[][2] = {1, 1, 2, 1, 4, 1};
+  Item item = create_item_with_tokens(1, tokens, 3);
+  int num_clues;
+  Clue *clues = select_clues(&classifier, item, &num_clues);
+  assert_not_null(clues);
+  assert_equal(2, num_clues);
+  assert_equal(4, clue_token_id(clues[0]));
+  assert_equal(1, clue_token_id(clues[1]));
+  free_item(item);
+  free(clues);
+} END_TEST
+
 START_TEST (classify_1) {
   int tokens[][2] = {10, 10};
   Item item = create_item_with_tokens(1, tokens, 1);
   Tagging tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 0.5, tagging);
+  free_item(item);
 } END_TEST
 
 START_TEST (classify_2) {
@@ -199,6 +226,7 @@ START_TEST (classify_2) {
   Item item = create_item_with_tokens(1, tokens, 1);
   Tagging tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 0.5, tagging);
+  free_item(item);
 } END_TEST
 
 START_TEST (classify_3) {
@@ -206,6 +234,7 @@ START_TEST (classify_3) {
   Item item = create_item_with_tokens(1, tokens, 1);
   Tagging tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 0.89947100800, tagging);
+  free_item(item);
 } END_TEST
 
 START_TEST (classify_4) {
@@ -213,6 +242,7 @@ START_TEST (classify_4) {
   Item item = create_item_with_tokens(1, tokens, 1);
   Tagging tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 0.89947100800, tagging);
+  free_item(item);
 } END_TEST
 
 START_TEST (classify_5) {
@@ -220,6 +250,7 @@ START_TEST (classify_5) {
   Item item = create_item_with_tokens(1, tokens, 2);
   Tagging tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 0.89947100800, tagging);
+  free_item(item);
 } END_TEST
 
 START_TEST (classify_6) {
@@ -227,6 +258,7 @@ START_TEST (classify_6) {
   Item item = create_item_with_tokens(1, tokens, 2);
   Tagging tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 0.90383289433, tagging);
+  free_item(item);
 } END_TEST
 
 START_TEST (classify_7) {
@@ -234,13 +266,15 @@ START_TEST (classify_7) {
   Item item = create_item_with_tokens(1, tokens, 2);
   Tagging tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 0.59043855740, tagging);
+  free_item(item);
 } END_TEST
 
 START_TEST (classify_8) {
-  int tokens[][2] = {3, 1, 1, 1};
+  int tokens[][2] = {3, 1, 4, 1};
   Item item = create_item_with_tokens(1, tokens, 2);
   Tagging tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 0.59043855740, tagging);
+  free_item(item);
 } END_TEST
 
 
@@ -249,6 +283,7 @@ START_TEST (classify_9) {
   Item item = create_item_with_tokens(1, tokens, 1);
   Tagging tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 0.16771702260, tagging);
+  free_item(item);
 } END_TEST
 
 START_TEST (classify_10) {
@@ -256,6 +291,7 @@ START_TEST (classify_10) {
   Item item = create_item_with_tokens(1, tokens, 4);
   Tagging tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 0.69125149517, tagging);
+  free_item(item);
 } END_TEST
 
 /*************************************************************
@@ -321,6 +357,8 @@ classifier_suite(void) {
   
   TCase *tc_classifier = tcase_create("Classifier");
   tcase_add_checked_fixture(tc_classifier, setup_classifier_test, teardown_classifier_test);
+  tcase_add_test(tc_classifier, clue_selection_filters_out_weak_clues);
+  tcase_add_test(tc_classifier, clue_selection_sorted_by_strength);
   tcase_add_test(tc_classifier, classify_1);
   tcase_add_test(tc_classifier, classify_2);
   tcase_add_test(tc_classifier, classify_3);
