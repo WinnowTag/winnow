@@ -24,6 +24,7 @@ int main(void) {
   srunner_add_suite(sr, tag_suite());
   srunner_add_suite(sr, random_background_suite());
   srunner_add_suite(sr, clue_suite());
+  srunner_add_suite(sr, samples_suite());
   
   srunner_run_all(sr, CK_NORMAL);
   number_failed = srunner_ntests_failed(sr);

@@ -11,9 +11,6 @@
 #include "../src/item.h"
 
 static ItemSource is;
-static Item item_1;
-static Item item_2;
-static Item item_3;
 
 static Item item_1;
 static Item item_2;
