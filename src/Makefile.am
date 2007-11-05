@@ -8,8 +8,8 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            random_background.c       \
                            random_background.h       \
                            clue.h clue.c             \
-                           samples.c samples.h
-bin_PROGRAMS = classifier
-classifier_SOURCES = main.c
-classifier_LDADD = libclassifier.la
-
+                           samples.c samples.h       \
+                           job_queue.c job_queue.h
+bin_PROGRAMS = cls_bench
+cls_bench_SOURCES = bench.c
+cls_bench_LDADD = libclassifier.la
