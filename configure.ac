@@ -5,6 +5,7 @@ AC_PROG_LIBTOOL
 
 AC_CHECK_LIB([m], [fabs])
 AC_CHECK_LIB(Judy, JudyLIns, [], [AC_MSG_ERROR(Judy is missing)])
+AC_CHECK_LIB(pthread, pthread_create, [], [AC_MSG_ERROR(pthread is missing)])
 
 # Unit testing library
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
