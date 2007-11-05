@@ -10,7 +10,7 @@ AC_CHECK_LIB(Judy, JudyLIns, [], [AC_MSG_ERROR(Judy is missing)])
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
 
 AC_HEADER_STDC
-AC_CHECK_HEADERS([Judy.h], [], [AC_MSG_ERROR(Judy.his missing)])
+AC_CHECK_HEADERS([Judy.h], [], [AC_MSG_ERROR(Judy.h is missing)])
 AC_CHECK_HEADERS([sys/param.h errno.h stdarg.h stdbool.h])
 
 AC_FUNC_MALLOC

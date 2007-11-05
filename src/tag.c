@@ -248,7 +248,7 @@ int read_tagging_file(TagList taglist, const char * user, const char * filename)
 
 Tag add_tag(TagList taglist, const char * user, const char * tag_name) {
   Tag tag = NULL;
-  Word_t index;
+  Word_t index = 0;
   PWord_t tag_pointer;
   
   JLF(tag_pointer, taglist->tags, index);
