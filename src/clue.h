@@ -12,14 +12,14 @@ typedef struct CLUE {
   int token_id;
   double probability;
   double strength;
-} *Clue;
+} Clue;
 
-const Clue new_clue  (int token_id, double probability);
-void       free_clue (Clue clue);
+const Clue * new_clue  (int token_id, double probability);
+void         free_clue (Clue *clue);
 
-#define clue_token_id(clue) clue->token_id
+#define clue_token_id(clue)        clue->token_id
 #define clue_probability(clue)     clue->probability
-#define clue_strength(clue) clue->strength
+#define clue_strength(clue)        clue->strength
 
 #endif /* _CLUE_H_ */
 

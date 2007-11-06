@@ -15,20 +15,20 @@
 #include "mock_item_source.h"
 
 START_TEST (create_pool) {
-  Pool pool = new_pool();
+  Pool *pool = new_pool();
   assert_not_null(pool);
   free_pool(pool);
 } END_TEST
 
 START_TEST (new_pool_is_empty) {
-  Pool pool = new_pool();
+  Pool *pool = new_pool();
   assert_equal(0, pool_num_tokens(pool));
   assert_equal(0, pool_total_tokens(pool));
   free_pool(pool);
 } END_TEST
 
 START_TEST (add_1_item) {
-  Pool pool = new_pool();
+  Pool *pool = new_pool();
   pool_add_item(pool, is_fetch_item(is, 1));
   assert_equal(2, pool_num_tokens(pool));
   assert_equal(13, pool_total_tokens(pool));
@@ -39,7 +39,7 @@ START_TEST (add_1_item) {
 } END_TEST
 
 START_TEST (add_2_items_with_same_tokens) {
-  Pool pool = new_pool();
+  Pool *pool = new_pool();
   pool_add_item(pool, is_fetch_item(is, 1));
   pool_add_item(pool, is_fetch_item(is, 3));
   assert_equal(2, pool_num_tokens(pool));
@@ -52,7 +52,7 @@ START_TEST (add_2_items_with_same_tokens) {
 } END_TEST
 
 START_TEST (add_2_items_with_1_overlapping_token) {
-  Pool pool = new_pool();
+  Pool *pool = new_pool();
   int ret_val;
   int items[] = {1, 2};
   
@@ -70,7 +70,7 @@ START_TEST (add_2_items_with_1_overlapping_token) {
 
 START_TEST (token_iteration) {
   int ret_val;
-  Pool pool = new_pool();
+  Pool *pool = new_pool();
   pool_add_item(pool, is_fetch_item(is, 1));
   pool_add_item(pool, is_fetch_item(is, 2));
   pool_add_item(pool, is_fetch_item(is, 3));

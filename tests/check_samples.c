@@ -11,11 +11,11 @@
 #include "assertions.h"
 
 START_TEST (load_samples_test) {
-  Samples samples = load_samples(is, "fixtures/samples.txt");
+  Samples *samples = load_samples(is, "fixtures/samples.txt");
   assert_not_null(samples);
   assert_equal(4, sample_size(samples));
   
-  const Item *items = sample_items(samples);
+  Item **items = sample_items(samples);
   assert_equal(item_1, items[0]);
   assert_equal(item_2, items[1]);
   assert_equal(item_3, items[2]);

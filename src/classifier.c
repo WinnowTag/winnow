@@ -15,16 +15,16 @@
 #include "clue.h"
 
 /** Some  function prototypes */
-static void compute_ratios(const ProbToken token_prob[], int size, double *ratios);
+static void compute_ratios(const ProbToken *token_prob[], int size, double *ratios);
 static double filtered_average(double arr[], int size);
-static double compute_n(const ProbToken foregrounds[], int n_fg, 
-                 const ProbToken backgrounds[], int n_bg, 
+static double compute_n(const ProbToken *foregrounds[], int n_fg, 
+                 const ProbToken *backgrounds[], int n_bg, 
                  double fg_total_tokens, double bg_total_tokens);
-static double chi2_combine(const Clue *clues, int num_clues);
+static double chi2_combine(const Clue **clues, int num_clues);
 
 /** Functions for transitioning classifiers between various states */
-const TrainedClassifier train(Tag tag, ItemSource is) {
-  TrainedClassifier tc = malloc(sizeof(struct TRAINED_CLASSIFIER));
+TrainedClassifier * train(const Tag *tag, const ItemSource *is) {
+  TrainedClassifier *tc = malloc(sizeof(struct TRAINED_CLASSIFIER));
   
   if (NULL != tc) {
     tc->user = tag_user(tag);
@@ -70,18 +70,18 @@ const TrainedClassifier train(Tag tag, ItemSource is) {
     return NULL;
 }
 
-const Classifier precompute(const TrainedClassifier tc, const Pool background) {
-  Classifier classifier = malloc(sizeof(struct CLASSIFIER));
+Classifier * precompute(const TrainedClassifier *tc, const Pool *background) {
+  Classifier *classifier = malloc(sizeof(struct CLASSIFIER));
   if (NULL != classifier) {
     classifier->user = tc_get_user(tc);
     classifier->tag_name = tc_get_tag_name(tc);
     classifier->clues = NULL;
     
     struct PROB_TOKEN positive_token, negative_token, background_token;
-    const Pool positive_pool = tc_get_positive_pool(tc);
-    const Pool negative_pool = tc_get_negative_pool(tc);
-    const ProbToken foregrounds[] = {&positive_token};
-    const ProbToken backgrounds[] = {&negative_token, &background_token};
+    const Pool *positive_pool = tc_get_positive_pool(tc);
+    const Pool *negative_pool = tc_get_negative_pool(tc);
+    const ProbToken *foregrounds[] = {&positive_token};
+    const ProbToken *backgrounds[] = {&negative_token, &background_token};
     positive_token.pool_size = pool_total_tokens(positive_pool);
     negative_token.pool_size = pool_total_tokens(negative_pool);
     background_token.pool_size = pool_total_tokens(background);
@@ -97,7 +97,7 @@ const Classifier precompute(const TrainedClassifier tc, const Pool background) {
       positive_token.token_count = pool_token_frequency(positive_pool, working_token.id);
       negative_token.token_count = pool_token_frequency(negative_pool, working_token.id);
       double prob = probability(foregrounds, 1, backgrounds, 2, fg_total_tokens, bg_total_tokens);
-      const Clue clue = new_clue(working_token.id, prob);
+      const Clue *clue = new_clue(working_token.id, prob);
 
       JLI(clue_p, classifier->clues, working_token.id);
       if (NULL == clue_p) goto classifier_malloc_error;
@@ -116,7 +116,7 @@ const Classifier precompute(const TrainedClassifier tc, const Pool background) {
         background_token.token_count = pool_token_frequency(background, working_token.id);
       
         double prob = probability(foregrounds, 1, backgrounds, 2, fg_total_tokens, bg_total_tokens);
-        Clue clue = new_clue(working_token.id, prob);
+        const Clue *clue = new_clue(working_token.id, prob);
        
         JLI(clue_p, classifier->clues, working_token.id);
         if (NULL == clue_p) goto classifier_malloc_error;
@@ -136,7 +136,7 @@ const Classifier precompute(const TrainedClassifier tc, const Pool background) {
         background_token.token_count = pool_token_frequency(background, working_token.id);
       
         double prob = probability(foregrounds, 1, backgrounds, 2, fg_total_tokens, bg_total_tokens);
-        Clue clue = new_clue(working_token.id, prob);
+        const Clue *clue = new_clue(working_token.id, prob);
        
         JLI(clue_p, classifier->clues, working_token.id);
         if (NULL == clue_p) goto classifier_malloc_error;
@@ -163,17 +163,17 @@ const Classifier precompute(const TrainedClassifier tc, const Pool background) {
  * This method will follow the algorithm pretty closely, for detail see
  * http://spambayes.cvs.sourceforge.net/spambayes/spambayes/spambayes/classifier.py?revision=1.31&view=markup
  */
-const Tagging classify(const Classifier classifier, const Item item) {
+Tagging * classify(const Classifier *classifier, const Item * item) {
   if (NULL == classifier || NULL == item) {
     return NULL;
   }
   
-  Tagging tagging = malloc(sizeof(struct TAGGING));
+  Tagging *tagging = malloc(sizeof(Tagging));
   if (NULL != tagging) {
     tagging->user = cls_user(classifier);
     tagging->tag_name = cls_tag_name(classifier);
     int num_clues;
-    Clue *clues = select_clues(classifier, item, &num_clues);
+    const Clue **clues = select_clues(classifier, item, &num_clues);
     
     if (num_clues > 0) {
       tagging->strength = chi2_combine(clues, num_clues);
@@ -186,7 +186,7 @@ const Tagging classify(const Classifier classifier, const Item item) {
   return tagging;
 }
 
-static double chi2_combine(const Clue *clues, int num_clues) {
+static double chi2_combine(const Clue **clues, int num_clues) {
   // Now we can combine all token scores into an item score
   double h, s;
   int hExp, sExp, i;
@@ -219,8 +219,8 @@ static double chi2_combine(const Clue *clues, int num_clues) {
 }
 
 static int compare_clues(const void *clue1_p, const void *clue2_p) {
-  Clue clue1 = *((Clue*)clue1_p);
-  Clue clue2 = *((Clue*)clue2_p);
+  Clue *clue1 = *((Clue**)clue1_p);
+  Clue *clue2 = *((Clue**)clue2_p);
   double strength_1 = clue_strength(clue1);
   double strength_2 = clue_strength(clue2);
   
@@ -233,7 +233,7 @@ static int compare_clues(const void *clue1_p, const void *clue2_p) {
   }
 }
 
-Clue * select_clues(const Classifier classifier, const Item item, int *num_clues) {
+const Clue ** select_clues(const Classifier * classifier, const Item *item, int *num_clues) {
   Token token;
   int i = 0;
   int num_item_tokens = item_get_num_tokens(item);
@@ -243,81 +243,81 @@ Clue * select_clues(const Classifier classifier, const Item item, int *num_clues
   // which is one per item token. Use calloc so it is effectively
   // NULL terminating the array. This will just hold pointers to
   // the actual clues that are stored in the classifier.
-  Clue *clues = calloc(num_item_tokens, sizeof(Clue));
+  const Clue **clues = calloc(num_item_tokens, sizeof(Clue*));
   
   token.id = 0;
   while (item_next_token(item, &token)) {
-    Clue clue = cls_clue_for(classifier, token.id);
-    if (NULL != clue && MIN_PROB_STRENGTH <= clue_strength(clue)) {
-      clues[i++] = clue;      
+    const Clue *clue = cls_clue_for(classifier, token.id);
+    if (NULL != clue && MIN_PROB_STRENGTH <= clue_strength(clue)) {      
+      clues[i++] = clue;
     }
   }
   
-  qsort(clues, i, sizeof(Clue), compare_clues); 
+  qsort(clues, i, sizeof(Clue*), compare_clues); 
   *num_clues = MIN(i, max_clues);
   return clues;
 }
 
 /**** Trained classifier functions ****/
-const Pool tc_get_positive_pool(const TrainedClassifier tc) {
+const Pool * tc_get_positive_pool(const TrainedClassifier *tc) {
   return tc->positive_pool;
 }
 
-const Pool tc_get_negative_pool(const TrainedClassifier tc) {
+const Pool * tc_get_negative_pool(const TrainedClassifier *tc) {
   return tc->negative_pool;
 }
 
-const char * tc_get_user(const TrainedClassifier tc) {
+const char * tc_get_user(const TrainedClassifier *tc) {
   return tc->user;
 }
 
-const char * tc_get_tag_name(const TrainedClassifier tc) {
+const char * tc_get_tag_name(const TrainedClassifier *tc) {
   return tc->tag_name;
 }
 
-void tc_free(TrainedClassifier tc) {
+void tc_free(TrainedClassifier *tc) {
   free_pool(tc->positive_pool);
   free_pool(tc->negative_pool);
   free(tc);
 }
 
 /***** Classifier Functions *****/
-const char * cls_tag_name(const Classifier cls) {
+const char * cls_tag_name(const Classifier *cls) {
   return cls->tag_name;
 }
 
-const char * cls_user(const Classifier cls) {
+const char * cls_user(const Classifier *cls) {
   return cls->user;
 }
 
-int cls_num_clues(const Classifier cls) {
+int cls_num_clues(const Classifier *cls) {
   Word_t count;
   JLC(count, cls->clues, 0, -1);
   return count;
 }
 
-const Clue cls_clue_for(const Classifier cls, int token_id) {
-  Clue clue = NULL;
+const Clue * cls_clue_for(const Classifier *cls, int token_id) {
+  Clue *clue = NULL;
   PWord_t clue_p;
   JLG(clue_p, cls->clues, token_id);
   if (NULL != clue_p) {
-    clue = (Clue)(*clue_p);
+    clue = (Clue*)(*clue_p);
   }
   return clue;
 }
 
-double cls_probability_for(const Classifier cls, int token_id) {
+double cls_probability_for(const Classifier *cls, int token_id) {
   double probability = UNKNOWN_WORD_PROB;
   PWord_t clue_p;
   JLG(clue_p, cls->clues, token_id);
   if (NULL != clue_p) {
-    Clue clue = (Clue)(*clue_p);
+    Clue *clue = (Clue*)(*clue_p);
     probability = clue_probability(clue);
   }
   return probability;
 }
 
-void free_classifier(Classifier cls) {
+void free_classifier(Classifier *cls) {
   if (NULL != cls) {
     if (cls->clues) {
       PWord_t clue;
@@ -325,7 +325,7 @@ void free_classifier(Classifier cls) {
       Word_t bytes_freed;
       JLF(clue, cls->clues, index);
       while (NULL != clue) {
-        free((Clue)(*clue));
+        free((Clue*)(*clue));
         JLN(clue, cls->clues, index);
       }
       JLFA(bytes_freed, cls->clues);
@@ -335,8 +335,8 @@ void free_classifier(Classifier cls) {
 }
 
 /*** "Private" functions ***/
-double probability(const ProbToken foregrounds[], int n_fg,
-                  const ProbToken backgrounds[], int n_bg,
+double probability(const ProbToken *foregrounds[], int n_fg,
+                  const ProbToken *backgrounds[], int n_bg,
                   int fg_total_tokens, int bg_total_tokens) {
   
   double probability = UNKNOWN_WORD_PROB;
@@ -362,7 +362,7 @@ double probability(const ProbToken foregrounds[], int n_fg,
 }
 
 
-void compute_ratios(const ProbToken token_prob[], int size, double *ratios) {
+void compute_ratios(const ProbToken *token_prob[], int size, double *ratios) {
   int i;
   for (i = 0; i < size; i++) {
     if (token_prob[i]->pool_size > 0) {
@@ -386,8 +386,8 @@ void compute_ratios(const ProbToken token_prob[], int size, double *ratios) {
  * N is computed by summing each token count multiplied by the size of all the 
  * other pools, divided by the size of the pool the token count came from.
  */
-double compute_n(const ProbToken foregrounds[], int n_fg, 
-                 const ProbToken backgrounds[], int n_bg, 
+double compute_n(const ProbToken *foregrounds[], int n_fg, 
+                 const ProbToken *backgrounds[], int n_bg, 
                  double fg_total_tokens, double bg_total_tokens) {
   int i;
   double fg_ns[n_fg];

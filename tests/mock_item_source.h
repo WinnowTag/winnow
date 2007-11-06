@@ -10,14 +10,14 @@
 #endif
 #include "../src/item.h"
 
-static ItemSource is;
+static ItemSource *is;
 
-static Item item_1;
-static Item item_2;
-static Item item_3;
-static Item item_4;
+static Item *item_1;
+static Item *item_2;
+static Item *item_3;
+static Item *item_4;
 
-static Item fake_item_source(const void* ignore, const int item_id) {
+static Item * fake_item_source(const void* ignore, const int item_id) {
   switch (item_id) {
     case 1:
       return item_1;
@@ -43,7 +43,7 @@ static void setup_mock_item_source(void) {
   item_3 = create_item_with_tokens(3, tokens_3, 2);
   item_4 = create_item_with_tokens(4, tokens_4, 3);
   
-  is = malloc(sizeof(struct ITEMSOURCE));
+  is = malloc(sizeof(ItemSource));
   is->fetch_func = fake_item_source;
   is->fetch_func_state = NULL;
 }

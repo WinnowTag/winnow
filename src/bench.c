@@ -19,10 +19,10 @@
 
 void do_classification(void *nothing);
 
-ItemSource is;
-Samples samples;
-Pool random_background;
-TagList tags;
+ItemSource *is;
+Samples *samples;
+Pool *random_background;
+TagList *tags;
 int num_tags;
 int current_tag;
 int threads_that_did_work = 0;
@@ -89,7 +89,7 @@ int main(int argc, char ** argv) {
   
   free_taglist(tags);
   free_pool(random_background);
-  const Item *items = sample_items(samples);
+  Item **items = sample_items(samples);
   
   for (i = 0; i < sample_size; i++) {
     free_item(items[i]);
@@ -109,26 +109,26 @@ void do_classification(void *nothing) {
   while (current_tag <= num_tags) {
     did_work = 1;
     pthread_mutex_lock(&mutex);
-    Tag tag = taglist_tag_at(tags, current_tag);
+    const Tag *tag = taglist_tag_at(tags, current_tag);
     current_tag++;
     pthread_mutex_unlock(&mutex);
     
     double train_start = now();
-    TrainedClassifier trained = train(tag, is);
+    TrainedClassifier *trained = train(tag, is);
     double train_end = now();
     _training += (train_end - train_start);
     
-    Classifier classifier = precompute(trained, random_background);
+    Classifier *classifier = precompute(trained, random_background);
     double precompute_end = now();
     _precomputing += (precompute_end - train_end);
     
-    const Item *items = sample_items(samples);
+    Item **items = sample_items(samples);
     const int sample_size = sample_size(samples);
     int i;
 
     double cls_start = now();
     for (i = 0; i < sample_size; i++) {
-      Tagging tagging = classify(classifier, items[i]);
+      Tagging *tagging = classify(classifier, items[i]);
       //fprintf(stderr, "%s,%i,%.9f\n", tagging->tag_name, item_get_id(items[i]), tagging->strength);    
       free(tagging);
     }

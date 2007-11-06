@@ -9,8 +9,8 @@
 #include "stdio.h"
 #include "logging.h"
 
-Samples load_samples(const ItemSource is, const char *filename) {
-  Samples samples = malloc(sizeof(struct SAMPLES));
+Samples * load_samples(const ItemSource *is, const char *filename) {
+  Samples *samples = malloc(sizeof(Samples));
   if (NULL != samples) {
     FILE *file = fopen(filename, "r");
     if (NULL != file) {
@@ -24,7 +24,7 @@ Samples load_samples(const ItemSource is, const char *filename) {
       
       J1C(samples->size, item_list, 0, -1);
       
-      samples->items = malloc(sizeof(Item) * samples->size);
+      samples->items = malloc(sizeof(Item*) * samples->size);
       int i = 0;
       item_id = 0;
       J1F(rc_word, item_list, item_id);
@@ -39,7 +39,7 @@ Samples load_samples(const ItemSource is, const char *filename) {
   return samples;
 }
 
-void free_samples(Samples samples) {
+void free_samples(Samples *samples) {
   free(samples->items);
   free(samples);
 }

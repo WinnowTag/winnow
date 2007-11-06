@@ -11,6 +11,6 @@
 #include "pool.h"
 #include "item.h"
 
-Pool create_random_background_from_file (const ItemSource, const char * file);
+Pool * create_random_background_from_file (const ItemSource*, const char * file);
 
 #endif

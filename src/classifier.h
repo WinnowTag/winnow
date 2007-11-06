@@ -54,52 +54,52 @@
 typedef struct TRAINED_CLASSIFIER {
   const char * user;
   const char * tag_name;
-  Pool positive_pool;
-  Pool negative_pool;
-} *TrainedClassifier;
+  Pool *positive_pool;
+  Pool *negative_pool;
+} TrainedClassifier;
   
 typedef struct CLASSIFIER {
   const char * user;
   const char * tag_name;
   Pvoid_t clues;
-} *Classifier;
+} Classifier;
 
 typedef struct PROB_TOKEN {
   int token_count;
   int pool_size;
-} *ProbToken;
+} ProbToken;
 
 typedef struct TAGGING {
   const char * user;
   const char * tag_name;
   double strength;
-} *Tagging;
+} Tagging;
 
-const TrainedClassifier    train       (const Tag tag, const ItemSource is);
-const Classifier           precompute  (const TrainedClassifier, const Pool random_background);
-const Tagging              classify    (const Classifier classifier, const Item item);
+TrainedClassifier *  train       (const Tag *tag, const ItemSource *is);
+Classifier        *  precompute  (const TrainedClassifier*, const Pool * random_background);
+Tagging           *  classify    (const Classifier *classifier, const Item *item);
 double                     chi2Q       (double x, int v);
 
-/** Only in header for test - shouldn't actual use it */
-Clue *                     select_clues(const Classifier, const Item, int *num_clues);
-double                     probability (const ProbToken foreground[], int n_pos,
-                                        const ProbToken background[], int n_neg,
+/** Only in header for testing - shouldn't actual use it */
+const Clue **              select_clues(const Classifier*, const Item*, int *num_clues);
+double                     probability (const ProbToken *foreground[], int n_pos,
+                                        const ProbToken *background[], int n_neg,
                                         int fg_size, int bg_size);
 
 /**** Functions for handling TrainedClassifiers  ****/
-const char *  tc_get_tag_name       (const TrainedClassifier tc);
-const char *  tc_get_user           (const TrainedClassifier tc);
-const Pool    tc_get_positive_pool  (const TrainedClassifier tc);
-const Pool    tc_get_negative_pool  (const TrainedClassifier tc);
-void          tc_free               (TrainedClassifier tc);
+const char *  tc_get_tag_name       (const TrainedClassifier *tc);
+const char *  tc_get_user           (const TrainedClassifier *tc);
+const Pool *  tc_get_positive_pool  (const TrainedClassifier *tc);
+const Pool *  tc_get_negative_pool  (const TrainedClassifier *tc);
+void          tc_free               (TrainedClassifier *tc);
 
 /**** Functions for handling Classifiers ****/
-int           cls_num_clues         (const Classifier c);
-double        cls_probability_for   (const Classifier c, int token_id);
-const Clue    cls_clue_for          (const Classifier c, int token_id);
-const char *  cls_tag_name          (const Classifier c);
-const char *  cls_user              (const Classifier c);
-void          free_classifier       (Classifier c);
+int           cls_num_clues         (const Classifier *c);
+double        cls_probability_for   (const Classifier *c, int token_id);
+const Clue *  cls_clue_for          (const Classifier *c, int token_id);
+const char *  cls_tag_name          (const Classifier *c);
+const char *  cls_user              (const Classifier *c);
+void          free_classifier       (Classifier *c);
 
 /*** Macros for taggings ***/
 #define tagging_tag_name(tagging) tagging->tag_name

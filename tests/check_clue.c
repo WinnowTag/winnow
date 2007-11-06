@@ -10,7 +10,7 @@
 #include "assertions.h"
 
 START_TEST (create_clue_from_token_id_and_prob) {
-  Clue clue = new_clue(1234, 0.95);
+  Clue *clue = new_clue(1234, 0.95);
   assert_not_null(clue);
   assert_equal(1234, clue_token_id(clue));
   assert_equal_f(0.95, clue_probability(clue));

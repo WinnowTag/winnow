@@ -12,21 +12,21 @@
 #include <string.h>
 
 static int build_tagging_path(const char *, const char *, char *, int);
-static int read_tagging_file(TagList taglist, const char *, const char *);
-static Tag add_tag(TagList, const char *, const char *);
+static int read_tagging_file(TagList* taglist, const char *, const char *);
+static Tag * add_tag(TagList*, const char *, const char *);
 static int * fill_example_array(Pvoid_t tag_examples, int size);
-static int tag_add_example(Tag tag, int example, float strength);
+static int tag_add_example(Tag *tag, int example, float strength);
 
 
-TagList load_tags_from_file(const char * corpus, const char * user) {
-  TagList taglist;
+TagList * load_tags_from_file(const char * corpus, const char * user) {
+  TagList *taglist;
   char tagging_path[MAXPATHLEN];
   
   if (build_tagging_path(corpus, user, tagging_path, MAXPATHLEN)) {
     return NULL;
   }
   
-  taglist = malloc(sizeof(struct TAGLIST));
+  taglist = malloc(sizeof(TagList));
   if (NULL != taglist) {
     taglist->tags = NULL;
     
@@ -39,33 +39,33 @@ TagList load_tags_from_file(const char * corpus, const char * user) {
   return taglist;
 }
 
-Tag taglist_tag_at(TagList taglist, int index) {
-  Tag tag = NULL;
+const Tag * taglist_tag_at(const TagList *taglist, int index) {
+  Tag *tag = NULL;
   PWord_t tag_pointer;
   Word_t J_index;
   
   JLBC(tag_pointer, taglist->tags, index, J_index);
   if (NULL != tag_pointer) {
-    tag = (Tag)(*tag_pointer);
+    tag = (Tag*)(*tag_pointer);
   }
   
   return tag;
 }
 
-int taglist_size(TagList taglist) {
+int taglist_size(const TagList *taglist) {
   Word_t count;
   JLC(count, taglist->tags, 0, -1);
   return count;
 }
 
-void free_taglist(TagList taglist) {
+void free_taglist(TagList *taglist) {
   Word_t bytes_freed;
   PWord_t tag_pointer;
   Word_t index;
   
   JLF(tag_pointer, taglist->tags, index);
   while (NULL != tag_pointer) {
-    Tag tag = (Tag)(*tag_pointer);
+    Tag *tag = (Tag*)(*tag_pointer);
     free_tag(tag);
     JLN(tag_pointer, taglist->tags, index);
   }
@@ -78,8 +78,8 @@ void free_taglist(TagList taglist) {
  * Tag functions
  */
  
-Tag create_tag(const char * user, const char * tag_name) {
-  Tag tag = malloc(sizeof(struct TAG));
+Tag * create_tag(const char * user, const char * tag_name) {
+  Tag *tag = malloc(sizeof(Tag));
   if (NULL != tag) {
     tag->positive_examples = NULL;
     tag->negative_examples = NULL;
@@ -103,7 +103,7 @@ Tag create_tag(const char * user, const char * tag_name) {
     return NULL;
 }
 
-void free_tag(Tag tag) {
+void free_tag(Tag *tag) {
   if (tag) {
     if (tag->user)     free(tag->user);
     if (tag->tag_name) free(tag->tag_name);
@@ -111,21 +111,21 @@ void free_tag(Tag tag) {
   }
 }
 
-const char * tag_user(Tag tag) {
+const char * tag_user(const Tag *tag) {
   return tag->user;
 }
 
-const char * tag_tag_name(Tag tag) {
+const char * tag_tag_name(const Tag * tag) {
   return tag->tag_name;
 }
 
-int tag_positive_examples_size(Tag tag) {
+int tag_positive_examples_size(const Tag * tag) {
   Word_t count;
   J1C(count, tag->positive_examples, 0, -1);
   return count;
 }
 
-int tag_negative_examples_size(Tag tag) {
+int tag_negative_examples_size(const Tag * tag) {
   Word_t count;
   J1C(count, tag->negative_examples, 0, -1);
   return count;
@@ -135,7 +135,7 @@ int tag_negative_examples_size(Tag tag) {
  *
  *  The array must be freed by the caller.
  */
-int * tag_positive_examples(Tag tag) {
+int * tag_positive_examples(const Tag * tag) {
   int * examples = NULL;
   int size = tag_positive_examples_size(tag);
   
@@ -150,7 +150,7 @@ int * tag_positive_examples(Tag tag) {
  *
  *  The array must be freed by the caller.
  */
-int * tag_negative_examples(Tag tag) {
+int * tag_negative_examples(const Tag * tag) {
   int * examples = NULL;
   int size = tag_negative_examples_size(tag);
   
@@ -181,7 +181,7 @@ int * fill_example_array(Pvoid_t tag_examples, int size) {
   return examples;
 }
 
-int tag_add_example(Tag tag, int example, float strength) {
+int tag_add_example(Tag *tag, int example, float strength) {
   int failure = false;
   
   if (strength == 1.0) {
@@ -215,7 +215,7 @@ int build_tagging_path(const char * corpus, const char * user, char * buffer, in
   return return_code;
 }
 
-int read_tagging_file(TagList taglist, const char * user, const char * filename) {
+int read_tagging_file(TagList *taglist, const char * user, const char * filename) {
   int failure = false;
   FILE *file;
   
@@ -230,7 +230,7 @@ int read_tagging_file(TagList taglist, const char * user, const char * filename)
     float strength;
      
     while (EOF != fscanf(file, "%255[^,],%d,%f\n", tag_name, &item_id, &strength)) {
-      Tag tag = add_tag(taglist, user, tag_name);
+      Tag *tag = add_tag(taglist, user, tag_name);
       if (NULL == tag) {
         failure = true;
         break;
@@ -246,14 +246,14 @@ int read_tagging_file(TagList taglist, const char * user, const char * filename)
   return failure;
 }
 
-Tag add_tag(TagList taglist, const char * user, const char * tag_name) {
-  Tag tag = NULL;
+Tag *add_tag(TagList *taglist, const char * user, const char * tag_name) {
+  Tag *tag = NULL;
   Word_t index = 0;
   PWord_t tag_pointer;
   
   JLF(tag_pointer, taglist->tags, index);
   while (NULL != tag_pointer) {
-    Tag temp_tag = (Tag)*tag_pointer;
+    Tag *temp_tag = (Tag*)(*tag_pointer);
     if ((0 == strcmp(temp_tag->tag_name, tag_name)) && (0 == strcmp(temp_tag->user, user))) {
       tag = temp_tag;
       break;

@@ -12,13 +12,13 @@
 
 typedef struct SAMPLES {
   int size;
-  Item *items;
-} *Samples;
+  Item **items;
+} Samples;
 
 #define sample_size(s) s->size
 #define sample_items(s) s->items;
 
-Samples       load_samples (const ItemSource is, const char * filename);
-void          free_samples (Samples samples);
+Samples   *   load_samples (const ItemSource *is, const char * filename);
+void          free_samples (Samples *samples);
 
 #endif /* _SAMPLES_H_ */

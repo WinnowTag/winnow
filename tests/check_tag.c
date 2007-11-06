@@ -11,7 +11,7 @@
 #include "../src/tag.h"
 
 START_TEST (loads_right_number_of_tags) {
-  TagList tags = load_tags_from_file("fixtures", "user");
+  TagList *tags = load_tags_from_file("fixtures", "user");
   assert_not_null(tags);
   assert_equal(2, taglist_size(tags));
   free_taglist(tags);
@@ -19,13 +19,12 @@ START_TEST (loads_right_number_of_tags) {
 
 START_TEST (all_tags_have_user_name_set) {
   int i;
-  Tag tag;
-  TagList tags = load_tags_from_file("fixtures", "user");
+  TagList *tags = load_tags_from_file("fixtures", "user");
   assert_not_null(tags);
   assert_equal(2, taglist_size(tags));
   
   for (i = 1; i <= 2; i++) {
-    tag = taglist_tag_at(tags, i);
+    const Tag *tag = taglist_tag_at(tags, i);
     assert_not_null(tag);
     assert_equal_s("user", tag_user(tag));
   }
@@ -34,10 +33,8 @@ START_TEST (all_tags_have_user_name_set) {
 } END_TEST
 
 START_TEST (tags_have_tag_set) {
-  Tag tag;
-  TagList tags = load_tags_from_file("fixtures", "user");
-  
-  tag = taglist_tag_at(tags, 1);
+  TagList *tags = load_tags_from_file("fixtures", "user");  
+  const Tag *tag = taglist_tag_at(tags, 1);
   assert_not_null(tag);
   assert_equal_s("tag1", tag_tag_name(tag));
 
@@ -50,9 +47,8 @@ START_TEST (tags_have_tag_set) {
 
 START_TEST (tag_negative_examples_test) {
   int *negative_examples;
-  Tag tag;
-  TagList tags = load_tags_from_file("fixtures", "user");
-  tag = taglist_tag_at(tags, 1);
+  TagList *tags = load_tags_from_file("fixtures", "user");
+  const Tag *tag = taglist_tag_at(tags, 1);
   
   assert_equal(1, tag_negative_examples_size(tag));
   negative_examples = tag_negative_examples(tag);
@@ -63,9 +59,8 @@ START_TEST (tag_negative_examples_test) {
 
 START_TEST (tag_positive_examples_test) {
   int *positive;
-  Tag tag;
-  TagList tags = load_tags_from_file("fixtures", "user");
-  tag = taglist_tag_at(tags, 1);
+  TagList *tags = load_tags_from_file("fixtures", "user");
+  const Tag *tag = taglist_tag_at(tags, 1);
   
   assert_equal(2, tag_positive_examples_size(tag));
   positive = tag_positive_examples(tag);

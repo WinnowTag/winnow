@@ -15,15 +15,15 @@
 #endif
 
 /* Some prototypes */
-static int item_set_path(Item item, const char * itempath);
-static int read_token_file(Item item, const char * itempath);
-static int JudyInsert(Item item, int id, int frequency);
+static int item_set_path(Item *item, const char * itempath);
+static int read_token_file(Item *item, const char * itempath);
+static int JudyInsert(Item *item, int id, int frequency);
 static int build_item_path(const char * corpus, int item, char * buffer, int size);
-static int load_tokens_from_array(Item item, int tokens[][2], int num_tokens);
+static int load_tokens_from_array(Item *item, int tokens[][2], int num_tokens);
 
 /*** ItemSource functions ***/
-ItemSource create_file_item_source(const char * corpus) {
-  ItemSource is = malloc(sizeof(struct ITEMSOURCE));
+ItemSource * create_file_item_source(const char * corpus) {
+  ItemSource *is = malloc(sizeof(ItemSource));
   if (NULL != is) {
     is->fetch_func = create_item_from_file;
     is->fetch_func_state = corpus;
@@ -32,19 +32,19 @@ ItemSource create_file_item_source(const char * corpus) {
   return is;
 }
 
-Item is_fetch_item(const ItemSource is, const int item_id) {
+Item * is_fetch_item(const ItemSource *is, const int item_id) {
   return is->fetch_func(is->fetch_func_state, item_id);
 }
 
-void free_item_source(ItemSource is) {
+void free_item_source(ItemSource *is) {
   free(is);
 }
 
 /*** Item creation functions ***/
-Item create_item(int id) {
-  Item item;
+Item * create_item(int id) {
+  Item *item;
   
-  item = malloc(sizeof(struct ITEM));
+  item = malloc(sizeof(Item));
   if (NULL != item) {      
     int error = 0;
     int i;
@@ -57,10 +57,8 @@ Item create_item(int id) {
   return item;
 }
 
-Item create_item_with_tokens(int id, int tokens[][2], int num_tokens) {
-  Item item;
-  
-  item = create_item(id);
+Item * create_item_with_tokens(int id, int tokens[][2], int num_tokens) {
+  Item *item = create_item(id);
   if (NULL != item) {  
     if (load_tokens_from_array(item, tokens, num_tokens)) {
       free_item(item);
@@ -71,8 +69,9 @@ Item create_item_with_tokens(int id, int tokens[][2], int num_tokens) {
   return item;
 }
 
-Item create_item_from_file(char * corpus, int item_id) {
-  Item item;  
+Item * create_item_from_file(const void * state, const int item_id) {
+  char * corpus = (char * ) state;
+  Item *item;  
   char itempath[MAXPATHLEN];
   int itempath_length;
   
@@ -98,21 +97,21 @@ Item create_item_from_file(char * corpus, int item_id) {
 
 /*** Item functions ***/
 
-int item_get_id(Item item) {
+int item_get_id(const Item * item) {
   return item->id;
 }
 
-int item_get_num_tokens(Item item) {
+int item_get_num_tokens(const Item * item) {
   Word_t count;
   JLC(count, item->tokens, 0, -1);
   return (int) count;
 }
 
-int item_get_total_tokens(Item item) {
+int item_get_total_tokens(const Item * item) {
   return item->total_tokens;
 }
 
-int item_get_token(Item item, int token_id, Token_p token) {
+int item_get_token(const Item * item, int token_id, Token_p token) {
   Word_t * frequency;
   JLG(frequency, item->tokens, token_id);
   
@@ -126,11 +125,11 @@ int item_get_token(Item item, int token_id, Token_p token) {
   return 0;
 }
 
-char * item_get_path(Item item) {
+char * item_get_path(const Item * item) {
   return item->path;
 }
 
-int item_next_token(Item item, Token_p token) {
+int item_next_token(const Item * item, Token_p token) {
   int success = true;  
   PWord_t frequency = NULL;
   Word_t  token_id = token->id;
@@ -155,7 +154,7 @@ int item_next_token(Item item, Token_p token) {
   return success;
 }
 
-void free_item(Item item) {
+void free_item(Item *item) {
   if (NULL != item) {
     free(item->path);
     int freed_bytes;
@@ -191,7 +190,7 @@ int build_item_path(const char * corpus, int item_id, char * buffer, int length)
   return return_code;
 }
 
-int read_token_file(Item item, const char * itempath) {
+int read_token_file(Item *item, const char * itempath) {
   int return_code = 0;
   FILE *token_file;  
 
@@ -237,7 +236,7 @@ int read_token_file(Item item, const char * itempath) {
   return return_code;
 }
 
-int load_tokens_from_array(Item item, int tokens[][2], int num_tokens) {
+int load_tokens_from_array(Item *item, int tokens[][2], int num_tokens) {
   int i;
   int return_code = 0;
   for (i = 0; i < num_tokens; i++) {
@@ -254,7 +253,7 @@ int load_tokens_from_array(Item item, int tokens[][2], int num_tokens) {
   return return_code;
 }
 
-int JudyInsert(Item item, int id, int token_frequency) {
+int JudyInsert(Item *item, int id, int token_frequency) {
   int return_code = 0;  
   Word_t token_id;
   Word_t * token_frequency_p;
@@ -272,7 +271,7 @@ int JudyInsert(Item item, int id, int token_frequency) {
   return return_code;
 }
 
-int item_set_path(Item item, const char * itempath) {  
+int item_set_path(Item *item, const char * itempath) {  
   int return_code = 0;
   int itempath_length;
   

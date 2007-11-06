@@ -8,8 +8,8 @@
 #include "pool.h"
 #include "misc.h"
 
-Pool new_pool(void) {
-  Pool pool = malloc(sizeof(struct POOL));
+Pool * new_pool(void) {
+  Pool *pool = malloc(sizeof(Pool));
   if (NULL != pool) {
     pool->total_tokens = 0;
     pool->tokens = NULL;
@@ -17,7 +17,7 @@ Pool new_pool(void) {
   return pool;
 }
 
-void free_pool(Pool pool) {
+void free_pool(Pool *pool) {
   if (NULL != pool) {
     Word_t bytes_freed;
     JLFA(bytes_freed, pool->tokens);
@@ -26,7 +26,7 @@ void free_pool(Pool pool) {
 }
 
 /** Not Re-entrant */
-int pool_add_item(Pool pool, Item item) {
+int pool_add_item(Pool *pool, const Item *item) {
   int success = true;
   Token token;
   token.id = 0;
@@ -53,12 +53,12 @@ int pool_add_item(Pool pool, Item item) {
 }
 
 /** Not Re-entrant */
-int pool_add_items(Pool pool, const int items[], int size, const ItemSource is) {
+int pool_add_items(Pool *pool, const int items[], int size, const ItemSource *is) {
   int success = true;
   int i;
   
   for (i = 0; i < size; i++) {
-    Item item = is_fetch_item(is, items[i]);
+    Item *item = is_fetch_item(is, items[i]);
     if (NULL != item) {
       pool_add_item(pool, item);
     } else {
@@ -69,7 +69,7 @@ int pool_add_items(Pool pool, const int items[], int size, const ItemSource is) 
   return true;
 }
 
-int pool_num_tokens(Pool pool) {
+int pool_num_tokens(const Pool *pool) {
   int num_tokens = 0;
   if (NULL != pool) {
     JLC(num_tokens, pool->tokens, 0, -1);
@@ -77,7 +77,7 @@ int pool_num_tokens(Pool pool) {
   return num_tokens;
 }
 
-int pool_total_tokens(Pool pool) {
+int pool_total_tokens(const Pool *pool) {
   int total_tokens = 0;
   if (NULL != pool) {
     total_tokens = pool->total_tokens;
@@ -85,7 +85,7 @@ int pool_total_tokens(Pool pool) {
   return total_tokens;
 }
 
-int pool_token_frequency(Pool pool, int token_id) {
+int pool_token_frequency(const Pool *pool, int token_id) {
   int frequency = 0;
   PWord_t frequency_p;
   JLG(frequency_p, pool->tokens, token_id);
@@ -97,7 +97,7 @@ int pool_token_frequency(Pool pool, int token_id) {
   return frequency;
 }
 
-int pool_next_token(Pool pool, Token_p token) {
+int pool_next_token(const Pool *pool, Token_p token) {
   int success = true;
   PWord_t frequency = NULL;
   Word_t token_id = token->id;

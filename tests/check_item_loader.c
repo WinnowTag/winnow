@@ -16,7 +16,7 @@
 #endif
 
 START_TEST (check_item_creation) {
-  Item item;
+  Item *item;
   Token token;
   int tokens[][2] = {1,2,3,4};
   
@@ -38,23 +38,19 @@ START_TEST (check_item_creation) {
 } END_TEST
 
 START_TEST (check_item_id) {
-  Item item;
-  
-  item = create_item_from_file(CORPUS, 1234);
+  Item *item = create_item_from_file(CORPUS, 1234);
   assert_equal(1234, item_get_id(item));
   free_item(item);
 } END_TEST
 
 START_TEST (check_item_total_tokens) {
-  Item item;
-  
-  item = create_item_from_file(CORPUS, 1234);
+  Item *item = create_item_from_file(CORPUS, 1234);
   assert_equal(125, item_get_total_tokens(item));
   free_item(item);
 } END_TEST
 
 START_TEST (check_token_count) {
-  Item item;
+  Item *item;
   Token token;
   int get_token_return;
   
@@ -69,7 +65,7 @@ START_TEST (check_token_count) {
 } END_TEST
 
 START_TEST (check_nonexistant_token_returns_0) {
-  Item item;
+  Item *item;
   Token token;
   int get_token_return;
   
@@ -84,7 +80,7 @@ START_TEST (check_nonexistant_token_returns_0) {
 } END_TEST
 
 START_TEST (item_path_too_long) {
-  Item item;
+  Item *item;
   int i;
   char corpus[1024];
   corpus[0] = '\0';
@@ -97,14 +93,12 @@ START_TEST (item_path_too_long) {
 } END_TEST
 
 START_TEST (missing_item) {
-  Item item;
-  item = create_item_from_file(CORPUS, 123456);
+  Item *item = create_item_from_file(CORPUS, 123456);
   assert_null(item);
 } END_TEST
 
 START_TEST (check_item_path) {
-  Item item;
-  item = create_item_from_file(CORPUS, 1234);
+  Item *item = create_item_from_file(CORPUS, 1234);
   assert_equal_s("fixtures/1234.tokens", item_get_path(item));
   free_item(item);
 } END_TEST
@@ -114,7 +108,7 @@ START_TEST (passing_null_to_free_item_doesnt_crash) {
 } END_TEST
 
 START_TEST (check_token_iterator) {
-  Item item;
+  Item *item;
   Token token;
   token.id = 0;
   int tokens[][2] = {1,2,3,4};
@@ -148,9 +142,9 @@ START_TEST (iterate_over_null_item_doesnt_crash) {
 
 /***** Item Source Test *****/
 START_TEST (setup_item_source) {
-  ItemSource source = create_file_item_source("fixtures");
+  ItemSource *source = create_file_item_source("fixtures");
   assert_not_null(source);
-  Item item = is_fetch_item(source, 1234);
+  Item *item = is_fetch_item(source, 1234);
   assert_not_null(item);
   assert_equal(1234, item_get_id(item));
 } END_TEST
