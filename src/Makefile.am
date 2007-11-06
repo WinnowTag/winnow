@@ -9,7 +9,8 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            random_background.h       \
                            clue.h clue.c             \
                            samples.c samples.h       \
-                           job_queue.c job_queue.h
+                           job_queue.c job_queue.h   \
+                           cls_config.c cls_config.h
 bin_PROGRAMS = cls_bench
 cls_bench_SOURCES = bench.c
 cls_bench_LDADD = libclassifier.la

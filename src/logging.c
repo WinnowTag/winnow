@@ -12,6 +12,16 @@
 #include <stdarg.h>
 #endif
 
+void fatal(const char *fmt, ...) {
+  va_list argp;
+	fprintf(stderr, "fatal: ");
+	va_start(argp, fmt);
+	vfprintf(stderr, fmt, argp);
+	va_end(argp);
+	fprintf(stderr, "\n");
+  exit(1);
+}
+
 void error(const char *fmt, ...) {
 	va_list argp;
 	fprintf(stderr, "error: ");
