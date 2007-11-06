@@ -97,11 +97,6 @@ START_TEST (missing_item) {
   assert_null(item);
 } END_TEST
 
-START_TEST (check_item_path) {
-  Item *item = create_item_from_file(CORPUS, 1234);
-  assert_equal_s("fixtures/1234.tokens", item_get_path(item));
-  free_item(item);
-} END_TEST
 
 START_TEST (passing_null_to_free_item_doesnt_crash) {
   free_item(NULL);
@@ -160,7 +155,6 @@ item_suite(void) {
   tcase_add_test(tc_item_loader, check_item_id);
   tcase_add_test(tc_item_loader, item_path_too_long);
   tcase_add_test(tc_item_loader, missing_item);
-  tcase_add_test(tc_item_loader, check_item_path);
   tcase_add_test(tc_item_loader, check_item_creation);
   tcase_add_test(tc_item_loader, check_nonexistant_token_returns_0);
   tcase_add_test(tc_item_loader, passing_null_to_free_item_doesnt_crash);

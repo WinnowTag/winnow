@@ -16,7 +16,6 @@
 typedef struct ITEM {
   int id;
   int total_tokens;
-  char * path;
   Pvoid_t tokens;
 } Item, *PItem;
 
@@ -46,7 +45,6 @@ extern int    item_get_id             (const Item *item);
 extern int    item_get_total_tokens   (const Item *item);
 extern int    item_get_num_tokens     (const Item *item);
 extern int    item_get_token          (const Item *item, int token_id, Token_p token);
-extern char * item_get_path           (const Item *item);
 extern int    item_next_token         (const Item *item, Token_p token);
 extern void   free_item               (Item *item);
 

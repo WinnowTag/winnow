@@ -15,13 +15,19 @@
 #endif
 
 /* Some prototypes */
-static int item_set_path(Item *item, const char * itempath);
 static int read_token_file(Item *item, const char * itempath);
 static int JudyInsert(Item *item, int id, int frequency);
 static int build_item_path(const char * corpus, int item, char * buffer, int size);
 static int load_tokens_from_array(Item *item, int tokens[][2], int num_tokens);
 
-/*** ItemSource functions ***/
+/******************************************************************************
+ * ItemSource functions 
+ ******************************************************************************/
+ 
+/** Create a File based ItemSource.
+ *
+ *  @param corpus The Corpus directory.
+ */
 ItemSource * create_file_item_source(const char * corpus) {
   ItemSource *is = malloc(sizeof(ItemSource));
   if (NULL != is) {
@@ -32,15 +38,29 @@ ItemSource * create_file_item_source(const char * corpus) {
   return is;
 }
 
+/** Fetch an item from and ItemSource.
+ *
+ *  @param is The item source.
+ *  @param item_id The id of the item.
+ *  @returns The item or NULL.
+ */
 Item * is_fetch_item(const ItemSource *is, const int item_id) {
   return is->fetch_func(is->fetch_func_state, item_id);
 }
 
+/** Free's an ItemSource
+ */
 void free_item_source(ItemSource *is) {
   free(is);
 }
 
-/*** Item creation functions ***/
+/******************************************************************************
+ * Item creation functions 
+ ******************************************************************************/
+ 
+/** Create a empty item.
+ *
+ */
 Item * create_item(int id) {
   Item *item;
   
@@ -50,13 +70,21 @@ Item * create_item(int id) {
     int i;
     item->id = id;
     item->total_tokens = 0;
-    item->path = NULL;
     item->tokens = NULL;
+  } else {
+    fatal("Malloc Error allocating item %d", id);
   }
   
   return item;
 }
 
+/** Create an item from an array of tokens.
+ *
+ *  @param id The id of the item.
+ *  @param tokens A 2D array of tokens where each row is {token_id, frequency}.
+ *  @param num_tokens The length of the token array.
+ *  @returns A new item initialized with the tokens.
+ */
 Item * create_item_with_tokens(int id, int tokens[][2], int num_tokens) {
   Item *item = create_item(id);
   if (NULL != item) {  
@@ -69,6 +97,16 @@ Item * create_item_with_tokens(int id, int tokens[][2], int num_tokens) {
   return item;
 }
 
+/** Create an item from a token file.
+ *
+ *  This is used by a file based ItemSource. Loads an Item from a
+ *  file in the directory. This file should be in the "standard"
+ *  tokenized file format.
+ *
+ *  @param state The directory fo the corpus.
+ *  @param item_id The id of the item.
+ *  @return The item from the file.
+ */
 Item * create_item_from_file(const void * state, const int item_id) {
   char * corpus = (char * ) state;
   Item *item;  
@@ -80,12 +118,7 @@ Item * create_item_from_file(const void * state, const int item_id) {
   }
   
   item = create_item(item_id);
-  if (NULL != item) {    
-    if (item_set_path(item, itempath)) {
-      free_item(item);
-      item = NULL;
-    }
-    
+  if (NULL != item) {
     if (read_token_file(item, itempath)) {
       free_item(item);
       item = NULL;
@@ -95,7 +128,9 @@ Item * create_item_from_file(const void * state, const int item_id) {
   return item;
 }
 
-/*** Item functions ***/
+/***************************************************************************
+ * Item functions 
+ ***************************************************************************/
 
 int item_get_id(const Item * item) {
   return item->id;
@@ -125,10 +160,6 @@ int item_get_token(const Item * item, int token_id, Token_p token) {
   return 0;
 }
 
-char * item_get_path(const Item * item) {
-  return item->path;
-}
-
 int item_next_token(const Item * item, Token_p token) {
   int success = true;  
   PWord_t frequency = NULL;
@@ -156,14 +187,15 @@ int item_next_token(const Item * item, Token_p token) {
 
 void free_item(Item *item) {
   if (NULL != item) {
-    free(item->path);
     int freed_bytes;
     JLFA(freed_bytes, item->tokens);
     free(item);    
   }
 }
 
-/******  "Private" functions ***************/
+/************************************************************************************
+ *  "Private" functions for file-based item source.
+ ************************************************************************************/
 
 int build_item_path(const char * corpus, int item_id, char * buffer, int length) {
   int return_code = 0;
@@ -266,24 +298,6 @@ int JudyInsert(Item *item, int id, int token_frequency) {
     return_code = ERR;
   } else {
     *token_frequency_p = token_frequency;
-  }
-  
-  return return_code;
-}
-
-int item_set_path(Item *item, const char * itempath) {  
-  int return_code = 0;
-  int itempath_length;
-  
-  itempath_length = sizeof(char) * strlen(itempath) + 1;
-  item->path = malloc(itempath_length);
-  
-  if (NULL == item->path) {
-    error("Couldn't malloc item->path");
-    return_code = ERR;
-  } else if (strlcpy(item->path, itempath, itempath_length) >= itempath_length) {
-    error("item->path was too short (%d) for '%s'", itempath_length, itempath);
-    return_code = ERR;
   }
   
   return return_code;
