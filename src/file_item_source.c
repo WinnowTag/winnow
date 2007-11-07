@@ -6,6 +6,7 @@
  * Please contact info@peerworks.org for further information.
  */
 
+#include <string.h>
 #include "file_item_source.h"
 #include "misc.h"
 
@@ -20,7 +21,12 @@ ItemSource * create_file_item_source(const char * corpus) {
   ItemSource *is = malloc(sizeof(ItemSource));
   if (NULL != is) {
     is->fetch_func = create_item_from_file;
-    is->state = corpus;
+    is->state = malloc(strlen(corpus) + 1);
+    if (NULL == is->state) {
+      fatal("Error malloc-ing corpus directory");
+    } else {
+      memcpy(is->state, corpus, strlen(corpus) + 1);
+    }    
   }
   
   return is;

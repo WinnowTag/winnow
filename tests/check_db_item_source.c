@@ -24,17 +24,50 @@ static void setup_config(void) {
 
 static void teardown_config(void) { }
 
+START_TEST (test_fetch_all_items) {
+  ItemSource *is = create_db_item_source(&dbconfig);
+  assert_true(is_alive(is));
+  ItemList *item_list = is_fetch_all_items(is);
+  assert_not_null(item_list);
+  assert_equal(11, item_list_size(item_list));
+  
+  Item *item = item_list_item(item_list, 916470);
+  assert_not_null(item);
+  
+  free_item_list(item_list);
+  free_item_source(is);
+} END_TEST
+
+START_TEST (test_fetch_item) {
+  ItemSource *is = create_db_item_source(&dbconfig);
+  assert_true(is_alive(is));
+  Item *item = is_fetch_item(is, 916470);
+  assert_not_null(item);
+  assert_equal(563, item_get_num_tokens(item));
+  assert_equal(916470, item_get_id(item));
+
+  Token token;
+  item_get_token(item, 85253, &token);
+  assert_equal(85253, token.id);
+  assert_equal(9, token.frequency);
+  
+  free_item(item);
+  free_item_source(is);
+} END_TEST
+
 START_TEST (test_db_item_source_creation) {
   ItemSource *is = create_db_item_source(&dbconfig);
   assert_not_null(is);
   int alive = is_alive(is);
   assert_true(alive);
+  free_item_source(is);
 } END_TEST
 
 START_TEST (broken_config) {
   dbconfig.host = "broken";
   ItemSource *is = create_db_item_source(&dbconfig);
   assert_null(is);
+  free_item_source(is);
 } END_TEST
 
 Suite *
@@ -45,6 +78,8 @@ db_item_source_suite(void) {
 // START_TESTS
   tcase_add_test(tc_case, test_db_item_source_creation);
   tcase_add_test(tc_case, broken_config);
+  tcase_add_test(tc_case, test_fetch_item);
+  tcase_add_test(tc_case, test_fetch_all_items);
 // END_TESTS
 
   suite_add_tcase(s, tc_case);

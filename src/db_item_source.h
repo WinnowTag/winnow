@@ -12,6 +12,7 @@
 #include "cls_config.h"
 #include "item_source.h"
 
-extern ItemSource * create_db_item_source(DBConfig *db_config);
+extern ItemSource * create_db_item_source (DBConfig *db_config);
+extern void         free_db_item_source   (void *state);
 
 #endif /* _DB_ITEM_SOURCE_H_ */
