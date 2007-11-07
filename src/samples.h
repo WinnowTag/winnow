@@ -9,6 +9,7 @@
 #define _SAMPLES_H_
 
 #include "item.h"
+#include "item_source.h"
 
 typedef struct SAMPLES {
   int size;

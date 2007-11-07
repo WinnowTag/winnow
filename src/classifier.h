@@ -11,6 +11,7 @@
 #include "tag.h"
 #include "item.h"
 #include "clue.h"
+#include "item_source.h"
 #include <Judy.h>
 
 // Defines the probability assigned to unknown words.
