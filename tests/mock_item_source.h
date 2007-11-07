@@ -45,7 +45,7 @@ static void setup_mock_item_source(void) {
   
   is = malloc(sizeof(ItemSource));
   is->fetch_func = fake_item_source;
-  is->fetch_func_state = NULL;
+  is->state = NULL;
 }
 
 static void teardown_mock_item_source(void) {

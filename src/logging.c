@@ -14,7 +14,7 @@
 
 void fatal(const char *fmt, ...) {
   va_list argp;
-	fprintf(stderr, "fatal: ");
+	fprintf(stderr, "FATAL: ");
 	va_start(argp, fmt);
 	vfprintf(stderr, fmt, argp);
 	va_end(argp);
@@ -24,7 +24,16 @@ void fatal(const char *fmt, ...) {
 
 void error(const char *fmt, ...) {
 	va_list argp;
-	fprintf(stderr, "error: ");
+	fprintf(stderr, "ERROR: ");
+	va_start(argp, fmt);
+	vfprintf(stderr, fmt, argp);
+	va_end(argp);
+	fprintf(stderr, "\n");
+}
+
+void info(const char *fmt, ...) {
+	va_list argp;
+	fprintf(stderr, "INFO: ");
 	va_start(argp, fmt);
 	vfprintf(stderr, fmt, argp);
 	va_end(argp);
@@ -33,7 +42,7 @@ void error(const char *fmt, ...) {
 
 void debug(const char *fmt, ...) {
 	va_list argp;
-	fprintf(stderr, "debug: ");
+	fprintf(stderr, "DEBUG: ");
 	va_start(argp, fmt);
 	vfprintf(stderr, fmt, argp);
 	va_end(argp);

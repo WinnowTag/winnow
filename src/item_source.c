@@ -19,7 +19,11 @@
  *  @returns The item or NULL.
  */
 Item * is_fetch_item(const ItemSource *is, const int item_id) {
-  return is->fetch_func(is->fetch_func_state, item_id);
+  return is->fetch_func(is->state, item_id);
+}
+
+int is_alive(ItemSource *is) {
+  return is->alive_func(is->state); 
 }
 
 /** Free's an ItemSource

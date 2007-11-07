@@ -20,7 +20,7 @@ ItemSource * create_file_item_source(const char * corpus) {
   ItemSource *is = malloc(sizeof(ItemSource));
   if (NULL != is) {
     is->fetch_func = create_item_from_file;
-    is->fetch_func_state = corpus;
+    is->state = corpus;
   }
   
   return is;

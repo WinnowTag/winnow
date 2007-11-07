@@ -15,12 +15,13 @@
  */
 typedef struct ITEMSOURCE {
   Item* (*fetch_func)(const void*, const int item_id);
-  const void* fetch_func_state;
+  int   (*alive_func)(const void*);
+  const void* state;
 } ItemSource;
 
 /*** Item Source ****/
 extern Item *       is_fetch_item           (const ItemSource *is, const int item_id);
-extern void         free_item_source         (ItemSource *is);
-
+extern void         free_item_source        (ItemSource *is);
+extern int          is_alive                (ItemSource *is);
 
 #endif /* _ITEM_SOURCE_H_ */
