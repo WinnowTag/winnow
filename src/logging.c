@@ -7,6 +7,7 @@
 
 #include "logging.h"
 
+#include <stdlib.h>
 #include <stdio.h>
 #if HAVE_STDARG_H
 #include <stdarg.h>

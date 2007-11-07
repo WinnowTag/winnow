@@ -7,6 +7,7 @@
 
 #include "clue.h"
 #include <stdlib.h>
+#include <math.h>
 
 const Clue * new_clue(int token_id, double probability) {
   Clue *clue = malloc(sizeof(struct CLUE));

@@ -63,17 +63,48 @@ void free_config(Config *config) {
  */
 int cfg_item_db_config(const Config * config, DBConfig *db_config) {
   int success = false;
+  config_setting_t *db_setting = config_lookup(config->config, "db.item");
   
-  if (NULL != config_lookup(config->config, "db.item")) {
-    success = true;
-    db_config->host     = config_lookup_string(config->config, "db.item.host");
-    db_config->user     = config_lookup_string(config->config, "db.item.user");
-    db_config->password = config_lookup_string(config->config, "db.item.password");
-    db_config->database = config_lookup_string(config->config, "db.item.database");
-    db_config->port     = config_lookup_int(config->config, "db.item.port");
+  if (NULL != db_setting) {
+    success = load_db_config(db_setting, db_config);
   } else {
     debug("Missing db.item");
   }
   
   return success;
+}
+
+int cfg_tag_db_config(const Config * config, DBConfig *db_config) {
+  int success = false;
+  config_setting_t *db_setting = config_lookup(config->config, "db.tag");
+  
+  if (NULL != db_setting) {
+    success = load_db_config(db_setting, db_config);
+  } else {
+    debug("Missing db.tag");
+  }
+  
+  return success;
+}
+
+int load_db_config(const config_setting_t *db_setting, DBConfig *db_config) {
+  config_setting_t *setting = NULL;
+  
+  if (setting = config_setting_get_member(db_setting, "host")) {
+    db_config->host = config_setting_get_string(setting);
+  }
+  if (setting = config_setting_get_member(db_setting, "user")) {
+    db_config->user = config_setting_get_string(setting);
+  }
+  if (setting = config_setting_get_member(db_setting, "password")) {
+    db_config->password = config_setting_get_string(setting);
+  }
+  if (setting = config_setting_get_member(db_setting, "database")) {
+    db_config->database = config_setting_get_string(setting);
+  }
+  if (setting = config_setting_get_member(db_setting, "port")) {
+    db_config->port = config_setting_get_int(setting);
+  }
+
+  return true;
 }
