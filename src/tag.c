@@ -13,11 +13,15 @@
 
 static int build_tagging_path(const char *, const char *, char *, int);
 static int read_tagging_file(TagList* taglist, const char *, const char *);
+static Tag * create_tag(const	char *user, const char *tag_name, int, int);
 static Tag * add_tag(TagList*, const char *, const char *);
 static int * fill_example_array(Pvoid_t tag_examples, int size);
 static int tag_add_example(Tag *tag, int example, float strength);
 
-
+/** Load tags from a file
+ *
+ *  Format: tag,item_id,strength
+ */
 TagList * load_tags_from_file(const char * corpus, const char * user) {
   TagList *taglist;
   char tagging_path[MAXPATHLEN];
@@ -39,6 +43,10 @@ TagList * load_tags_from_file(const char * corpus, const char * user) {
   return taglist;
 }
 
+/************************************************************************
+ *  TagList functions
+ ************************************************************************/
+ 
 const Tag * taglist_tag_at(const TagList *taglist, int index) {
   Tag *tag = NULL;
   PWord_t tag_pointer;
@@ -58,6 +66,50 @@ int taglist_size(const TagList *taglist) {
   return count;
 }
 
+/** Adds a tag to a tag list.
+ *
+ *  If the tag is already in the list, that tag is returned.
+ *
+ *  This is a private function that should only be called by tag list creators.
+ */
+Tag *add_tag(TagList *taglist, const char * user, const char * tag_name) {
+  Tag *tag = NULL;
+  Word_t index = 0;
+  PWord_t tag_pointer;
+  
+  JLF(tag_pointer, taglist->tags, index);
+  while (NULL != tag_pointer) {
+    Tag *temp_tag = (Tag*)(*tag_pointer);
+    if ((0 == strcmp(temp_tag->tag_name, tag_name)) && (0 == strcmp(temp_tag->user, user))) {
+      tag = temp_tag;
+      break;
+    } 
+    
+    JLN(tag_pointer, taglist->tags, index);
+  }
+  
+  if (NULL == tag) {
+    tag = create_tag(user, tag_name, -1, -1);
+    
+    if (NULL == tag) {
+      error("Out of memory allocation a tag");
+    } else {
+      Word_t count;
+      JLC(count, taglist->tags, 0, -1);
+      JLI(tag_pointer, taglist->tags, count + 1);
+      if (NULL == tag_pointer) {
+        error("Out of memory on Judy allocation");
+        free(tag);
+        tag = NULL;
+      } else {        
+        *tag_pointer = (Word_t)tag;
+      }
+    }
+  }
+  
+  return tag;
+}
+
 void free_taglist(TagList *taglist) {
   Word_t bytes_freed;
   PWord_t tag_pointer;
@@ -74,13 +126,15 @@ void free_taglist(TagList *taglist) {
   free(taglist);
 }  
 
-/*****************************************
+/*****************************************************************************
  * Tag functions
- */
+ *****************************************************************************/
  
-Tag * create_tag(const char * user, const char * tag_name) {
+Tag * create_tag(const char * user, const char * tag_name, int user_id, int tag_id) {
   Tag *tag = malloc(sizeof(Tag));
   if (NULL != tag) {
+    tag->user_id = user_id;
+    tag->tag_id  = tag_id;
     tag->positive_examples = NULL;
     tag->negative_examples = NULL;
     
@@ -117,6 +171,14 @@ const char * tag_user(const Tag *tag) {
 
 const char * tag_tag_name(const Tag * tag) {
   return tag->tag_name;
+}
+
+int tag_user_id(const Tag * tag) {
+  return tag->user_id;
+}
+
+int tag_tag_id(const Tag * tag) {
+  return tag->tag_id;
 }
 
 int tag_positive_examples_size(const Tag * tag) {
@@ -198,9 +260,10 @@ int tag_add_example(Tag *tag, int example, float strength) {
   return failure;
 }
 
-/*****************************************
- * Private functions
- */
+/*****************************************************************************
+ * Private functions for reading tag definitions from a file.
+ *****************************************************************************/
+
 int build_tagging_path(const char * corpus, const char * user, char * buffer, int length) {
   int return_code = 0;
 
@@ -246,40 +309,105 @@ int read_tagging_file(TagList *taglist, const char * user, const char * filename
   return failure;
 }
 
-Tag *add_tag(TagList *taglist, const char * user, const char * tag_name) {
-  Tag *tag = NULL;
-  Word_t index = 0;
-  PWord_t tag_pointer;
-  
-  JLF(tag_pointer, taglist->tags, index);
-  while (NULL != tag_pointer) {
-    Tag *temp_tag = (Tag*)(*tag_pointer);
-    if ((0 == strcmp(temp_tag->tag_name, tag_name)) && (0 == strcmp(temp_tag->user, user))) {
-      tag = temp_tag;
-      break;
-    } 
-    
-    JLN(tag_pointer, taglist->tags, index);
+/***********************************************************************************
+ *  MySQL based tag source functions 
+ ***********************************************************************************/
+#include <mysql.h>
+#include <errmsg.h>
+
+#define FIND_TAG_STMT "select user_id, name from tags where id = ?" 
+
+struct TAG_DB {
+  MYSQL *mysql;
+  MYSQL_STMT *find_tag_stmt;
+};
+
+TagDB * create_tag_db(DBConfig * config) {
+  info("Creating tag db source (host='%s',user='%s',pass='%s',db='%s')", 
+      config->host, config->user, config->password, config->database);
+  TagDB *tag_db = malloc(sizeof(TagDB));
+  if (NULL != tag_db) {
+    tag_db->mysql = mysql_init(NULL);
+    if (!mysql_real_connect(tag_db->mysql, config->host, config->user, 
+            config->password, config->database, config->port, NULL, 0)) {
+      error("Failed to connect to tag database : %s", mysql_error(tag_db->mysql));      
+      free(tag_db);
+      tag_db = NULL;
+    } else {
+      tag_db->find_tag_stmt = mysql_stmt_init(tag_db->mysql);
+      if (NULL == tag_db->find_tag_stmt) {
+        fatal("Error creating prepared statement: %s", mysql_error(tag_db->mysql));
+      }
+      
+      if (mysql_stmt_prepare(tag_db->find_tag_stmt, FIND_TAG_STMT, strlen(FIND_TAG_STMT))) {
+        fatal("Error preparing hard coded statement: %s : %s", FIND_TAG_STMT, mysql_error(tag_db->mysql));
+      }
+    }
+  } else {
+    fatal("Error malloc'ing TagDB");
   }
   
-  if (NULL == tag) {
-    tag = create_tag(user, tag_name);
+  return tag_db; 
+}
+
+int tag_db_is_alive(const TagDB *tag_db) {
+  return true;
+}
+
+Tag * tag_db_load_tag_by_id(const TagDB *tag_db, int tag_id) {
+  Tag *tag = NULL;
+  if (tag_db && tag_db_is_alive(tag_db)) {
+    MYSQL_BIND bind[1];
+    memset(bind, 0, sizeof(bind));
+    bind[0].buffer_type = MYSQL_TYPE_LONG;
+    bind[0].buffer = (char *) &tag_id;
     
-    if (NULL == tag) {
-      error("Out of memory allocation a tag");
+    if (mysql_stmt_bind_param(tag_db->find_tag_stmt, bind)) goto tag_query_error;
+    if (mysql_stmt_execute(tag_db->find_tag_stmt))          goto tag_query_error;
+    
+    char tag_name[256];
+    long tag_name_length = 0;
+    memset(tag_name, 0, sizeof(tag_name));
+    unsigned long user_id;
+    MYSQL_BIND results[2];
+    memset(results, 0, sizeof(results));
+    results[0].buffer_type = MYSQL_TYPE_LONG;
+    results[0].buffer = (char *) &user_id;
+    results[1].buffer_type = MYSQL_TYPE_VAR_STRING;
+    results[1].buffer = (char *) tag_name;
+    results[1].buffer_length = 256;
+    results[1].length = &tag_name_length;
+   
+    if (mysql_stmt_bind_result(tag_db->find_tag_stmt, results)) goto tag_query_error;
+    if (mysql_stmt_store_result(tag_db->find_tag_stmt))         goto tag_query_error;
+    int stmt_fetch_result = mysql_stmt_fetch(tag_db->find_tag_stmt);
+    if (!stmt_fetch_result) {
+      tag = create_tag("", tag_name, user_id, tag_id);
+    } else if (MYSQL_NO_DATA == stmt_fetch_result) {
+      error("No tag found with id %i", tag_id);
+    } else if (MYSQL_DATA_TRUNCATED == stmt_fetch_result) {
+      error("data was truncated from %i for tag = %i", tag_name_length, tag_id);
     } else {
-      Word_t count;
-      JLC(count, taglist->tags, 0, -1);
-      JLI(tag_pointer, taglist->tags, count + 1);
-      if (NULL == tag_pointer) {
-        error("Out of memory on Judy allocation");
-        free(tag);
-        tag = NULL;
-      } else {        
-        *tag_pointer = (Word_t)tag;
-      }
+      error("tag fetching error %i for %i", stmt_fetch_result, tag_id);
+      goto tag_query_error;
     }
   }
   
+exit:
+  if (tag_db) {
+    mysql_stmt_free_result(tag_db->find_tag_stmt);
+  }
+  
   return tag;
+tag_query_error:
+  if (mysql_stmt_errno(tag_db->find_tag_stmt) == CR_OUT_OF_MEMORY) {
+    fatal("Out of memory error fetching tag: %s", mysql_stmt_error(tag_db->find_tag_stmt));
+  } else {
+    error("Error fetching tag: %s", mysql_stmt_error(tag_db->find_tag_stmt));
+  }
+  if (tag) {
+    free_tag(tag);
+  }
+  tag = NULL;
+  goto exit;
 }
