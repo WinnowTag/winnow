@@ -21,6 +21,7 @@ typedef struct DB_CONFIG {
 extern Config   * load_config        (const char * config_file);
 extern int        cfg_item_db_config (const Config * config, DBConfig *db_config);
 extern int        cfg_tag_db_config  (const Config * config, DBConfig *db_config);
+extern int        cfg_tagging_store_db_config (const Config * config, DBConfig *db_config);
 extern void       free_config        (Config *config);
 
 #endif /* _CONFIG_H_ */
