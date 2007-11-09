@@ -44,6 +44,8 @@ extern int          tag_negative_examples_size  (const Tag *tag);
 extern int          tag_positive_examples_size  (const Tag *tag);
 
 // TagDB functions
-extern TagDB * create_tag_db(DBConfig *db_config);
-extern Tag   * tag_db_load_tag_by_id(const TagDB *tag_db, int id);
+extern TagDB * create_tag_db          (DBConfig *db_config);
+extern Tag   * tag_db_load_tag_by_id  (TagDB *tag_db, int id);
+extern void    free_tag_db            (TagDB *tag_db);
+
 #endif

@@ -31,8 +31,11 @@ START_TEST (test_create_tag_db) {
   assert_equal_s("", tag_user(tag));
   assert_equal(39, tag_tag_id(tag));
   assert_equal(2, tag_user_id(tag));
+  assert_equal(20, tag_positive_examples_size(tag));
+  assert_equal(84, tag_negative_examples_size(tag));
+  free_tag(tag);
+  free_tag_db(tag_db);
 } END_TEST
-
 
 Suite *
 tag_db_suite(void) {

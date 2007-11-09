@@ -158,9 +158,12 @@ Tag * create_tag(const char * user, const char * tag_name, int user_id, int tag_
 }
 
 void free_tag(Tag *tag) {
-  if (tag) {
+  if (NULL != tag) {
+    Word_t judy_bytes_p, judy_bytes_n;
     if (tag->user)     free(tag->user);
     if (tag->tag_name) free(tag->tag_name);
+    if (tag->positive_examples) J1FA(judy_bytes_p, tag->positive_examples);
+    if (tag->negative_examples) J1FA(judy_bytes_n, tag->negative_examples);
     free(tag);
   }
 }
@@ -316,33 +319,33 @@ int read_tagging_file(TagList *taglist, const char * user, const char * filename
 #include <errmsg.h>
 
 #define FIND_TAG_STMT "select user_id, name from tags where id = ?" 
+#define LOAD_EXAMPLES "select feed_item_id, strength from taggings where tag_id = ?"
 
 struct TAG_DB {
+  const DBConfig *config;
   MYSQL *mysql;
   MYSQL_STMT *find_tag_stmt;
+  MYSQL_STMT *load_examples_stmt;
 };
 
+static int establish_connection(TagDB *tag_db);
+
+/** Creates a TagDB for a given DB Config.
+ * 
+ */ 
 TagDB * create_tag_db(DBConfig * config) {
   info("Creating tag db source (host='%s',user='%s',pass='%s',db='%s')", 
       config->host, config->user, config->password, config->database);
   TagDB *tag_db = malloc(sizeof(TagDB));
   if (NULL != tag_db) {
+    tag_db->config = config;
     tag_db->mysql = mysql_init(NULL);
-    if (!mysql_real_connect(tag_db->mysql, config->host, config->user, 
-            config->password, config->database, config->port, NULL, 0)) {
-      error("Failed to connect to tag database : %s", mysql_error(tag_db->mysql));      
-      free(tag_db);
+    
+    if (!establish_connection(tag_db)) {
+      free_tag_db(tag_db);
       tag_db = NULL;
-    } else {
-      tag_db->find_tag_stmt = mysql_stmt_init(tag_db->mysql);
-      if (NULL == tag_db->find_tag_stmt) {
-        fatal("Error creating prepared statement: %s", mysql_error(tag_db->mysql));
-      }
-      
-      if (mysql_stmt_prepare(tag_db->find_tag_stmt, FIND_TAG_STMT, strlen(FIND_TAG_STMT))) {
-        fatal("Error preparing hard coded statement: %s : %s", FIND_TAG_STMT, mysql_error(tag_db->mysql));
-      }
-    }
+      fatal("Error establishing connection on Tag DB creation");
+    }    
   } else {
     fatal("Error malloc'ing TagDB");
   }
@@ -350,23 +353,53 @@ TagDB * create_tag_db(DBConfig * config) {
   return tag_db; 
 }
 
-int tag_db_is_alive(const TagDB *tag_db) {
-  return true;
+void free_tag_db(TagDB *tag_db) {
+  if (tag_db) {
+    if (tag_db->find_tag_stmt) mysql_stmt_close(tag_db->find_tag_stmt);
+    if (tag_db->load_examples_stmt) mysql_stmt_close(tag_db->load_examples_stmt);
+    if (tag_db->mysql) mysql_close(tag_db->mysql);
+    free(tag_db);
+  }
 }
 
-Tag * tag_db_load_tag_by_id(const TagDB *tag_db, int tag_id) {
+/** Checks if the Tag DB is alive. If it isn't a reconnect will be attempted.
+ * 
+ *  @return true if the TagDB is alive.
+ */ 
+int tag_db_is_alive(TagDB *tag_db) {
+  int alive = true; 
+
+  if (NULL != tag_db) {
+    if (mysql_ping(tag_db->mysql)) {
+      error("MySQL server is down %s. Attempting reconnect.", mysql_error(tag_db->mysql));
+      if (!establish_connection(tag_db)) {
+        error("Could not reconnect: %s. TagDB will be disabled.", mysql_error(tag_db->mysql));
+        alive = false;
+      }
+    }
+  }
+  
+  return alive;
+}
+
+/** Loads a tag from the database.
+ *  
+ *  @param tag_db The tag database to load from.
+ *  @return The tag or NULL if it could not be found.
+ */
+Tag * tag_db_load_tag_by_id(TagDB *tag_db, int tag_id) {
   Tag *tag = NULL;
   if (tag_db && tag_db_is_alive(tag_db)) {
-    MYSQL_BIND bind[1];
-    memset(bind, 0, sizeof(bind));
-    bind[0].buffer_type = MYSQL_TYPE_LONG;
-    bind[0].buffer = (char *) &tag_id;
+    MYSQL_BIND param[1];
+    memset(param, 0, sizeof(param));
+    param[0].buffer_type = MYSQL_TYPE_LONG;
+    param[0].buffer = (char *) &tag_id;
     
-    if (mysql_stmt_bind_param(tag_db->find_tag_stmt, bind)) goto tag_query_error;
+    if (mysql_stmt_bind_param(tag_db->find_tag_stmt, param)) goto tag_query_error;
     if (mysql_stmt_execute(tag_db->find_tag_stmt))          goto tag_query_error;
     
     char tag_name[256];
-    long tag_name_length = 0;
+    unsigned long tag_name_length = 0;
     memset(tag_name, 0, sizeof(tag_name));
     unsigned long user_id;
     MYSQL_BIND results[2];
@@ -381,8 +414,29 @@ Tag * tag_db_load_tag_by_id(const TagDB *tag_db, int tag_id) {
     if (mysql_stmt_bind_result(tag_db->find_tag_stmt, results)) goto tag_query_error;
     if (mysql_stmt_store_result(tag_db->find_tag_stmt))         goto tag_query_error;
     int stmt_fetch_result = mysql_stmt_fetch(tag_db->find_tag_stmt);
+    
     if (!stmt_fetch_result) {
       tag = create_tag("", tag_name, user_id, tag_id);
+      if (tag) {
+        if (mysql_stmt_bind_param(tag_db->load_examples_stmt, param)) goto load_example_error;
+        if (mysql_stmt_execute(tag_db->load_examples_stmt))           goto load_example_error;
+        
+        int item_id;
+        float strength;
+        MYSQL_BIND examples[2];
+        memset(examples, 0, sizeof(examples));
+        examples[0].buffer_type = MYSQL_TYPE_LONG;
+        examples[0].buffer = (char *) &item_id;
+        examples[1].buffer_type = MYSQL_TYPE_FLOAT;
+        examples[1].buffer = (char *) &strength;
+        
+        if (mysql_stmt_bind_result(tag_db->load_examples_stmt, examples)) goto load_example_error;
+        if (mysql_stmt_store_result(tag_db->load_examples_stmt))          goto load_example_error;
+        
+        while (!mysql_stmt_fetch(tag_db->load_examples_stmt)) {
+          tag_add_example(tag, item_id, strength);
+        }
+      }
     } else if (MYSQL_NO_DATA == stmt_fetch_result) {
       error("No tag found with id %i", tag_id);
     } else if (MYSQL_DATA_TRUNCATED == stmt_fetch_result) {
@@ -393,21 +447,64 @@ Tag * tag_db_load_tag_by_id(const TagDB *tag_db, int tag_id) {
     }
   }
   
-exit:
-  if (tag_db) {
-    mysql_stmt_free_result(tag_db->find_tag_stmt);
+  exit:
+    if (tag_db) {
+      mysql_stmt_free_result(tag_db->load_examples_stmt);
+      mysql_stmt_free_result(tag_db->find_tag_stmt);
+    }
+    
+    return tag;
+  tag_query_error:
+    if (mysql_stmt_errno(tag_db->find_tag_stmt) == CR_OUT_OF_MEMORY) {
+      fatal("Out of memory error fetching tag: %s", mysql_stmt_error(tag_db->find_tag_stmt));
+    } else {
+      error("Error fetching tag: %s", mysql_stmt_error(tag_db->find_tag_stmt));
+    }
+    if (tag) {
+      free_tag(tag);
+    }
+    tag = NULL;
+    goto exit;
+    
+  load_example_error:
+    if (mysql_stmt_errno(tag_db->load_examples_stmt) == CR_OUT_OF_MEMORY) {
+      fatal("Out of memory error fetching tag: %s", mysql_stmt_error(tag_db->load_examples_stmt));
+    } else {
+      error("Error loading examples for tag %i: %s", tag_id, mysql_stmt_error(tag_db->load_examples_stmt));
+    }
+    if (tag) {
+      free_tag(tag);
+    }
+    tag = NULL;
+    goto exit;
+}
+
+/** Establishes the MySQL connection and prepares the statements needs to load a tag.
+ *
+ *  @returns true on successful connection establishment, false otherwise.
+ */ 
+int establish_connection(TagDB *tag_db) {
+  int success = true;
+  const DBConfig *config = tag_db->config;
+  if (!mysql_real_connect(tag_db->mysql, config->host, config->user, 
+                   config->password, config->database, config->port, NULL, 0)) {
+    error("Failed to connect to tag database : %s", mysql_error(tag_db->mysql));
+    success = false;
+  } else {
+    tag_db->find_tag_stmt = mysql_stmt_init(tag_db->mysql);
+    tag_db->load_examples_stmt = mysql_stmt_init(tag_db->mysql);
+
+    if (NULL == tag_db->find_tag_stmt || NULL == tag_db->load_examples_stmt) {
+      error("Error creating prepared statement: %s", mysql_error(tag_db->mysql));
+      success = false;
+    } else if (mysql_stmt_prepare(tag_db->find_tag_stmt, FIND_TAG_STMT, strlen(FIND_TAG_STMT))) {
+      error("Error preparing hard coded statement: %s : %s", FIND_TAG_STMT, mysql_error(tag_db->mysql));
+      success = false;
+    } else if (mysql_stmt_prepare(tag_db->load_examples_stmt, LOAD_EXAMPLES, strlen(LOAD_EXAMPLES))) {
+      error("Error preparing hard coded statement: %s : %s" LOAD_EXAMPLES, mysql_error(tag_db->mysql));
+      success = false;
+    }
   }
   
-  return tag;
-tag_query_error:
-  if (mysql_stmt_errno(tag_db->find_tag_stmt) == CR_OUT_OF_MEMORY) {
-    fatal("Out of memory error fetching tag: %s", mysql_stmt_error(tag_db->find_tag_stmt));
-  } else {
-    error("Error fetching tag: %s", mysql_stmt_error(tag_db->find_tag_stmt));
-  }
-  if (tag) {
-    free_tag(tag);
-  }
-  tag = NULL;
-  goto exit;
+  return success;
 }
