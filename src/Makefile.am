@@ -16,7 +16,8 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            job_queue.c job_queue.h   \
                            cls_config.c cls_config.h \
                            db_item_source.h          \
-                           db_item_source.c
+                           db_item_source.c          \
+                           tagging.h tagging.c
 bin_PROGRAMS = cls_bench
 cls_bench_SOURCES = bench.c
 cls_bench_LDADD = libclassifier.la

@@ -341,7 +341,11 @@ TagDB * create_tag_db(DBConfig * config) {
     tag_db->config = config;
     tag_db->mysql = mysql_init(NULL);
     
-    if (!establish_connection(tag_db)) {
+    if (NULL == tag_db->mysql) {
+      free_tag_db(tag_db);
+      tag_db = NULL;
+      fatal("Error malloc'ing MYSQL for Tag DB");
+    } else if (!establish_connection(tag_db)) {
       free_tag_db(tag_db);
       tag_db = NULL;
       fatal("Error establishing connection on Tag DB creation");

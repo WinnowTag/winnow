@@ -13,7 +13,7 @@ check_all_SOURCES = check_all.c \
                 check_samples.c $(top_builddir)/src/samples.h \
                 check_queue.c $(top_builddir)/src/queue.h \
                 check_config.c $(top_builddir)/src/config.h \
-                check_tag_db.c
+                $(top_builddir)/src/tagging.h
                 
 check_all_CFLAGS = @CHECK_CFLAGS@
 check_all_LDADD = @CHECK_LIBS@  \
@@ -22,10 +22,12 @@ check_all_LDADD = @CHECK_LIBS@  \
 check_db_SOURCES = check_db.c                    \
             check_db_item_source.c               \
             check_tag_db.c                       \
+            check_tagging_store.c                \
             $(top_builddir)/src/db_item_source.h \
             $(top_builddir)/src/item.h           \
             $(top_builddir)/src/item_source.h    \
-            $(top_builddir)/src/tag.h
+            $(top_builddir)/src/tag.h            \
+            $(top_builddir)/src/tagging.h
               
 check_db_CFLAGS = @CHECK_CFLAGS@
 check_db_LDADD = @CHECK_LIBS@  \

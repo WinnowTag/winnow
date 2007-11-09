@@ -26,7 +26,7 @@ AC_CHECK_LIB(Judy, JudyLIns, [], [AC_MSG_ERROR(Judy is missing)])
 AC_CHECK_LIB(pthread, pthread_create, [], [AC_MSG_ERROR(pthread is missing)])
 AC_CHECK_LIB(config, config_init, [], [AC_MSG_ERROR(libconfig is missing you might need to install it from http://www.hyperrealm.com/libconfig/)])
 
-MYSQL_LIBS=$($MYSQL_CONFIG --libs)
+MYSQL_LIBS=$($MYSQL_CONFIG --libs_r)
 LIBS="$LIBS $MYSQL_LIBS"
 AC_CHECK_LIB(mysqlclient, mysql_real_connect, [], [AC_MSG_ERROR(Could not find mysqlclient with mysql_real_connect)])
 
