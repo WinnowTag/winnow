@@ -32,7 +32,6 @@ AC_CHECK_LIB(mysqlclient, mysql_real_connect, [], [AC_MSG_ERROR(Could not find m
 
 # Unit testing library
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
-PKG_CHECK_MODULES([LIBCONFIG], [check >= 0.9.4])
 
 ### Check for headers
 AC_HEADER_STDC

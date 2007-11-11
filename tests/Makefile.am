@@ -23,6 +23,7 @@ check_db_SOURCES = check_db.c                    \
             check_db_item_source.c               \
             check_tag_db.c                       \
             check_tagging_store.c                \
+            check_db_random_background.c         \
             $(top_builddir)/src/db_item_source.h \
             $(top_builddir)/src/item.h           \
             $(top_builddir)/src/item_source.h    \

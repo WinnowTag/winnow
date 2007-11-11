@@ -10,7 +10,8 @@
 
 #include "pool.h"
 #include "item.h"
+#include "cls_config.h"
 
-Pool * create_random_background_from_file (const ItemSource*, const char * file);
-
+extern Pool * create_random_background_from_file (const ItemSource * is, const char * file);
+extern Pool * create_random_background_from_db   (const ItemSource * is, const DBConfig * db);
 #endif
