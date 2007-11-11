@@ -34,6 +34,7 @@ extern ItemList *   is_fetch_all_items      (const ItemSource *is);
 extern void         free_item_source        (ItemSource *is);
 extern int          is_alive                (const ItemSource *is);
 
+/**** ItemList ****/
 extern ItemList  *  create_item_list        ();
 extern int          item_list_size          (const ItemList *item_list);
 extern Item      *  item_list_item_at       (const ItemList *item_list, int index);
@@ -42,5 +43,5 @@ extern void         item_list_add_item      (ItemList *item_list, const Item *it
 extern void         free_item_list          (ItemList *item_list);
 
 extern ItemSource * create_item_source      (void);
-
+extern ItemSource * create_caching_item_source (ItemSource * is);
 #endif /* _ITEM_SOURCE_H_ */

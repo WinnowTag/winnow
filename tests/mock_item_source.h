@@ -11,12 +11,15 @@
 #include "../src/item.h"
 #include "../src/item_source.h"
 
+#define MOCK_IS_SIZE 4 
+
 static ItemSource *is;
 
 static Item *item_1;
 static Item *item_2;
 static Item *item_3;
 static Item *item_4;
+static ItemList *item_list;
 
 static Item * fake_item_source(const void* ignore, const int item_id) {
   switch (item_id) {
@@ -33,6 +36,10 @@ static Item * fake_item_source(const void* ignore, const int item_id) {
   }
 }
 
+static ItemList * fake_fetch_all(const void *ignore) {
+  return item_list;
+}
+
 static void setup_mock_item_source(void) {
   int tokens_1[][2] = {1, 10, 2, 3};
   int tokens_2[][2] = {1, 5, 3, 4};
@@ -44,13 +51,20 @@ static void setup_mock_item_source(void) {
   item_3 = create_item_with_tokens(3, tokens_3, 2);
   item_4 = create_item_with_tokens(4, tokens_4, 3);
   
-  is = malloc(sizeof(ItemSource));
+  item_list = create_item_list();
+  item_list_add_item(item_list, item_1);
+  item_list_add_item(item_list, item_2);
+  item_list_add_item(item_list, item_3);
+  item_list_add_item(item_list, item_4);
+  
+  is = create_item_source();
   is->fetch_func = fake_item_source;
-  is->state = NULL;
+  is->fetch_all_func = fake_fetch_all;  
 }
 
 static void teardown_mock_item_source(void) {
-  free(is);
+  free_item_source(is);
+  free_item_list(item_list);
   free_item(item_1);
   free_item(item_2);
   free_item(item_3);

@@ -13,6 +13,7 @@ check_all_SOURCES = check_all.c \
                 check_samples.c $(top_builddir)/src/samples.h \
                 check_queue.c $(top_builddir)/src/queue.h \
                 check_config.c $(top_builddir)/src/config.h \
+                check_caching_item_source.c \
                 $(top_builddir)/src/tagging.h
                 
 check_all_CFLAGS = @CHECK_CFLAGS@

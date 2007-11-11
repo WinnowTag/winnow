@@ -6,6 +6,7 @@
  * Please contact info@peerworks.org for further information.
  */
  
+#include <time.h>
 #include <string.h>
 #include "item_source.h"
 
@@ -26,6 +27,7 @@ ItemSource * create_item_source() {
   
   return is;
 }
+
 /** Fetch an item from and ItemSource.
  *
  *  @param is The item source.
@@ -54,8 +56,81 @@ void free_item_source(ItemSource *is) {
   if (NULL != is) {
     if (NULL != is->free_func) {
       is->free_func(is->state);
+      is->state = NULL;
     }
     free(is);
+  }
+}
+
+/********************************************************************************
+ *  Caching ItemSource Functions
+ ********************************************************************************/
+static Item * cis_fetch_item(const void *state, const int item_id);
+static ItemList * cis_fetch_all_items(const void *state);
+static void cis_free(void *state);
+  
+
+typedef struct CACHING_ITEM_SOURCE_STATE {
+  ItemSource *is;
+  ItemList *items;
+  time_t    loaded_at;
+} CachingItemSourceState;
+
+ItemSource * create_caching_item_source(ItemSource * is) {
+  ItemSource *cis = create_item_source();
+  if (cis) {
+    CachingItemSourceState *state = malloc(sizeof(CachingItemSourceState));
+    if (!state) {
+      free_item_source(cis);
+      cis = NULL;
+      fatal("Error malloc'ing CachingItemSourceState");
+    }
+    
+    state->is = is;
+    state->items = is_fetch_all_items(is);
+    state->loaded_at = time(0);
+    info("Loaded %i items into cached item state at %s", item_list_size(state->items), ctime(&(state->loaded_at)));
+    
+    cis->fetch_func = cis_fetch_item;
+    cis->fetch_all_func = cis_fetch_all_items;
+    cis->free_func = cis_free;
+    cis->state = state;
+  }
+  return cis;
+}
+
+Item * cis_fetch_item(const void *state_vp, const int item_id) {
+  Item *item = NULL;
+  CachingItemSourceState *state = (CachingItemSourceState*) state_vp;
+  if (state) {
+    item = item_list_item(state->items, item_id);
+  }
+  return item;
+}
+
+ItemList * cis_fetch_all_items(const void *state_vp) {
+  ItemList *items = NULL;
+  CachingItemSourceState *state = (CachingItemSourceState*) state_vp;
+  if (state) {
+    items = state->items;
+  }
+  return items;
+}
+
+void cis_free(void * state_vp) {
+  CachingItemSourceState *state = (CachingItemSourceState*) state_vp;
+  if (state) {
+    if (state->items) {
+      free_item_list(state->items);
+      state->items = NULL;
+    }
+    
+    if (state->is) {
+      free_item_source(state->is);
+      state->is = NULL;
+    }
+    
+    free(state);
   }
 }
 
@@ -83,10 +158,12 @@ Item * item_list_item(const ItemList *item_list, int item_id) {
   Item *item = NULL;
   PWord_t item_pointer;
   
-  JLG(item_pointer, item_list->items, item_id);
-  if (NULL != item_pointer) {
-    item = (Item*)(*item_pointer);
-  }  
+  if (item_list) {
+    JLG(item_pointer, item_list->items, item_id);
+    if (NULL != item_pointer) {
+      item = (Item*)(*item_pointer);
+    }  
+  }
   
   return item;
 }
