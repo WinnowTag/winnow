@@ -13,7 +13,7 @@
 
 typedef struct NODE Node;
 struct NODE {
-  Job *job;
+  void *job;
   Node *next;
 };
 
@@ -52,12 +52,25 @@ Queue * new_queue() {
   return q;
 }
 
+void free_queue(Queue * queue) {
+  if (queue) {
+    Node *node = queue->front;
+    while (node) {
+      Node *next = node->next;
+      free(node);
+      node = next;
+    }
+    
+    free(queue);
+  }
+}
+
 /** Dequeues a Job from the queue.
  *
  *  Returns NULL immediately if the queue is empty.
  */
-Job * q_dequeue(Queue * q) {
-  Job *return_job = NULL;
+void * q_dequeue(Queue * q) {
+  void *return_job = NULL;
   Node *dequeued = NULL;
   
   pthread_mutex_lock(&(q->lock));
@@ -82,8 +95,8 @@ Job * q_dequeue(Queue * q) {
  *
  *  This was helped by http://www.yolinux.com/TUTORIALS/LinuxTutorialPosixThreads.html#BASICS
  */
-Job * q_dequeue_or_wait(Queue * q) {
-  Job *job = NULL;  
+void * q_dequeue_or_wait(Queue * q) {
+  void *job = NULL;  
   
   /* The algorith here is first check if there is a job in the queue.
    *  - If there is no job wait until a job is added.
@@ -106,7 +119,7 @@ Job * q_dequeue_or_wait(Queue * q) {
 
 /** Enqueues a Job on the Queue.
  */
-void q_enqueue(Queue * q, Job * job) {
+void q_enqueue(Queue * q, void * job) {
   Node *new_node = malloc(sizeof(struct NODE));
   if (NULL == new_node) {
     error("Malloc error in enqueue");
@@ -136,4 +149,14 @@ void q_enqueue(Queue * q, Job * job) {
  */
 int q_empty(const Queue * queue) {
   return NULL == queue->front;
+}
+
+int q_size(const Queue * queue) {
+  int size = 0;
+  Node *n = queue->front;
+  while (n) {
+    size++;
+    n = n->next;
+  }
+  return size;
 }

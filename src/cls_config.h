@@ -18,7 +18,12 @@ typedef struct DB_CONFIG {
   int port;
 } DBConfig;
 
+typedef struct ENGINE_CONFIG {
+  int num_workers;
+} EngineConfig;
+
 extern Config   * load_config        (const char * config_file);
+extern int        cfg_engine_config  (const Config * config, EngineConfig *econfig);
 extern int        cfg_item_db_config (const Config * config, DBConfig *db_config);
 extern int        cfg_tag_db_config  (const Config * config, DBConfig *db_config);
 extern int        cfg_tagging_store_db_config (const Config * config, DBConfig *db_config);

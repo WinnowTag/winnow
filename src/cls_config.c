@@ -58,6 +58,17 @@ void free_config(Config *config) {
   }  
 }
 
+/** Gets the configuration for the classification engine.
+ * 
+ */
+int cfg_engine_config(const Config * config, EngineConfig * econfig) {
+  econfig->num_workers = config_lookup_int(config->config, "engine.num_workers");
+  if (econfig->num_workers == 0) {
+    econfig->num_workers = 1;
+  }
+  return true;
+}
+
 /** Gets the item DB configuration.
  *
  *  The passed in db_config will be initialized with the DB settings

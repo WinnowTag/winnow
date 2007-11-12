@@ -28,7 +28,9 @@ AC_CHECK_LIB(config, config_init, [], [AC_MSG_ERROR(libconfig is missing you mig
 
 MYSQL_LIBS=$($MYSQL_CONFIG --libs_r)
 LIBS="$LIBS $MYSQL_LIBS"
-AC_CHECK_LIB(mysqlclient, mysql_real_connect, [], [AC_MSG_ERROR(Could not find mysqlclient with mysql_real_connect)])
+AC_CHECK_LIB(mysqlclient, mysql_real_connect, 
+  [AC_DEFINE(HAVE_DATABASE_ACCESS,,[We have DB libraries])], 
+  [AC_MSG_ERROR(Could not find mysqlclient with mysql_real_connect)])
 
 # Unit testing library
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
@@ -37,7 +39,7 @@ PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
 AC_HEADER_STDC
 AC_CHECK_HEADERS([Judy.h], [], [AC_MSG_ERROR(Judy.h is missing)])
 AC_CHECK_HEADERS([libconfig.h], [], [AC_MSG_ERROR(libconfig.h is missing)])
-AC_CHECK_HEADERS([sys/param.h errno.h stdarg.h stdbool.h])
+AC_CHECK_HEADERS([sys/param.h errno.h stdarg.h stdbool.h uuid/uuid.h])
 
 ###### MySQL
 MYSQL_INCLUDE=$($MYSQL_CONFIG --cflags)
