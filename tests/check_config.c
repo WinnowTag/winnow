@@ -84,6 +84,15 @@ START_TEST (tagging_store_db_configuration) {
   free_config(config);
 } END_TEST
 
+START_TEST(test_insertion_threshold) {
+  Config *config = load_config("fixtures/real-db.conf");
+  EngineConfig econfig; 
+  cfg_engine_config(config, &econfig);
+  assert_equal_f(0.9, econfig.insertion_threshold);
+}
+END_TEST
+
+
 Suite *
 config_suite(void) {
   Suite *s = suite_create("Config");  
@@ -96,6 +105,7 @@ config_suite(void) {
   tcase_add_test(tc_case, tagging_store_db_configuration);
   tcase_add_test(tc_case, test_engine_settings);
   tcase_add_test(tc_case, default_engine_settings);
+  tcase_add_test(tc_case, test_insertion_threshold);
 // END_TESTS
 
   suite_add_tcase(s, tc_case);

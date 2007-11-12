@@ -67,7 +67,7 @@ static void teardown() {
 }
 
 START_TEST(test_insert_tagging) {
-  TaggingStore *tagging_store = create_db_tagging_store(&config);
+  TaggingStore *tagging_store = create_db_tagging_store(&config, 0.9);
   assert_not_null(tagging_store);
   Tagging tagging;
   tagging.user_id = 23;
@@ -79,7 +79,7 @@ START_TEST(test_insert_tagging) {
 } END_TEST
 
 START_TEST(test_dont_insert_tagging_below_threshold) {
-  TaggingStore *tagging_store = create_db_tagging_store(&config);
+  TaggingStore *tagging_store = create_db_tagging_store(&config, 0.9);
   assert_not_null(tagging_store);
   Tagging tagging;
   tagging.user_id = 23;
@@ -91,7 +91,7 @@ START_TEST(test_dont_insert_tagging_below_threshold) {
 } END_TEST
 
 START_TEST(test_insert_duplicate_updates_strength) {
-  TaggingStore *tagging_store = create_db_tagging_store(&config);
+  TaggingStore *tagging_store = create_db_tagging_store(&config, 0.9);
   assert_not_null(tagging_store);
   Tagging tagging1, tagging2;
   tagging1.user_id = tagging2.user_id = 23;

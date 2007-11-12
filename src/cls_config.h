@@ -20,6 +20,7 @@ typedef struct DB_CONFIG {
 
 typedef struct ENGINE_CONFIG {
   int num_workers;
+  float insertion_threshold;
 } EngineConfig;
 
 extern Config   * load_config        (const char * config_file);

@@ -12,7 +12,6 @@
 #include "misc.h"
 #include "tagging.h"
 
-#define STORAGE_THRESHOLD 0.9
 #define INS_TAGGING_STMT "insert into taggings                                                      \
                           (feed_item_id, tag_id, user_id, strength, classifier_tagging, created_on) \
                            VALUES (?, ?, ?, ?, 1, UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE          \
@@ -21,14 +20,16 @@ struct TAGGING_STORE {
   const DBConfig *config;
   MYSQL *mysql;
   MYSQL_STMT *insertion_stmt;
+  float insertion_threshold;
 };
 
 static int establish_connection(TaggingStore *store);
 
-TaggingStore * create_db_tagging_store(const DBConfig *config) {
+TaggingStore * create_db_tagging_store(const DBConfig *config, float insertion_threshold) {
   TaggingStore *store = malloc(sizeof(TaggingStore));
   if (NULL != store) {
     store->config = config;
+    store->insertion_threshold = insertion_threshold;
     store->mysql = mysql_init(NULL);
     
     if (NULL == store->mysql) {
@@ -55,8 +56,7 @@ void free_tagging_store(TaggingStore *store) {
 
 int tagging_store_store(TaggingStore *store, const Tagging *tagging) {
   int success = true;
-  
-  if (store && tagging && tagging->strength >= STORAGE_THRESHOLD) {
+  if (store && tagging && tagging->strength >= store->insertion_threshold) {
     MYSQL_BIND params[4];
     memset(params, 0, sizeof(params));
     params[0].buffer_type = MYSQL_TYPE_LONG;

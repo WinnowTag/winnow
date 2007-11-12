@@ -62,10 +62,12 @@ void free_config(Config *config) {
  * 
  */
 int cfg_engine_config(const Config * config, EngineConfig * econfig) {
+  econfig->insertion_threshold = config_lookup_float(config->config, "engine.insertion_threshold");
   econfig->num_workers = config_lookup_int(config->config, "engine.num_workers");
   if (econfig->num_workers == 0) {
     econfig->num_workers = 1;
   }
+  
   return true;
 }
 
