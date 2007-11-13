@@ -72,6 +72,10 @@ int cfg_engine_config(const Config * config, EngineConfig * econfig) {
   return true;
 }
 
+int cfg_httpd_config(const Config * config, HttpdConfig * httpd) {
+  httpd->port = config_lookup_int(config->config, "httpd.port");
+}
+
 /** Gets the item DB configuration.
  *
  *  The passed in db_config will be initialized with the DB settings

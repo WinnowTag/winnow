@@ -23,11 +23,16 @@ typedef struct ENGINE_CONFIG {
   float insertion_threshold;
 } EngineConfig;
 
+typedef struct HTTP_CONFIG {
+  int port;
+} HttpdConfig;
+
 extern Config   * load_config        (const char * config_file);
 extern int        cfg_engine_config  (const Config * config, EngineConfig *econfig);
 extern int        cfg_item_db_config (const Config * config, DBConfig *db_config);
 extern int        cfg_tag_db_config  (const Config * config, DBConfig *db_config);
 extern int        cfg_tagging_store_db_config (const Config * config, DBConfig *db_config);
+extern int        cfg_httpd_config   (const Config *config, HttpdConfig *httpd);
 extern void       free_config        (Config *config);
 
 #endif /* _CONFIG_H_ */

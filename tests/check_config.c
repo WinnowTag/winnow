@@ -11,6 +11,14 @@
 #include "assertions.h"
 #include "../src/cls_config.h"
 
+START_TEST(test_http_config) {
+  Config *config = load_config("fixtures/real-db.conf");
+  assert_not_null(config);
+  HttpdConfig httpd;
+  cfg_httpd_config(config, &httpd);
+  assert_equal(8008, httpd.port);
+} END_TEST
+
 START_TEST(test_engine_settings) {
   Config *config = load_config("fixtures/db.conf");
   assert_not_null(config);
@@ -106,6 +114,7 @@ config_suite(void) {
   tcase_add_test(tc_case, test_engine_settings);
   tcase_add_test(tc_case, default_engine_settings);
   tcase_add_test(tc_case, test_insertion_threshold);
+  tcase_add_test(tc_case, test_http_config);
 // END_TESTS
 
   suite_add_tcase(s, tc_case);

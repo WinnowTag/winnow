@@ -35,6 +35,9 @@ AC_CHECK_LIB(mysqlclient, mysql_real_connect,
 # Unit testing library
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
 
+# libcurl (required for testing)
+AC_CHECK_LIB(curl, curl_easy_init, [], [])
+
 ### Check for headers
 AC_HEADER_STDC
 AC_CHECK_HEADERS([Judy.h], [], [AC_MSG_ERROR(Judy.h is missing)])
