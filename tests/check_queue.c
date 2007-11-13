@@ -75,6 +75,13 @@ START_TEST (check_dequeue_or_wait) {
   assert_equal(&job, dequeued_by_thread);
 } END_TEST
 
+START_TEST(check_timeout) {
+  Queue *q = new_queue();
+  Job *j = q_dequeue_or_wait(q);
+  mark_point();
+  assert_null(j);
+}
+END_TEST
 
 
 Suite *
@@ -88,6 +95,7 @@ queue_suite(void) {
   tcase_add_test(tc_queue, multiple_items);
   tcase_add_test(tc_queue, check_dequeue_or_wait);
   tcase_add_test(tc_queue, check_queue_size);
+  tcase_add_test(tc_queue, check_timeout);
 // END_TESTS
 
   suite_add_tcase(s, tc_queue);

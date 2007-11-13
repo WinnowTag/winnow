@@ -33,6 +33,7 @@ extern const Tag  *  taglist_tag_at        (const TagList *taglist, int index);
 extern void          free_taglist          (TagList *taglist);
 
 // Tag functions
+extern Tag *        create_tag                  (const char *user, const char *tag_name, int user_id, int tag_id);
 extern void         free_tag                    (Tag *tag);
 extern const char * tag_tag_name                (const Tag *tag);
 extern int          tag_tag_id                  (const Tag *tag);

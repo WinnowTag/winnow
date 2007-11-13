@@ -22,6 +22,18 @@ START_TEST(test_all_items_accessible_by_id) {
 }
 END_TEST
 
+START_TEST(test_all_items_accessible_by_index) {
+  ItemSource *cis = create_caching_item_source(is);
+  assert_not_null(cis);
+  ItemList *items = is_fetch_all_items(cis);
+  assert_not_null(items);
+  Item *item = item_list_item_at(items, _i);
+  assert_not_null(item);
+  assert_equal(_i, item_get_id(item));
+  free_item_source(cis);
+}
+END_TEST
+
 START_TEST(test_sizeof_item_list) {
   ItemSource *cis = create_caching_item_source(is);
   assert_not_null(cis);
@@ -40,6 +52,7 @@ Suite * caching_item_source_suite(void) {
   
   // START_TESTS
   tcase_add_loop_test(tc_case, test_all_items_accessible_by_id, 1, 5);
+  tcase_add_loop_test(tc_case, test_all_items_accessible_by_index, 1, 5);
   tcase_add_test(tc_case, test_sizeof_item_list);
   // END_TESTS
 

@@ -85,7 +85,7 @@ START_TEST (tagging_store_db_configuration) {
 } END_TEST
 
 START_TEST(test_insertion_threshold) {
-  Config *config = load_config("fixtures/real-db.conf");
+  Config *config = load_config("fixtures/db.conf");
   EngineConfig econfig; 
   cfg_engine_config(config, &econfig);
   assert_equal_f(0.9, econfig.insertion_threshold);

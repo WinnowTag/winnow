@@ -34,6 +34,9 @@ START_TEST (test_fetch_all_items) {
   Item *item = item_list_item(item_list, 916470);
   assert_not_null(item);
   
+  item = item_list_item_at(item_list, 2);
+  assert_not_null(item);
+  
   free_item_list(item_list);
   free_item_source(is);
 } END_TEST

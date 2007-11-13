@@ -62,7 +62,7 @@ int pool_add_items(Pool *pool, const int items[], int size, const ItemSource *is
     if (NULL != item) {
       pool_add_item(pool, item);
     } else {
-      error("Missing item %d", items[i]);
+      error("Missing item when adding to pool %d", items[i]);
     }
   }
   

@@ -7,12 +7,18 @@
  */
 #ifndef TAGGING_STORE_FIXTURES_H_
 #define TAGGING_STORE_FIXTURES_H_
+#include <mysql.h>
+#include <string.h>
+#include "assertions.h"
+#include "../src/tagging.h"
 
 DBConfig config;
 MYSQL *mysql;
 MYSQL_STMT *tagging_stmt;
+MYSQL_STMT *tagging_count_stmt;
 
 #define TAGGING_STMT "select id from taggings where feed_item_id = ? and user_id = ? and tag_id = ? and strength = ? and classifier_tagging = 1"
+#define COUNT_TAGGINGS "select count(*) from taggings where classifier_tagging = 1"
 
 static int tagging_stored(Tagging *tagging) {
   float tagging_strength = (float) tagging->strength;
@@ -35,11 +41,29 @@ static int tagging_stored(Tagging *tagging) {
   return found;
 }
 
+static void assert_tagging_count_is(int n) {
+  int inserted_count;
+  MYSQL_BIND result[1];
+  memset(result, 0, sizeof(result));
+  result[0].buffer_type = MYSQL_TYPE_LONG;
+  result[0].buffer = (char *) &inserted_count;
+  
+  if (mysql_stmt_execute(tagging_count_stmt)) fail("Failed executing tagging count query");
+  if (mysql_stmt_bind_result(tagging_count_stmt, result)) fail("Failed binding tagging count results");
+  if (!mysql_stmt_fetch(tagging_count_stmt)) {
+    mark_point();
+    assert_equal(n, inserted_count);
+  } else {
+    mark_point();
+    fail("Count query did not return any results: %s", mysql_stmt_error(tagging_count_stmt));
+  }
+  mysql_stmt_free_result(tagging_count_stmt);
+}
+
 #define assert_tagging_stored(tagging) fail_unless(tagging_stored(tagging), "Tagging was not stored")
 #define assert_tagging_not_stored(tagging) fail_unless(!tagging_stored(tagging), "Tagging was stored")
 
 static void setup_tagging_store() {
-  printf("setup\n");
   config.host = "localhost";
   config.user = "seangeo";
   config.password = "seangeo";
@@ -53,9 +77,16 @@ static void setup_tagging_store() {
   if (mysql_stmt_prepare(tagging_stmt, TAGGING_STMT, strlen(TAGGING_STMT))) {
     fail("Failed preparing statement %s", mysql_stmt_error(tagging_stmt)); 
   } 
+  
+  tagging_count_stmt = mysql_stmt_init(mysql);
+  if (mysql_stmt_prepare(tagging_count_stmt, COUNT_TAGGINGS, strlen(COUNT_TAGGINGS))) {
+    fail("Failed preparing statement %s", mysql_stmt_error(tagging_count_stmt)); 
+  } 
 }
 
 static void teardown_tagging_store() {
+  mysql_stmt_close(tagging_stmt);
+  mysql_stmt_close(tagging_count_stmt);
   mysql_close(mysql);
   mysql = NULL;
 }

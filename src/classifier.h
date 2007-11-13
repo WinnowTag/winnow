@@ -56,6 +56,8 @@
 typedef struct TRAINED_CLASSIFIER {
   const char * user;
   const char * tag_name;
+  int user_id;
+  int tag_id;
   Pool *positive_pool;
   Pool *negative_pool;
 } TrainedClassifier;
@@ -63,6 +65,8 @@ typedef struct TRAINED_CLASSIFIER {
 typedef struct CLASSIFIER {
   const char * user;
   const char * tag_name;
+  int user_id;
+  int tag_id;
   Pvoid_t clues;
 } Classifier;
 
@@ -87,6 +91,8 @@ double                     probability (const ProbToken *foreground[], int n_pos
 /**** Functions for handling TrainedClassifiers  ****/
 const char *  tc_get_tag_name       (const TrainedClassifier *tc);
 const char *  tc_get_user           (const TrainedClassifier *tc);
+int           tc_get_tag_id         (const TrainedClassifier *tc);
+int           tc_get_user_id        (const TrainedClassifier *tc);
 const Pool *  tc_get_positive_pool  (const TrainedClassifier *tc);
 const Pool *  tc_get_negative_pool  (const TrainedClassifier *tc);
 void          tc_free               (TrainedClassifier *tc);
@@ -97,6 +103,8 @@ double        cls_probability_for   (const Classifier *c, int token_id);
 const Clue *  cls_clue_for          (const Classifier *c, int token_id);
 const char *  cls_tag_name          (const Classifier *c);
 const char *  cls_user              (const Classifier *c);
+int           cls_user_id           (const Classifier *c);
+int           cls_tag_id            (const Classifier *c);
 void          free_classifier       (Classifier *c);
 
 #endif

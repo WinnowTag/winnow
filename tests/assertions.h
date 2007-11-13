@@ -5,6 +5,7 @@
 // Please contact info@peerworks.org for further information.
 
 #include "../src/misc.h"
+#include <math.h>
 
 #ifndef assert_false
 #define assert_false(o) fail_unless(o == false, "expected to be false")

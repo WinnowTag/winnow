@@ -25,7 +25,7 @@ extern int                    ce_kill(ClassificationEngine *engine);
 extern int                    ce_num_jobs_in_system(const ClassificationEngine *engine);
 extern int                    ce_num_waiting_jobs(const ClassificationEngine *engine);
 extern ClassificationJob    * ce_add_classification_job(ClassificationEngine *engine, int tag_id);
-extern ClassificationJob    * ce_fetch_classification_job(const ClassificationEngine *engine, const unsigned char * job_id);
+extern ClassificationJob    * ce_fetch_classification_job(const ClassificationEngine *engine, const char * job_id);
 
 /** Functions for Classification Jobs */
 extern const char *  cjob_id(const ClassificationJob * job);

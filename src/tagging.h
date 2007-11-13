@@ -31,5 +31,7 @@ extern void           free_tagging_store      (TaggingStore *store);
 #define tagging_tag_name(tagging) tagging->tag_name
 #define tagging_user(tagging)     tagging->user
 #define tagging_strength(tagging) tagging->strength
+#define tagging_tag_id(tagging)   tagging->tag_id
+#define tagging_user_id(tagging)  tagging->user_id
 
 #endif /*TAGGING_H_*/

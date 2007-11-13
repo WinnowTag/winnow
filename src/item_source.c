@@ -9,6 +9,7 @@
 #include <time.h>
 #include <string.h>
 #include "item_source.h"
+#include "logging.h"
 
 /******************************************************************************
  * ItemSource functions 
@@ -156,9 +157,9 @@ int item_list_size(const ItemList *item_list) {
 
 Item * item_list_item(const ItemList *item_list, int item_id) {
   Item *item = NULL;
-  PWord_t item_pointer;
   
   if (item_list) {
+    PWord_t item_pointer;
     JLG(item_pointer, item_list->items, item_id);
     if (NULL != item_pointer) {
       item = (Item*)(*item_pointer);
@@ -169,7 +170,18 @@ Item * item_list_item(const ItemList *item_list, int item_id) {
 }
 
 Item * item_list_item_at(const ItemList *item_list, int index) {
-  return NULL;
+  Item *item = NULL;
+  
+  if (item_list) {
+    PWord_t item_pointer;
+    Word_t item_index;
+    JLBC(item_pointer, item_list->items, index, item_index);
+    if (item_pointer) {
+      item = (Item*) (*item_pointer);
+    }
+  }
+  
+  return item;
 }
 
 void item_list_add_item(ItemList *item_list, const Item *item) {

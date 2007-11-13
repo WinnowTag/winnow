@@ -13,7 +13,6 @@
 
 static int build_tagging_path(const char *, const char *, char *, int);
 static int read_tagging_file(TagList* taglist, const char *, const char *);
-static Tag * create_tag(const	char *user, const char *tag_name, int, int);
 static Tag * add_tag(TagList*, const char *, const char *);
 static int * fill_example_array(Pvoid_t tag_examples, int size);
 static int tag_add_example(Tag *tag, int example, float strength);

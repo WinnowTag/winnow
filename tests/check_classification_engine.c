@@ -10,8 +10,31 @@
 #include "assertions.h"
 #include "../src/cls_config.h"
 #include "../src/classification_engine.h"
+#include "tagging_store_fixtures.h"
 
-#define TAG_ID 39
+#define TAG_ID 48
+
+/************************************************************************
+ * End to End tests
+ ************************************************************************/
+START_TEST(inserts_taggings) {
+  assert_tagging_count_is(0);
+  Config *config = load_config("fixtures/real-db.conf");
+  ClassificationEngine *ce = create_classification_engine(config);
+  ce_start(ce);
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_ID);
+  mark_point();
+  ce_stop(ce);
+  mark_point();
+  assert_tagging_count_is(11);
+  assert_equal_f(100.0, cjob_progress(job));
+  free_classification_engine(ce);
+} END_TEST
+
+
+/************************************************************************
+ * Job Tracking tests
+ ************************************************************************/
 Config *ce_config;
 ClassificationEngine *ce;
 
@@ -89,6 +112,10 @@ START_TEST(test_engine_initialization_without_corpus_defined) {
   free_config(config);
 } END_TEST
 
+START_TEST(end_to_end_test) {
+  
+}
+END_TEST
 
 Suite * classification_engine_suite(void) {
   Suite *s = suite_create("classification_engine");
@@ -106,9 +133,14 @@ Suite * classification_engine_suite(void) {
   // START_TESTS
   tcase_add_test(tc_jt_case, add_job_to_queue);
   tcase_add_test(tc_jt_case, retrieve_job_via_id);
-//  // END_TESTS
+  // END_TESTS
 
+  TCase *tc_end_to_end = tcase_create("end to end");
+  tcase_add_checked_fixture(tc_end_to_end, setup_tagging_store, teardown_tagging_store);
+  tcase_add_test(tc_end_to_end, inserts_taggings);
+  
   suite_add_tcase(s, tc_initialization_case);
   suite_add_tcase(s, tc_jt_case);
+  suite_add_tcase(s, tc_end_to_end);
   return s;
 }

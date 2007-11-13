@@ -8,8 +8,12 @@
 
 #include <pthread.h>
 #include <stdlib.h>
+#include <time.h>
+#include <errno.h>
 #include "job_queue.h"
 #include "logging.h"
+
+#define WAIT_TIME_SECONDS 1
 
 typedef struct NODE Node;
 struct NODE {
@@ -97,17 +101,28 @@ void * q_dequeue(Queue * q) {
  */
 void * q_dequeue_or_wait(Queue * q) {
   void *job = NULL;  
+  struct timeval tv;
+  struct timespec ts;
+  gettimeofday(&tv,NULL);
   
+  /* Convert from timeval to timespec */
+  ts.tv_sec  = tv.tv_sec;
+  ts.tv_nsec = tv.tv_usec * 1000;
+  ts.tv_sec += WAIT_TIME_SECONDS;
+      
   /* The algorith here is first check if there is a job in the queue.
    *  - If there is no job wait until a job is added.
    *   - When a job is added the thread is woken then we try and
    *     take the job off the queue.
    *  - Keep doing this until we get a job.
    */
-  while (NULL == job) {
+  while (NULL == job) {        
     pthread_mutex_lock(&(q->wait_condition_mutex));
     if (NULL == q->front) {
-      pthread_cond_wait(&(q->wait_condition), &(q->wait_condition_mutex));
+      int rc = pthread_cond_timedwait(&(q->wait_condition), &(q->wait_condition_mutex), &ts);
+      if (ETIMEDOUT == rc) {
+        break;
+      }
     }
     pthread_mutex_unlock(&(q->wait_condition_mutex));
     

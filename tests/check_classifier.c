@@ -43,9 +43,7 @@ START_TEST (train_merges_examples_into_pools) {
 
 
 START_TEST (train_keeps_user_and_tag) {
-  TagList *tags = load_tags_from_file("fixtures", "mock");
-  assert_not_null(tags);
-  const Tag *tag = taglist_tag_at(tags, 1);
+  Tag *tag = create_tag("mock", "tag", 34, 56);
   assert_not_null(tag);
   
   TrainedClassifier *trained = train(tag, is);
@@ -53,6 +51,8 @@ START_TEST (train_keeps_user_and_tag) {
   
   assert_equal_s("mock", tc_get_user(trained));
   assert_equal_s("tag",  tc_get_tag_name(trained));
+  assert_equal(34, tc_get_user_id(trained));
+  assert_equal(56, tc_get_tag_id(trained));
   
   tc_free(trained);
 } END_TEST
@@ -66,12 +66,16 @@ START_TEST (precompute_keeps_user_and_tag) {
   TrainedClassifier tc;
   tc.user = "user";
   tc.tag_name = "tag";
+  tc.user_id = 34;
+  tc.tag_id = 56;
   tc.positive_pool = NULL;
   tc.negative_pool = NULL;
   Classifier *classifier = precompute(&tc, random_background);
   assert_not_null(classifier);
   assert_equal_s("user", cls_user(classifier));
   assert_equal_s("tag", cls_tag_name(classifier));
+  assert_equal(34, cls_user_id(classifier));
+  assert_equal(56, cls_tag_id(classifier));
   free_pool(random_background);
 } END_TEST
 
@@ -158,8 +162,10 @@ START_TEST (probability_7) {
  *
  *************************************************************/
 struct CLASSIFIER classifier;
-#define assert_tagging(u, t, s, tagging)            \
-      assert_not_null(tagging);                     \
+#define assert_tagging(u, t, uid, tid, s, tagging)  \
+      assert_not_null(tagging);                     \         
+      assert_equal(uid, tagging_user_id(tagging));  \
+      assert_equal(tid, tagging_tag_id(tagging));   \
       assert_equal_s(u, tagging_user(tagging));     \
       assert_equal_s(t, tagging_tag_name(tagging)); \
       assert_equal_f(s, tagging_strength(tagging));
@@ -167,6 +173,8 @@ struct CLASSIFIER classifier;
 static void setup_classifier_test(void) {
   classifier.user = "user";
   classifier.tag_name = "tag";
+  classifier.user_id = 12;
+  classifier.tag_id = 123;
   classifier.clues = NULL;
   
   PWord_t clue_p;
@@ -217,7 +225,7 @@ START_TEST (classify_1) {
   int tokens[][2] = {10, 10};
   Item *item = create_item_with_tokens(1, tokens, 1);
   Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 0.5, tagging);
+  assert_tagging("user", "tag", 12, 123, 0.5, tagging);
   free_item(item);
 } END_TEST
 
@@ -225,7 +233,7 @@ START_TEST (classify_2) {
   int tokens[][2] = {2, 10};
   Item *item = create_item_with_tokens(1, tokens, 1);
   Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 0.5, tagging);
+  assert_tagging("user", "tag", 12, 123, 0.5, tagging);
   free_item(item);
 } END_TEST
 
@@ -233,7 +241,7 @@ START_TEST (classify_3) {
   int tokens[][2] = {4, 1};
   Item *item = create_item_with_tokens(1, tokens, 1);
   Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 0.89947100800, tagging);
+  assert_tagging("user", "tag", 12, 123, 0.89947100800, tagging);
   free_item(item);
 } END_TEST
 
@@ -241,7 +249,7 @@ START_TEST (classify_4) {
   int tokens[][2] = {4, 100};
   Item *item = create_item_with_tokens(1, tokens, 1);
   Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 0.89947100800, tagging);
+  assert_tagging("user", "tag", 12, 123, 0.89947100800, tagging);
   free_item(item);
 } END_TEST
 
@@ -249,7 +257,7 @@ START_TEST (classify_5) {
   int tokens[][2] = {4, 1, 2, 1};
   Item *item = create_item_with_tokens(1, tokens, 2);
   Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 0.89947100800, tagging);
+  assert_tagging("user", "tag", 12, 123, 0.89947100800, tagging);
   free_item(item);
 } END_TEST
 
@@ -257,7 +265,7 @@ START_TEST (classify_6) {
   int tokens[][2] = {4, 1, 1, 1};
   Item *item = create_item_with_tokens(1, tokens, 2);
   Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 0.90383289433, tagging);
+  assert_tagging("user", "tag", 12, 123, 0.90383289433, tagging);
   free_item(item);
 } END_TEST
 
@@ -265,7 +273,7 @@ START_TEST (classify_7) {
   int tokens[][2] = {4, 1, 3, 1};
   Item *item = create_item_with_tokens(1, tokens, 2);
   Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 0.59043855740, tagging);
+  assert_tagging("user", "tag", 12, 123, 0.59043855740, tagging);
   free_item(item);
 } END_TEST
 
@@ -273,7 +281,7 @@ START_TEST (classify_8) {
   int tokens[][2] = {3, 1, 4, 1};
   Item *item = create_item_with_tokens(1, tokens, 2);
   Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 0.59043855740, tagging);
+  assert_tagging("user", "tag", 12, 123, 0.59043855740, tagging);
   free_item(item);
 } END_TEST
 
@@ -282,7 +290,7 @@ START_TEST (classify_9) {
   int tokens[][2] = {3, 1};
   Item *item = create_item_with_tokens(1, tokens, 1);
   Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 0.16771702260, tagging);
+  assert_tagging("user", "tag", 12, 123, 0.16771702260, tagging);
   free_item(item);
 } END_TEST
 
@@ -290,7 +298,7 @@ START_TEST (classify_10) {
   int tokens[][2] = {1, 1, 2, 1, 3, 1, 4, 1};
   Item *item = create_item_with_tokens(1, tokens, 4);
   Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 0.69125149517, tagging);
+  assert_tagging("user", "tag", 12, 123, 0.69125149517, tagging);
   free_item(item);
 } END_TEST
 

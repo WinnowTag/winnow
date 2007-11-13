@@ -14,6 +14,8 @@
 #include "misc.h"
 #include "clue.h"
 
+#define TINY_VAL_D 1e-200
+
 /** Some  function prototypes */
 static void compute_ratios(const ProbToken *token_prob[], int size, double *ratios);
 static double filtered_average(double arr[], int size);
@@ -27,7 +29,9 @@ TrainedClassifier * train(const Tag *tag, const ItemSource *is) {
   TrainedClassifier *tc = malloc(sizeof(struct TRAINED_CLASSIFIER));
   
   if (NULL != tc) {
+    tc->user_id = tag_user_id(tag);
     tc->user = tag_user(tag);
+    tc->tag_id = tag_tag_id(tag);
     tc->tag_name = tag_tag_name(tag);
     tc->positive_pool = new_pool();
     tc->negative_pool = new_pool();
@@ -75,6 +79,8 @@ Classifier * precompute(const TrainedClassifier *tc, const Pool *background) {
   if (NULL != classifier) {
     classifier->user = tc_get_user(tc);
     classifier->tag_name = tc_get_tag_name(tc);
+    classifier->tag_id = tc_get_tag_id(tc);
+    classifier->user_id = tc_get_user_id(tc);
     classifier->clues = NULL;
     
     struct PROB_TOKEN positive_token, negative_token, background_token;
@@ -151,8 +157,6 @@ Classifier * precompute(const TrainedClassifier *tc, const Pool *background) {
     return NULL;
 }
 
-#define TINY_VAL_D 1e-200
-
 /* Computes the probability that the tokens belong to the pool identified by pool_name.
  *
  * This method is based on the chi2_spamprob method in SpamBayes. To make it easier to compare
@@ -165,13 +169,18 @@ Classifier * precompute(const TrainedClassifier *tc, const Pool *background) {
  */
 Tagging * classify(const Classifier *classifier, const Item * item) {
   if (NULL == classifier || NULL == item) {
+    error("classify received NULL classifier(%x) or item(%x)", classifier, item);
     return NULL;
   }
   
   Tagging *tagging = malloc(sizeof(Tagging));
   if (NULL != tagging) {
+    tagging->item_id = item_get_id(item);
     tagging->user = cls_user(classifier);
     tagging->tag_name = cls_tag_name(classifier);
+    tagging->tag_id = cls_tag_id(classifier);
+    tagging->user_id = cls_user_id(classifier);
+    
     int num_clues;
     const Clue **clues = select_clues(classifier, item, &num_clues);
     
@@ -271,8 +280,16 @@ const char * tc_get_user(const TrainedClassifier *tc) {
   return tc->user;
 }
 
+int tc_get_user_id(const TrainedClassifier *tc) {
+  return tc->user_id;
+}
+
 const char * tc_get_tag_name(const TrainedClassifier *tc) {
   return tc->tag_name;
+}
+
+int tc_get_tag_id(const TrainedClassifier *tc) {
+  return tc->tag_id;
 }
 
 void tc_free(TrainedClassifier *tc) {
@@ -286,8 +303,16 @@ const char * cls_tag_name(const Classifier *cls) {
   return cls->tag_name;
 }
 
+int cls_tag_id(const Classifier *cls) {
+  return cls->tag_id;
+}
+
 const char * cls_user(const Classifier *cls) {
   return cls->user;
+}
+
+int cls_user_id(const Classifier *cls) {
+  return cls->user_id;
 }
 
 int cls_num_clues(const Classifier *cls) {
