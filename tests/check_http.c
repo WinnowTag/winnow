@@ -9,31 +9,54 @@
 #include <stdlib.h>
 #include <check.h>
 #include <config.h>
-
+#include <stdio.h>
+#include "../src/cls_config.h"
+#include "../src/classification_engine.h"
+#include "../src/httpd.h"
+#include "assertions.h"
 
 #define PORT 8008
 
+Config *config;
+ClassificationEngine *ce;
+Httpd *httpd;
+static FILE *test_data;
+
 static void setup_httpd() {
-  
+  config = load_config("fixtures/real-db.conf");
+  ce = create_classification_engine(config);  
+  httpd = httpd_start(config, ce);
+  test_data = fopen("http_test_data.log", "a");
 }
 
 static void teardown_httpd() {
-  
+  httpd_stop(httpd);
+  ce_stop(ce);
+  free_classification_engine(ce);
+  free_config(config);
+  fclose(test_data);
 }
 
 #ifdef HAVE_LIBCURL
 #include <curl/curl.h>
 
 START_TEST(test_http_initialization) {
+  int code;
   char curlerr[CURL_ERROR_SIZE];
   CURL *curl = curl_easy_init();
-  curl_easy_setopt(curl, CURLOPT_URL, "http://localhost:8008/classifier/jobs");
+  curl_easy_setopt(curl, CURLOPT_URL, "http://localhost:8008/");
   curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
   curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);
-  CURLcode code = curl_easy_perform(curl);
-  if (code) {
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, test_data);
+  CURLcode ccode = curl_easy_perform(curl);
+  if (ccode) {
     fail("HTTP server not accessible: %s", curlerr);
   }
+  
+  if (CURLE_OK != curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code)) {
+    fail("Could not get response code");
+  }
+  assert_equal(404, code);
   curl_easy_cleanup(curl);
 }
 END_TEST
