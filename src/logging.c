@@ -13,39 +13,53 @@
 #include <stdarg.h>
 #endif
 
-void fatal(const char *fmt, ...) {
+#define PREFIX(type) type " (%s:%i): "
+
+FILE *log_file = stderr;
+
+void initialize_logging(const char *filename) {
+  log_file = fopen(filename, "a");
+}
+
+void close_log() {
+  if (log_file != stderr) {
+    fclose(log_file);
+  }
+}
+
+void _fatal(const char *file, int line, const char *fmt, ...) {
   va_list argp;
-	fprintf(stderr, "FATAL: ");
+	fprintf(log_file, PREFIX("FATAL"), file, line);
 	va_start(argp, fmt);
-	vfprintf(stderr, fmt, argp);
+	vfprintf(log_file, fmt, argp);
 	va_end(argp);
-	fprintf(stderr, "\n");
+	fprintf(log_file, "\n");
   exit(1);
 }
 
-void error(const char *fmt, ...) {
+void _error(const char *file, int line, const char *fmt, ...) {
 	va_list argp;
-	fprintf(stderr, "ERROR: ");
+	fprintf(log_file, PREFIX("ERROR"), file, line);
 	va_start(argp, fmt);
-	vfprintf(stderr, fmt, argp);
+	vfprintf(log_file, fmt, argp);
 	va_end(argp);
-	fprintf(stderr, "\n");
+	fprintf(log_file, "\n");
 }
 
-void info(const char *fmt, ...) {
+void _info(const char *file, int line, const char *fmt, ...) {
 	va_list argp;
-	fprintf(stderr, "INFO: ");
+	fprintf(log_file, PREFIX("INFO "), file, line);
 	va_start(argp, fmt);
-	vfprintf(stderr, fmt, argp);
+	vfprintf(log_file, fmt, argp);
 	va_end(argp);
-	fprintf(stderr, "\n");
+	fprintf(log_file, "\n");
 }
 
-void debug(const char *fmt, ...) {
+void _debug(const char *file, int line, const char *fmt, ...) {
 	va_list argp;
-	fprintf(stderr, "DEBUG: ");
+	fprintf(log_file, PREFIX("DEBUG"), file, line);
 	va_start(argp, fmt);
-	vfprintf(stderr, fmt, argp);
+	vfprintf(log_file, fmt, argp);
 	va_end(argp);
-	fprintf(stderr, "\n");
+	fprintf(log_file, "\n");
 }

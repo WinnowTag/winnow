@@ -7,6 +7,7 @@
 
 #include "item.h"
 #include "misc.h"
+#include "logging.h"
 
 #include <stdio.h>
 

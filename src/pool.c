@@ -7,6 +7,7 @@
 
 #include "pool.h"
 #include "misc.h"
+#include "logging.h"
 
 Pool * new_pool(void) {
   Pool *pool = malloc(sizeof(Pool));

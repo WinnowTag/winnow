@@ -10,6 +10,7 @@
 #include <libconfig.h>
 #include "cls_config.h"
 #include "misc.h"
+#include "logging.h"
 
 #define ITEM_DB "db.item"
 #define TAG_DB  "db.tag"

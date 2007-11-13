@@ -11,13 +11,14 @@
 #include <sys/time.h>
 #include <pthread.h>
 #include "item.h"
+#include "file_item_source.h"
 #include "pool.h"
 #include "random_background.h"
 #include "samples.h"
 #include "tag.h"
 #include "classifier.h"
 
-void do_classification(void *nothing);
+void *do_classification(void *nothing);
 
 ItemSource *is;
 Samples *samples;
@@ -100,7 +101,7 @@ int main(int argc, char ** argv) {
   return 0;
 }
 
-void do_classification(void *nothing) {
+void *do_classification(void *nothing) {
   int did_work = 0;
   double _training = 0;
   float _precomputing = 0;

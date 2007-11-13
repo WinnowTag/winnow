@@ -20,6 +20,7 @@
 #include "job_queue.h"
 #include "misc.h"
 #include "random_background.h"
+#include "logging.h"
 
 #ifdef HAVE_DATABASE_ACCESS
 #include <mysql.h>

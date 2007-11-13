@@ -9,6 +9,7 @@
 #include <string.h>
 #include "file_item_source.h"
 #include "misc.h"
+#include "logging.h"
 
 static int read_token_file(Item *item, const char * itempath);
 static int build_item_path(const char * corpus, int item, char * buffer, int size);

@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "logging.h"
 
 static int build_tagging_path(const char *, const char *, char *, int);
 static int read_tagging_file(TagList* taglist, const char *, const char *);

@@ -7,6 +7,7 @@
 
 #include <stdlib.h>
 #include <check.h>
+#include "../src/logging.h"
 
 Suite * pool_suite (void);
 Suite * classifier_suite (void);
@@ -15,11 +16,13 @@ Suite * tag_suite (void);
 Suite * random_background_suite (void);
 Suite * clue_suite (void);
 Suite * queue_suite (void);
+Suite * samples_suite(void);
 Suite * config_suite (void);
 Suite * caching_item_source_suite(void);
 Suite * classification_engine_suite(void);
 
 int main(void) {
+  initialize_logging("test.log");
   int number_failed;
   
   SRunner *sr = srunner_create(pool_suite());
@@ -37,5 +40,6 @@ int main(void) {
   srunner_run_all(sr, CK_NORMAL);
   number_failed = srunner_ntests_failed(sr);
   srunner_free(sr);
+  close_log();
   return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

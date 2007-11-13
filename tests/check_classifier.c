@@ -163,7 +163,7 @@ START_TEST (probability_7) {
  *************************************************************/
 struct CLASSIFIER classifier;
 #define assert_tagging(u, t, uid, tid, s, tagging)  \
-      assert_not_null(tagging);                     \         
+      assert_not_null(tagging);                     \
       assert_equal(uid, tagging_user_id(tagging));  \
       assert_equal(tid, tagging_tag_id(tagging));   \
       assert_equal_s(u, tagging_user(tagging));     \

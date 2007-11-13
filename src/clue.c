@@ -5,11 +5,12 @@
 //
 // Please contact info@peerworks.org for further information.
 
-#include "clue.h"
 #include <stdlib.h>
 #include <math.h>
+#include "clue.h"
+#include "logging.h"
 
-const Clue * new_clue(int token_id, double probability) {
+Clue * new_clue(int token_id, double probability) {
   Clue *clue = malloc(sizeof(struct CLUE));
   if (NULL != clue) {
     clue->token_id = token_id;

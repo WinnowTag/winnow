@@ -14,7 +14,7 @@ typedef struct CLUE {
   double strength;
 } Clue;
 
-const Clue * new_clue  (int token_id, double probability);
+Clue * new_clue  (int token_id, double probability);
 void         free_clue (Clue *clue);
 
 #define clue_token_id(clue)        clue->token_id

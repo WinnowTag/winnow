@@ -10,6 +10,7 @@
 #include <errmsg.h>
 #include <string.h>
 #include "db_item_source.h"
+#include "logging.h"
 
 #define FETCH_ITEM_SQL "select token_id, frequency from feed_item_tokens where feed_item_id = ?"
 #define FETCH_ALL_ITEMS_SQL "select feed_item_id, token_id, frequency from feed_item_tokens"

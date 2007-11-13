@@ -11,6 +11,7 @@
 #include <string.h>
 #include "misc.h"
 #include "tagging.h"
+#include "logging.h"
 
 #define INS_TAGGING_STMT "insert into taggings                                                      \
                           (feed_item_id, tag_id, user_id, strength, classifier_tagging, created_on) \

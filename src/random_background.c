@@ -11,6 +11,7 @@
 #include "random_background.h"
 #include "misc.h"
 #include "errno.h"
+#include "logging.h"
 
 Pool * create_random_background_from_file (const ItemSource *is, const char * filename) {
   Pool *pool = new_pool();  
