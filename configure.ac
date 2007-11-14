@@ -2,6 +2,8 @@ AC_INIT([classifier], [1.0], [info@peerworks.org])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 
 ### Check for programs.
+AC_PROG_CC
+AC_PROG_LIBTOOL
 
 ### Check for mysql_config
 AC_ARG_WITH(mysql_config,
@@ -12,12 +14,20 @@ AC_ARG_WITH(mysql_config,
 AC_PATH_PROGS(MYSQL_CONFIG, [mysql_config mysql_config5], $mysql_config_prog)
 
 if test "x$MYSQL_CONFIG" = "x"; then
-    AC_MSG_ERROR([Couldn't find mysql_config. Please verify it is installed or pass it in using --with-mysql_config])
+    AC_MSG_ERROR([Could not find mysql_config. Please verify it is installed or pass it in using --with-mysql_config])
 fi
 
+### Check for xml2-config
+AC_ARG_WITH(xml2_config,
+        AC_HELP_STRING(
+                [--with-xml2-config=PROGRAM],
+                [location of the xml2-config program]),
+        [xml2_config_prog=$withval])        
+AC_PATH_PROG(XML2_CONFIG, [xml2-config], $xml2_config_prog)
 
-AC_PROG_CC
-AC_PROG_LIBTOOL
+if test "x$XML2_CONFIG" = "x"; then
+  AC_MSG_ERROR([Could not find xml2-config. Please verify libxml2 is installed or pass in path to xml2-config using --with-xml2-config])
+fi
 
 ### Check libraries
 
@@ -27,6 +37,12 @@ AC_CHECK_LIB(pthread, pthread_create, [], [AC_MSG_ERROR(pthread is missing)])
 AC_CHECK_LIB(config, config_init, [], [AC_MSG_ERROR(libconfig is missing you might need to install it from http://www.hyperrealm.com/libconfig/)])
 AC_CHECK_LIB(microhttpd, MHD_start_daemon, [], [AC_MSG_WARN(libmicrohttpd is missing. REST support will be disabled.)])
 
+### Setup libxml2 libs
+XML2_LIBS=$($XML2_CONFIG --libs)
+LIBS="$LIBS $XML2_LIBS"
+AC_CHECK_LIB(xml2, xmlReadFile, [], [AC_MSG_ERROR(libxml2 is missing xmlReadFile)])
+
+### Setup MySQL libraries
 MYSQL_LIBS=$($MYSQL_CONFIG --libs_r)
 LIBS="$LIBS $MYSQL_LIBS"
 AC_CHECK_LIB(mysqlclient, mysql_real_connect, 
@@ -45,11 +61,15 @@ AC_CHECK_HEADERS([Judy.h], [], [AC_MSG_ERROR(Judy.h is missing)])
 AC_CHECK_HEADERS([libconfig.h], [], [AC_MSG_ERROR(libconfig.h is missing)])
 AC_CHECK_HEADERS([sys/param.h errno.h stdarg.h stdbool.h uuid/uuid.h])
 
+###### Setup libxml2 headers
+XML2_INCLUDE=$($XML2_CONFIG --cflags)
+CPPFLAGS="$CPPFLAGS $XML2_INCLUDE"
+AC_CHECK_HEADERS([libxml/parser.h], [], [AC_MSG_ERROR(libxml/parser.h is missing)])
+
 ###### MySQL
 MYSQL_INCLUDE=$($MYSQL_CONFIG --cflags)
 CPPFLAGS="$CPPFLAGS $MYSQL_INCLUDE"
 AC_CHECK_HEADERS([mysql.h], [], [AC_MSG_ERROR(mysql.h is missing)])
-
 
 AC_FUNC_MALLOC
 

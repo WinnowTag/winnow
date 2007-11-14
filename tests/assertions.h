@@ -39,3 +39,13 @@
 #define assert_between_ex(bottom, top, actual) \
   fail_unless(bottom < actual && actual < top, "expected %f to be between %f and %f", actual, bottom, top)
 #endif
+
+#ifndef assert_xpath
+#define assert_xpath(xp, doc) {                                                       \
+  xmlXPathContextPtr context = xmlXPathNewContext(doc);                               \
+  xmlXPathObjectPtr result = xmlXPathEvalExpression((xmlChar *)xp, context);           \
+  xmlXPathFreeContext(context);                                                       \
+  if (xmlXPathNodeSetIsEmpty(result->nodesetval)) fail("missing %s in document", xp); \
+  xmlXPathFreeObject(result);                                                         \
+}
+#endif

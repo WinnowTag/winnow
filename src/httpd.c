@@ -13,10 +13,24 @@
 #include "cls_config.h"
 #include "logging.h"
 
-#define NOT_FOUND "<html><head><title>File not found</title></head><body>File not found</body></html>"
+#define CONTENT_TYPE "application/xml"
+#define NOT_FOUND "<?xml version='1.0' ?>\n<error-msg>Resource not found.</error-msg>"
 
 #ifdef HAVE_LIBMICROHTTPD
 #include <microhttpd.h>
+#include <libxml/tree.h>
+
+#define SEND_404(returncode) \
+   struct MHD_Response *response = MHD_create_response_from_data(strlen(NOT_FOUND), NOT_FOUND, MHD_NO, MHD_NO); \
+   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                               \
+   returncode = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);                                   \
+   MHD_destroy_response(response);
+
+#define SEND_XML_DATA(returncode, httpcode, data) \
+  struct MHD_Response *response = MHD_create_response_from_data(strlen(data), data, MHD_NO, MHD_NO); \
+  MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                     \
+  returncode = MHD_queue_response(connection, httpcode, response);                                   \
+  MHD_destroy_response(response);
 
 struct HTTPD {
   struct MHD_Daemon *mhd;
@@ -24,14 +38,89 @@ struct HTTPD {
   ClassificationEngine *ce;
 };
 
+//  <classification-job>
+//    <id>ID</id>
+//    <progress type="float">0.0</progress>
+//    <tag-id type="integer">N</tag-id>
+//  </classification-job>
+//
+static xmlChar * xml_for_job(const ClassificationJob *job) {
+  xmlChar *buffer = NULL;
+  int buffersize;
+  xmlDocPtr doc = xmlNewDoc(BAD_CAST "1.0");
+  xmlNodePtr root = xmlNewNode(NULL, BAD_CAST "classification-job");
+  xmlDocSetRootElement(doc, root);
+  
+  xmlChar progress_buffer[16];
+  xmlChar tag_id_buffer[16];
+  xmlStrPrintf(progress_buffer, 16, BAD_CAST "%.1f", cjob_progress(job));
+  xmlStrPrintf(tag_id_buffer, 16, BAD_CAST "%d", cjob_tag_id(job));
+  
+  xmlNodePtr id = xmlNewChild(root, NULL, BAD_CAST "id", BAD_CAST cjob_id(job));
+  xmlNodePtr progress = xmlNewChild(root, NULL, BAD_CAST "progress", progress_buffer);
+  xmlAttrPtr progress_type = xmlNewProp(progress, BAD_CAST "type", BAD_CAST "float");  
+  xmlNodePtr tag_id = xmlNewChild(root, NULL, BAD_CAST "tag-id", tag_id_buffer);
+  xmlAttrPtr tag_id_type = xmlNewProp(tag_id, BAD_CAST "type", BAD_CAST "integer");  
+  
+  xmlDocDumpFormatMemory(doc, &buffer, &buffersize, 1);
+  xmlFreeDoc(doc);
+  
+  return buffer;
+}
+
+static const char * extract_job_id(const char * url) {
+  char *job_id = NULL;
+  char *last_slash = rindex(url, '/');
+  char *string_end = rindex(url, '\0');
+  
+  if (last_slash && (string_end - last_slash) > sizeof(char)) {
+    job_id = last_slash + sizeof(char);
+  }
+  
+  return job_id;
+}
+
+/********************************************************************************
+ * HTTP Interface Handlers
+ ********************************************************************************/
+
+static int job_status_handler(void * ce_vp, struct MHD_Connection * connection,
+                        const char * url, const char * method, const char * version) {
+  debug("job_status_handler %s", url);
+  int ret;
+  const char *job_id = extract_job_id(url);
+  
+  if (job_id == NULL) {
+    SEND_404(ret);
+  } else {
+    ClassificationEngine *ce = (ClassificationEngine*) ce_vp;
+    ClassificationJob *job = ce_fetch_classification_job(ce, job_id);
+    
+    if (job) {
+      xmlChar *xml = xml_for_job(job);
+      SEND_XML_DATA(ret, MHD_HTTP_OK, (char*) xml);
+      xmlFree(xml);
+    } else {
+      SEND_404(ret);
+    }
+  } 
+  
+  return ret;
+}
+
 /* This is the base response handler. It just returns a 404. */
 static int process_request(void * ce_vp, struct MHD_Connection * connection,
                            const char * url, const char * method, 
                            const char * version, const char * upload_data,
-                           unsigned int * upload_data_size, void **ignored){
-  struct MHD_Response *response = MHD_create_response_from_data(strlen(NOT_FOUND), NOT_FOUND, MHD_NO, MHD_NO);
-  int ret = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);
-  MHD_destroy_response(response);
+                           unsigned int * upload_data_size, void **ignored) {
+  int ret;
+  
+  if (url == strstr(url, "/classifier/jobs/") && 0 == strcmp("GET", method)) {
+    ret = job_status_handler(ce_vp, connection, url, method, version);
+  } else {
+    SEND_404(ret);
+  }
+  
   return ret;
 }
 
