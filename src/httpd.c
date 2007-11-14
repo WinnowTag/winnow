@@ -15,15 +15,38 @@
 
 #define CONTENT_TYPE "application/xml"
 #define NOT_FOUND "<?xml version='1.0' ?>\n<error-msg>Resource not found.</error-msg>"
+#define METHOD_NOT_ALLOWED "<?xml version='1.0' ?>\n<error-msg>Method is not allowed for that resource.</error-msg>"
+#define BAD_XML "<?xml version='1.0' ?>\n<error-msg>Badly formatted XML.</error-msg>"
+#define MISSING_TAG_ID "<?xml version='1.0' ?>\n<error-msg>Missing tag id in job description</error-msg>"
 
 #ifdef HAVE_LIBMICROHTTPD
 #include <microhttpd.h>
 #include <libxml/tree.h>
+#include <libxml/xpath.h>
 
 #define SEND_404(returncode) \
    struct MHD_Response *response = MHD_create_response_from_data(strlen(NOT_FOUND), NOT_FOUND, MHD_NO, MHD_NO); \
    MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                               \
    returncode = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);                                   \
+   MHD_destroy_response(response);
+
+#define SEND_405(returncode, allowed) \
+   struct MHD_Response *response = MHD_create_response_from_data(strlen(METHOD_NOT_ALLOWED), METHOD_NOT_ALLOWED, MHD_NO, MHD_NO); \
+   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                               \
+   MHD_add_response_header(response, MHD_HTTP_HEADER_ALLOW, allowed);                               \
+   returncode = MHD_queue_response(connection, MHD_HTTP_METHOD_NOT_ALLOWED, response);                   \
+   MHD_destroy_response(response);
+
+#define SEND_415(returncode) \
+   struct MHD_Response *response = MHD_create_response_from_data(strlen(BAD_XML), BAD_XML, MHD_NO, MHD_NO); \
+   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                               \
+   returncode = MHD_queue_response(connection, MHD_HTTP_UNSUPPORTED_MEDIA_TYPE, response);                   \
+   MHD_destroy_response(response);
+
+#define SEND_MISSING_TAG_ID(returncode) \
+   struct MHD_Response *response = MHD_create_response_from_data(strlen(MISSING_TAG_ID), MISSING_TAG_ID, MHD_NO, MHD_NO); \
+   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                               \
+   returncode = MHD_queue_response(connection, MHD_HTTP_UNPROCESSABLE_ENTITY, response);                   \
    MHD_destroy_response(response);
 
 #define SEND_XML_DATA(returncode, httpcode, data) \
@@ -108,14 +131,77 @@ static int job_status_handler(void * ce_vp, struct MHD_Connection * connection,
   return ret;
 }
 
+struct posted_data {
+  int size;
+  char *buffer;
+};
+
+static int start_job_handle(void * ce_vp, struct MHD_Connection * connection,
+                             const char * url, const char * method, 
+                             const char * version, const char * upload_data,
+                             unsigned int * upload_data_size, void **memo) {
+  debug("%s with (%i) %s", method, *upload_data_size, upload_data);
+  int ret = MHD_NO;  
+  
+  if (strcmp(MHD_HTTP_METHOD_POST, method)) {
+    SEND_405(ret, "POST");
+  } else {
+    if (*upload_data_size == 0) {     
+      struct posted_data *pd = *memo;
+      if (!pd) {
+        SEND_415(ret);
+      } else {
+        xmlDocPtr doc = xmlParseDoc(BAD_CAST pd->buffer);
+        
+        if (doc == NULL) {
+          debug("XML was malformed: %s", pd->buffer);
+          SEND_415(ret);
+        } else {
+          xmlXPathContextPtr context = xmlXPathNewContext(doc);
+          xmlXPathObjectPtr result = xmlXPathEvalExpression(BAD_CAST "/classifier-job/tag-id/text()", context);
+          xmlNodeSetPtr nodeset = result->nodesetval;
+          if (nodeset->nodeNr != 1) {
+            SEND_MISSING_TAG_ID(ret);
+          } else {
+            // TODO handle wellformed XML            
+          }
+                  
+          xmlXPathFreeObject(result);
+          xmlXPathFreeContext(context);                                                       
+        }
+                
+        xmlFreeDoc(doc);
+        free(pd->buffer);
+        free(pd);        
+      }
+    } else if (!(*memo)) {
+      struct posted_data *pd;
+      *memo = pd = malloc(sizeof(struct posted_data));      
+      pd->buffer = calloc(*upload_data_size, sizeof(char));
+      pd->size = *upload_data_size;
+      strncpy(pd->buffer, upload_data, pd->size);
+      debug("memoize: %s", pd->buffer);
+      *upload_data_size = 0;
+      ret = MHD_YES;
+    } else {
+      // TODO Need to handle incremental processing of POST'ed data
+      error("Need to handle incremental processing of POST'ed data");
+    }    
+  }
+  
+  return ret;
+}
 /* This is the base response handler. It just returns a 404. */
 static int process_request(void * ce_vp, struct MHD_Connection * connection,
                            const char * url, const char * method, 
                            const char * version, const char * upload_data,
-                           unsigned int * upload_data_size, void **ignored) {
+                           unsigned int * upload_data_size, void **memo) {
   int ret;
   
-  if (url == strstr(url, "/classifier/jobs/") && 0 == strcmp("GET", method)) {
+  if (0 == strcmp(url, "/classifier/jobs/") || 0 == strcmp(url, "/classifier/jobs")) {
+    ret = start_job_handle(ce_vp, connection, url, method, version, upload_data, upload_data_size, memo);
+    debug("ret = %i", ret);
+  } else if (url == strstr(url, "/classifier/jobs/") && 0 == strcmp("GET", method)) {
     ret = job_status_handler(ce_vp, connection, url, method, version);
   } else {
     SEND_404(ret);

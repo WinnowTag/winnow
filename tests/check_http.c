@@ -54,8 +54,27 @@ START_TEST(test_missing_job_returns_404) {
   assert_get("http://localhost:8008/classifier/jobs/missing", 404, devnull);
 } END_TEST
 
-START_TEST(test_missing_job_id_returns_404) {
-  assert_get("http://localhost:8008/classifier/jobs/", 404, devnull);
+START_TEST(test_missing_job_id_returns_405) {
+  /* 405 is Method NOT allowed.
+   * We get this because you can only POST to classifier/jobs/
+   */
+  assert_get("http://localhost:8008/classifier/jobs/", 405, test_data);
+} END_TEST
+
+START_TEST(test_post_to_create_job_with_tag_id_missing_returns_422) {
+  char *post_data = "<?xml version='1.0'?>\n<classifier-job><tag-id></tag-id></classifier-job>";
+  assert_post("http://localhost:8008/classifier/jobs", post_data, 422, devnull);
+} END_TEST
+
+/* Missing XML returns Unsupported media type (415) */
+START_TEST(test_post_to_create_job_with_invalid_xml_returns_415) {
+  char *post_data = "xxx";
+  assert_post("http://localhost:8008/classifier/jobs", post_data, 415, devnull);
+} END_TEST
+
+START_TEST(test_post_to_create_job_without_xml_returns_415) {
+  char *post_data = "";
+  assert_post("http://localhost:8008/classifier/jobs", post_data, 415, devnull);
 } END_TEST
 
 // Expected xml should look like this:
@@ -97,7 +116,11 @@ Suite * http_suite(void) {
   tcase_add_test(tc_case, test_http_initialization);
   tcase_add_test(tc_case, test_job_status);  
   tcase_add_test(tc_case, test_missing_job_returns_404);
-  tcase_add_test(tc_case, test_missing_job_id_returns_404);
+  tcase_add_test(tc_case, test_missing_job_id_returns_405);
+  
+  tcase_add_test(tc_case, test_post_to_create_job_without_xml_returns_415);
+  tcase_add_test(tc_case, test_post_to_create_job_with_invalid_xml_returns_415);
+  tcase_add_test(tc_case, test_post_to_create_job_with_tag_id_missing_returns_422);
   // END_TESTS
 #endif
   suite_add_tcase(s, tc_case);
