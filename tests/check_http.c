@@ -22,12 +22,14 @@ Config *config;
 ClassificationEngine *ce;
 Httpd *httpd;
 static FILE *test_data;
+static FILE *devnull;
 
 static void setup_httpd() {
   config = load_config("fixtures/real-db.conf");
   ce = create_classification_engine(config);  
   httpd = httpd_start(config, ce);
   test_data = fopen("http_test_data.log", "a");
+  devnull = fopen("/dev/null", "w");
 }
 
 static void teardown_httpd() {
@@ -43,92 +45,17 @@ static void teardown_httpd() {
 #include <libxml/tree.h>
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
-
+    
 START_TEST(test_http_initialization) {
-  int code;
-  char curlerr[CURL_ERROR_SIZE];
-  char *content_type;
-  CURL *curl = curl_easy_init();
-  curl_easy_setopt(curl, CURLOPT_URL, "http://localhost:8008/");
-  curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-  curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, test_data);
-  
-  if (curl_easy_perform(curl)) {
-    fail("HTTP server not accessible: %s", curlerr);
-  }
-  
-  if (CURLE_OK != curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code)) {
-    fail("Could not get response code");
-  }
-  
-  if (curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type)) {
-     fail("Could not get content type");
-   }
-  
-  assert_equal(404, code);
-  assert_not_null(content_type);
-  assert_equal_s("application/xml", content_type);
-  
-  curl_easy_cleanup(curl);
+  assert_get("http://localhost:8008/", 404, devnull);
 } END_TEST
 
 START_TEST(test_missing_job_returns_404) {
-  int code;
-  char curlerr[CURL_ERROR_SIZE];
-  char *content_type;
-  CURL *curl = curl_easy_init();
-  curl_easy_setopt(curl, CURLOPT_URL, "http://localhost:8008/classifier/jobs/missingjob");
-  curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-  curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, test_data);
-  
-  if (curl_easy_perform(curl)) {
-    fail("HTTP server not accessible: %s", curlerr);
-  }
-  
-  if (CURLE_OK != curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code)) {
-    fail("Could not get response code");
-  }
-  
-  if (CURLE_OK != curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type)) {
-    fail("Could not get content type");
-  }
-  
-  assert_not_null(content_type);
-  assert_equal_s("application/xml", content_type);
-  assert_equal(404, code);
-  
-  curl_easy_cleanup(curl);
+  assert_get("http://localhost:8008/classifier/jobs/missing", 404, devnull);
 } END_TEST
 
 START_TEST(test_missing_job_id_returns_404) {
-  int code;
-  char curlerr[CURL_ERROR_SIZE];
-  char *content_type;
-  CURL *curl = curl_easy_init();
-  curl_easy_setopt(curl, CURLOPT_URL, "http://localhost:8008/classifier/jobs/");
-  curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-  curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, test_data);
-  
-  if (curl_easy_perform(curl)) {
-    fail("HTTP server not accessible: %s", curlerr);
-  }
-  
-  if (CURLE_OK != curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code)) {
-    fail("Could not get response code");
-  }
-  
-  if (CURLE_OK != curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type)) {
-    fail("Could not get content type");
-  }
-  
-  assert_not_null(content_type);
-  assert_equal_s("application/xml", content_type);
-  assert_equal(404, code);
-  
-  curl_easy_cleanup(curl);
+  assert_get("http://localhost:8008/classifier/jobs/", 404, devnull);
 } END_TEST
 
 // Expected xml should look like this:
@@ -139,38 +66,12 @@ START_TEST(test_missing_job_id_returns_404) {
 //  </classification-job>
 //
 START_TEST(test_job_status) {
-  FILE *data = fopen("test_data.xml", "w");
-  int code;
-  char curlerr[CURL_ERROR_SIZE];
   char url[256];
   ClassificationJob *job = ce_add_classification_job(ce, 39);
   sprintf(url, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
-  
-  CURL *curl = curl_easy_init();
-  curl_easy_setopt(curl, CURLOPT_URL, url);
-  curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, data);
-  
-  if (curl_easy_perform(curl)) {
-    fail("HTTP server not accessible: %s", curlerr);
-  }
-  
-  if (CURLE_OK != curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code)) {
-    fail("Could not get response code");
-  }
-  
-  char *content_type;
-  if (curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type)) {
-    fail("Could not get content type");
-  }
-    
+  FILE *data = fopen("test_data.xml", "w");
+  assert_get(url, 200, data);
   fclose(data);
-  
-  assert_equal(200, code);
-  assert_not_null(content_type);
-  assert_equal_s("application/xml", content_type);
-  curl_easy_cleanup(curl);
   
   char idpath[1024];
   sprintf(idpath, "/classification-job/id[text() = '%s']", cjob_id(job));

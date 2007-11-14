@@ -49,3 +49,23 @@
   xmlXPathFreeObject(result);                                                         \
 }
 #endif
+
+#if HAVE_LIBCURL
+#define assert_get(url, response_code, store_output) {\
+    int code;                                                             \
+    char curlerr[CURL_ERROR_SIZE];                                        \
+    char *content_type;                                                   \
+    CURL *curl = curl_easy_init();                                        \
+    curl_easy_setopt(curl, CURLOPT_URL, url);                             \
+    curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);  \
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);                 \
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, store_output);              \
+    if (curl_easy_perform(curl)) fail("HTTP server not accessible: %s", curlerr); \
+    if (CURLE_OK != curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code)) fail("Could not get response code"); \
+    if (curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type)) fail("Could not get content type"); \
+    assert_equal(response_code, code);                                              \
+    assert_not_null(content_type);                                        \
+    assert_equal_s("application/xml", content_type);                      \
+    curl_easy_cleanup(curl);                                              \
+}
+#endif
