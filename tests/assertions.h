@@ -70,6 +70,24 @@
     curl_easy_cleanup(curl);                                              \
 }
 
+#define assert_delete(url, response_code, store_headers) {\
+    int code;                                                             \
+    char curlerr[CURL_ERROR_SIZE];                                        \
+    char *content_type;                                                   \
+    CURL *curl = curl_easy_init();                                        \
+    curl_easy_setopt(curl, CURLOPT_URL, url);                             \
+    curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);  \
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);                 \
+    curl_easy_setopt(curl, CURLOPT_HEADER, 1);                            \
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");              \
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, store_headers);             \
+    if (curl_easy_perform(curl)) fail("HTTP server not accessible: %s", curlerr); \
+    if (CURLE_OK != curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code)) fail("Could not get response code"); \
+    if (curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type)) fail("Could not get content type"); \
+    assert_equal(response_code, code);                                    \
+    curl_easy_cleanup(curl);                                              \
+}
+
 #define assert_post(url, data, response_code, store_output, store_headers) { \
     mark_point();\
     int code;                                                             \

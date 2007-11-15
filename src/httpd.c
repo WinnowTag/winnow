@@ -24,6 +24,12 @@
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 
+#define SEND_204(returncode) \
+   struct MHD_Response *response = MHD_create_response_from_data(0, "", MHD_NO, MHD_NO); \
+   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);        \
+   returncode = MHD_queue_response(connection, MHD_HTTP_NO_CONTENT, response);           \
+   MHD_destroy_response(response);
+
 #define SEND_404(returncode) \
    struct MHD_Response *response = MHD_create_response_from_data(strlen(NOT_FOUND), NOT_FOUND, MHD_NO, MHD_NO); \
    MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                               \
@@ -154,26 +160,31 @@ static int start_job(ClassificationEngine *ce, struct MHD_Connection *connection
   return ret; 
 }
 
-static int job_status_handler(void * ce_vp, struct MHD_Connection * connection,
+static int job_handler(void * ce_vp, struct MHD_Connection * connection,
                         const char * url, const char * method, const char * version) {
   debug("job_status_handler %s", url);
   int ret;
   const char *job_id = extract_job_id(url);
+  ClassificationEngine *ce = (ClassificationEngine*) ce_vp;
+  ClassificationJob *job = NULL;
   
   if (job_id == NULL) {
     SEND_404(ret);
+  } else if (NULL == (job = ce_fetch_classification_job(ce, job_id))) {
+    SEND_404(ret);
+  } else if (CJOB_STATE_CANCELLED == cjob_state(job)) {
+    // Cancelled jobs are considered deleted to the outside world.
+    SEND_404(ret);
+  } else if (!strcmp("GET", method)) {
+    xmlChar *xml = xml_for_job(job);
+    SEND_XML_DATA(ret, MHD_HTTP_OK, (char*) xml, NULL);
+    xmlFree(xml);
+  } else if (!strcmp("DELETE", method)) {
+    cjob_cancel(job);
+    SEND_204(ret);
   } else {
-    ClassificationEngine *ce = (ClassificationEngine*) ce_vp;
-    ClassificationJob *job = ce_fetch_classification_job(ce, job_id);
-    
-    if (job) {
-      xmlChar *xml = xml_for_job(job);
-      SEND_XML_DATA(ret, MHD_HTTP_OK, (char*) xml, NULL);
-      xmlFree(xml);
-    } else {
-      SEND_404(ret);
-    }
-  } 
+    SEND_405(ret, "GET, DELETE");
+  }
   
   return ret;
 }
@@ -229,8 +240,8 @@ static int process_request(void * ce_vp, struct MHD_Connection * connection,
   if (0 == strcmp(url, "/classifier/jobs/") || 0 == strcmp(url, "/classifier/jobs")) {
     ret = start_job_handle(ce_vp, connection, url, method, version, upload_data, upload_data_size, memo);
     debug("ret = %i", ret);
-  } else if (url == strstr(url, "/classifier/jobs/") && 0 == strcmp("GET", method)) {
-    ret = job_status_handler(ce_vp, connection, url, method, version);
+  } else if (url == strstr(url, "/classifier/jobs/")) {
+    ret = job_handler(ce_vp, connection, url, method, version);
   } else {
     SEND_404(ret);
   }
