@@ -38,6 +38,7 @@ static void teardown_httpd() {
   free_classification_engine(ce);
   free_config(config);
   fclose(test_data);
+  fclose(devnull);
 }
 
 #ifdef HAVE_LIBCURL
@@ -62,20 +63,57 @@ START_TEST(test_missing_job_id_returns_405) {
 } END_TEST
 
 START_TEST(test_post_to_create_job_with_tag_id_missing_returns_422) {
-  char *post_data = "<?xml version='1.0'?>\n<classifier-job><tag-id></tag-id></classifier-job>";
-  assert_post("http://localhost:8008/classifier/jobs", post_data, 422, devnull);
+  char *post_data = "<?xml version='1.0'?>\n<classification-job><tag-id></tag-id></classification-job>\n";
+  assert_post("http://localhost:8008/classifier/jobs", post_data, 422, devnull, devnull);
 } END_TEST
 
 /* Missing XML returns Unsupported media type (415) */
 START_TEST(test_post_to_create_job_with_invalid_xml_returns_415) {
   char *post_data = "xxx";
-  assert_post("http://localhost:8008/classifier/jobs", post_data, 415, devnull);
+  assert_post("http://localhost:8008/classifier/jobs", post_data, 415, devnull, devnull);
 } END_TEST
 
 START_TEST(test_post_to_create_job_without_xml_returns_415) {
   char *post_data = "";
-  assert_post("http://localhost:8008/classifier/jobs", post_data, 415, devnull);
+  assert_post("http://localhost:8008/classifier/jobs", post_data, 415, devnull, devnull);
 } END_TEST
+
+START_TEST(test_post_with_valid_tag_id_queues_job) {
+  FILE *headers = fopen("headers.txt", "w");
+  FILE *data    = fopen("test_data.xml", "w"); 
+  assert_equal(0, ce_num_jobs_in_system(ce));
+  char *post_data = "<?xml version='1.0'?>\n<classification-job><tag-id>48</tag-id></classification-job>";
+  assert_post("http://localhost:8008/classifier/jobs", post_data, 201, data, headers);
+  fclose(headers);
+  fclose(data);
+  mark_point();
+  
+  assert_equal(1, ce_num_jobs_in_system(ce));
+  xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
+  fail_unless(doc != NULL, "Failed to parse xml");
+  assert_xpath("/classification-job/id/text()", doc);
+  mark_point();
+  
+  xmlXPathContextPtr context = xmlXPathNewContext(doc);
+  xmlXPathObjectPtr result = xmlXPathEvalExpression(BAD_CAST "/classification-job/id/text()", context);
+  xmlNodeSetPtr nodeset = result->nodesetval;
+  mark_point();
+  char *id = (char *) nodeset->nodeTab[0]->content;
+  assert_not_null(id);
+  
+  ClassificationJob *job = ce_fetch_classification_job(ce, id);
+  assert_not_null(job);
+  assert_equal(48, cjob_tag_id(job));
+  
+  char grep[1024];
+  sprintf(grep, "grep 'Location: /classifier/jobs/%s' headers.txt", id);
+  fail_if(system(grep), "Headers were missing location: %s", id);
+
+  xmlXPathFreeObject(result);  
+  xmlXPathFreeContext(context);
+  xmlFree(doc);
+}
+END_TEST
 
 // Expected xml should look like this:
 //
@@ -121,6 +159,8 @@ Suite * http_suite(void) {
   tcase_add_test(tc_case, test_post_to_create_job_without_xml_returns_415);
   tcase_add_test(tc_case, test_post_to_create_job_with_invalid_xml_returns_415);
   tcase_add_test(tc_case, test_post_to_create_job_with_tag_id_missing_returns_422);
+  tcase_add_test(tc_case, test_post_with_valid_tag_id_queues_job);
+  
   // END_TESTS
 #endif
   suite_add_tcase(s, tc_case);

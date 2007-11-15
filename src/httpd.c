@@ -32,26 +32,27 @@
 
 #define SEND_405(returncode, allowed) \
    struct MHD_Response *response = MHD_create_response_from_data(strlen(METHOD_NOT_ALLOWED), METHOD_NOT_ALLOWED, MHD_NO, MHD_NO); \
-   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                               \
+   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                   \
    MHD_add_response_header(response, MHD_HTTP_HEADER_ALLOW, allowed);                               \
-   returncode = MHD_queue_response(connection, MHD_HTTP_METHOD_NOT_ALLOWED, response);                   \
+   returncode = MHD_queue_response(connection, MHD_HTTP_METHOD_NOT_ALLOWED, response);              \
    MHD_destroy_response(response);
 
 #define SEND_415(returncode) \
    struct MHD_Response *response = MHD_create_response_from_data(strlen(BAD_XML), BAD_XML, MHD_NO, MHD_NO); \
-   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                               \
-   returncode = MHD_queue_response(connection, MHD_HTTP_UNSUPPORTED_MEDIA_TYPE, response);                   \
+   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                   \
+   returncode = MHD_queue_response(connection, MHD_HTTP_UNSUPPORTED_MEDIA_TYPE, response);          \
    MHD_destroy_response(response);
 
 #define SEND_MISSING_TAG_ID(returncode) \
    struct MHD_Response *response = MHD_create_response_from_data(strlen(MISSING_TAG_ID), MISSING_TAG_ID, MHD_NO, MHD_NO); \
-   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                               \
-   returncode = MHD_queue_response(connection, MHD_HTTP_UNPROCESSABLE_ENTITY, response);                   \
+   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                   \
+   returncode = MHD_queue_response(connection, MHD_HTTP_UNPROCESSABLE_ENTITY, response);            \
    MHD_destroy_response(response);
 
-#define SEND_XML_DATA(returncode, httpcode, data) \
+#define SEND_XML_DATA(returncode, httpcode, data, location) \
   struct MHD_Response *response = MHD_create_response_from_data(strlen(data), data, MHD_NO, MHD_NO); \
   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                     \
+  if (location) MHD_add_response_header(response, MHD_HTTP_HEADER_LOCATION, location);               \
   returncode = MHD_queue_response(connection, httpcode, response);                                   \
   MHD_destroy_response(response);
 
@@ -59,6 +60,11 @@ struct HTTPD {
   struct MHD_Daemon *mhd;
   Config *config;
   ClassificationEngine *ce;
+};
+
+struct posted_data {
+  int size;
+  char *buffer;
 };
 
 //  <classification-job>
@@ -91,6 +97,12 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
   return buffer;
 }
 
+static char * url_for_job(const ClassificationJob *job) {
+  char *url = calloc(128, sizeof(char));
+  snprintf(url, 128, "/classifier/jobs/%s", cjob_id(job));
+  return url;
+}
+
 static const char * extract_job_id(const char * url) {
   char *job_id = NULL;
   char *last_slash = rindex(url, '/');
@@ -106,6 +118,41 @@ static const char * extract_job_id(const char * url) {
 /********************************************************************************
  * HTTP Interface Handlers
  ********************************************************************************/
+static int start_job(ClassificationEngine *ce, struct MHD_Connection *connection, const char *xml_input) {
+  int ret;
+  xmlDocPtr doc = xmlParseDoc(BAD_CAST xml_input);
+          
+  if (doc == NULL) {
+    debug("XML was malformed: %s", xml_input);
+    SEND_415(ret);
+  } else {
+    xmlXPathContextPtr context = xmlXPathNewContext(doc);
+    xmlXPathObjectPtr result = xmlXPathEvalExpression(BAD_CAST "/classification-job/tag-id/text()", context);
+    xmlNodeSetPtr nodes = result->nodesetval;
+    int size = (nodes) ? nodes->nodeNr : 0;
+    
+    if (NULL == result || size != 1) {
+      SEND_MISSING_TAG_ID(ret);
+    } else {
+      int tag_id = (int) strtol((char *) nodes->nodeTab[0]->content, NULL, 10);
+      ClassificationJob *job = ce_add_classification_job(ce, tag_id);
+      info("Starting classification job for tag %i", tag_id);
+      
+      xmlChar *xml = xml_for_job(job);
+      char *url = url_for_job(job);
+      SEND_XML_DATA(ret, 201, (char *) xml, url);
+      xmlFree(xml);
+      free(url);
+    }
+            
+    xmlXPathFreeObject(result);
+    xmlXPathFreeContext(context);                                                       
+  }
+          
+  xmlFreeDoc(doc);
+  
+  return ret; 
+}
 
 static int job_status_handler(void * ce_vp, struct MHD_Connection * connection,
                         const char * url, const char * method, const char * version) {
@@ -121,7 +168,7 @@ static int job_status_handler(void * ce_vp, struct MHD_Connection * connection,
     
     if (job) {
       xmlChar *xml = xml_for_job(job);
-      SEND_XML_DATA(ret, MHD_HTTP_OK, (char*) xml);
+      SEND_XML_DATA(ret, MHD_HTTP_OK, (char*) xml, NULL);
       xmlFree(xml);
     } else {
       SEND_404(ret);
@@ -131,11 +178,11 @@ static int job_status_handler(void * ce_vp, struct MHD_Connection * connection,
   return ret;
 }
 
-struct posted_data {
-  int size;
-  char *buffer;
-};
-
+/* This handles collection of the XML document data for
+ * starting a classification job.
+ * 
+ * It calls start_job when all the data is collected.
+ */
 static int start_job_handle(void * ce_vp, struct MHD_Connection * connection,
                              const char * url, const char * method, 
                              const char * version, const char * upload_data,
@@ -151,28 +198,9 @@ static int start_job_handle(void * ce_vp, struct MHD_Connection * connection,
       if (!pd) {
         SEND_415(ret);
       } else {
-        xmlDocPtr doc = xmlParseDoc(BAD_CAST pd->buffer);
-        
-        if (doc == NULL) {
-          debug("XML was malformed: %s", pd->buffer);
-          SEND_415(ret);
-        } else {
-          xmlXPathContextPtr context = xmlXPathNewContext(doc);
-          xmlXPathObjectPtr result = xmlXPathEvalExpression(BAD_CAST "/classifier-job/tag-id/text()", context);
-          xmlNodeSetPtr nodeset = result->nodesetval;
-          if (nodeset->nodeNr != 1) {
-            SEND_MISSING_TAG_ID(ret);
-          } else {
-            // TODO handle wellformed XML            
-          }
-                  
-          xmlXPathFreeObject(result);
-          xmlXPathFreeContext(context);                                                       
-        }
-                
-        xmlFreeDoc(doc);
+        ret = start_job(ce_vp, connection, pd->buffer);
         free(pd->buffer);
-        free(pd);        
+        free(pd); 
       }
     } else if (!(*memo)) {
       struct posted_data *pd;
@@ -232,7 +260,8 @@ Httpd * httpd_start(Config *config, ClassificationEngine *ce) {
 }
 
 void httpd_stop(Httpd *httpd) {
-  
+  MHD_stop_daemon(httpd->mhd);
+  httpd->mhd = NULL;
 }
 
 #else
