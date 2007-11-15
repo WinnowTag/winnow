@@ -432,6 +432,20 @@ ClassificationJobState cjob_state(const ClassificationJob * job) {
   return job->state;
 }
 
+static const char * state_msgs[] = {
+    "Waiting",
+    "Training",
+    "Calculating",
+    "Classifying",
+    "Complete",
+    "Cancelled",
+    "Error"
+};
+
+const char * cjob_state_msg(const ClassificationJob * job) {
+  return state_msgs[job->state];
+}
+
 ClassificationJobError cjob_error(const ClassificationJob *job) {
   return job->error;
 }

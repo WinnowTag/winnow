@@ -73,12 +73,12 @@ struct posted_data {
   char *buffer;
 };
 
-//  <classification-job>
-//    <id>ID</id>
-//    <progress type="float">0.0</progress>
-//    <tag-id type="integer">N</tag-id>
-//  </classification-job>
-//
+/*  <classification-job>
+ *    <id>ID</id>
+ *    <progress type="float">0.0</progress>
+ *    <tag-id type="integer">N</tag-id>
+ *  </classification-job>
+ */
 static xmlChar * xml_for_job(const ClassificationJob *job) {
   xmlChar *buffer = NULL;
   int buffersize;
@@ -96,6 +96,7 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
   xmlAttrPtr progress_type = xmlNewProp(progress, BAD_CAST "type", BAD_CAST "float");  
   xmlNodePtr tag_id = xmlNewChild(root, NULL, BAD_CAST "tag-id", tag_id_buffer);
   xmlAttrPtr tag_id_type = xmlNewProp(tag_id, BAD_CAST "type", BAD_CAST "integer");  
+  xmlNodePtr status = xmlNewChild(root, NULL, BAD_CAST "status", BAD_CAST cjob_state_msg(job));
   
   xmlDocDumpFormatMemory(doc, &buffer, &buffersize, 1);
   xmlFreeDoc(doc);

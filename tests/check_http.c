@@ -143,6 +143,7 @@ END_TEST
 //  <classification-job>
 //    <id>ID</id>
 //    <progress type="float">0.0</progress>
+//    <status>Status</status>
 //  </classification-job>
 //
 START_TEST(test_job_status) {
@@ -161,6 +162,30 @@ START_TEST(test_job_status) {
   
   assert_xpath(idpath, doc);
   assert_xpath("/classification-job/progress[text() = '0.0']", doc);
+  assert_xpath("/classification-job/status[text() = 'Waiting']", doc);
+  
+  xmlFree(doc);
+} END_TEST
+
+START_TEST(test_completed_job_status) {
+  char url[256];
+  ClassificationJob *job = ce_add_classification_job(ce, 39);
+  ce_start(ce);
+  ce_stop(ce);
+  sprintf(url, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
+  FILE *data = fopen("test_data.xml", "w");
+  assert_get(url, 200, data);
+  fclose(data);
+  
+  char idpath[1024];
+  sprintf(idpath, "/classification-job/id[text() = '%s']", cjob_id(job));
+                
+  xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
+  if (doc == NULL) fail("Failed to parse xml");
+  
+  assert_xpath(idpath, doc);
+  assert_xpath("/classification-job/progress[text() = '100.0']", doc);
+  assert_xpath("/classification-job/status[text() = 'Complete']", doc);
   
   xmlFree(doc);
 } END_TEST
@@ -184,7 +209,8 @@ Suite * http_suite(void) {
 #ifdef HAVE_LIBCURL
   // START_TESTS
   tcase_add_test(tc_case, test_http_initialization);
-  tcase_add_test(tc_case, test_job_status);  
+  tcase_add_test(tc_case, test_job_status);
+  tcase_add_test(tc_case, test_completed_job_status); 
   tcase_add_test(tc_case, test_missing_job_returns_404);
   tcase_add_test(tc_case, test_missing_job_id_returns_405);
   
