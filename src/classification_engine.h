@@ -14,6 +14,21 @@
 typedef struct CLASSIFICATION_ENGINE ClassificationEngine;
 typedef struct CLASSIFICATION_JOB ClassificationJob;
 
+typedef enum CLASSIFICATION_JOB_STATE {
+  CJOB_STATE_WAITING,
+  CJOB_STATE_TRAINING,
+  CJOB_STATE_CALCULATING,
+  CJOB_STATE_CLASSIFYING,
+  CJOB_STATE_COMPLETE,
+  CJOB_STATE_CANCELLED,
+  CJOB_STATE_ERROR
+} ClassificationJobState;
+
+typedef enum CLASSIFICATION_JOB_ERROR {
+  CJOB_ERROR_NO_ERROR,
+  CJOB_ERROR_NO_SUCH_TAG
+} ClassificationJobError;
+
 extern ClassificationEngine * create_classification_engine(const Config * config);
 extern void                   free_classification_engine(ClassificationEngine * engine);
 extern int                    ce_is_running(const ClassificationEngine *engine);
@@ -31,4 +46,6 @@ extern ClassificationJob    * ce_fetch_classification_job(const ClassificationEn
 extern const char *  cjob_id(const ClassificationJob * job);
 extern int                    cjob_tag_id(const ClassificationJob * job);
 extern float                  cjob_progress(const ClassificationJob * job);
+extern ClassificationJobState cjob_state(const ClassificationJob *job);
+extern void                   cjob_cancel(ClassificationJob *job);
 #endif /*CLASSIFICATION_ENGINE_H_*/

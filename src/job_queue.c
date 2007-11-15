@@ -60,6 +60,7 @@ void free_queue(Queue * queue) {
   if (queue) {
     Node *node = queue->front;
     while (node) {
+      debug("freeing node %x", node);
       Node *next = node->next;
       free(node);
       node = next;
@@ -142,6 +143,7 @@ void q_enqueue(Queue * q, void * job) {
   }
   
   new_node->job = job;
+  new_node->next = NULL;
   
   pthread_mutex_lock(&(q->lock));
   if (NULL == q->front) {

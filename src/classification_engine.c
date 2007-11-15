@@ -90,6 +90,8 @@ struct CLASSIFICATION_JOB {
   const char * job_id;
   int tag_id;
   float progress;
+  ClassificationJobState state;
+  ClassificationJobError error;
 };
 
 typedef struct TAGGING_INSERTION_JOB {
@@ -103,6 +105,7 @@ static void *classification_worker_func(void *engine_vp);
 static void *insertion_worker_func(void *engine_vp);
 static TaggingInsertionJob * create_tagging_insertion_job(Tagging *tagging);
 static void free_tagging_insertion_job(TaggingInsertionJob *job);
+static void cjob_process(ClassificationJob *job, const ItemSource *is, TagDB *tagdb, const Pool *background, Queue *insertion_queue);
 
 /* Creates but doesn't start a classification engine.
  * 
@@ -277,6 +280,7 @@ int ce_start(ClassificationEngine * engine) {
 /* Gracefully stops the classification engine by allowing all current jobs to complete.
  */
 int ce_stop(ClassificationEngine * engine) {
+  debug("stopping engine");
   int success = true;
   if (engine && engine->is_running) {
     engine->is_running = false;
@@ -289,7 +293,7 @@ int ce_stop(ClassificationEngine * engine) {
       info("joining thread %i", engine->classification_worker_threads[i]);
       pthread_join(engine->classification_worker_threads[i], NULL);
     }
-    
+    info("Returned from cw join");
     engine->is_inserting = false;
     info("is_inserting set to false");
      
@@ -318,7 +322,6 @@ int ce_kill(ClassificationEngine * engine) {
  */
 void *classification_worker_func(void *engine_vp) {
   DB_THREAD_INIT;
-  int i;
   /* Grab references to shared resources */
   ClassificationEngine *ce = (ClassificationEngine*) engine_vp;
   Queue *job_queue         = ce->classification_job_queue;
@@ -336,47 +339,11 @@ void *classification_worker_func(void *engine_vp) {
     if (job) {
       info("Got job off queue: %s", cjob_id(job));
 
-      /* Get the reference to the item source here so we
-       * get it fresh for each job. This means that if
-       * the item source is flushed we get a new copy 
-       * on the next job.
+      /* Get the reference to the item source here so we get it fresh for each job. This means that if
+       * the item source is flushed we get a new copy on the next job.
        */
-      ItemSource *item_source  = ce->item_source;
-      ItemList *items          = is_fetch_all_items(item_source);
-      int number_of_items      = item_list_size(items);
-      float progress_increment = 80.0 / number_of_items;
-        
-      Tag *tag = tag_db_load_tag_by_id(tag_db, job->tag_id);
-      job->progress = 5.0;
-      
-      TrainedClassifier *tc = train(tag, item_source);
-      job->progress = 10.0;
-      
-      Classifier *classifier = precompute(tc, ce->random_background);
-      job->progress = 20.0;
-      
-      for (i = 1; i <= number_of_items; i++) {
-        Item *item = item_list_item_at(items, i);
-        if (NULL == item) {
-          error("item at %i was NULL", i);
-        } else {
-          Tagging *tagging = classify(classifier, item);
-          if (NULL != tagging) {
-            TaggingInsertionJob *tagging_job = create_tagging_insertion_job(tagging);
-            q_enqueue(tagging_queue, tagging_job);      
-          } else {
-            error("Got NULL tagging");
-          }
-        }
-        
-        job->progress += progress_increment;
-      }
-      
-      job->progress = 100.0;
-      free_classifier(classifier);
-      tc_free(tc);
-      free_tag(tag);
-    }
+      cjob_process(job, ce->item_source, tag_db, ce->random_background, ce->tagging_store_queue);
+    }    
   }
 
   info("classification_worker %i ending", pthread_self());
@@ -398,11 +365,12 @@ void *insertion_worker_func(void *engine_vp) {
     
   while(!q_empty(ce->tagging_store_queue) || ce->is_inserting) {
     TaggingInsertionJob *job = q_dequeue_or_wait(ce->tagging_store_queue);
+    
     if (job) {
       info("Got insertion job off queue %s", job->job_id);
       tagging_store_store(store, job->tagging);
       free_tagging_insertion_job(job);
-    }    
+    }
   }
   
   info("insertion worker function ending");
@@ -432,6 +400,8 @@ ClassificationJob * create_classification_job(int tag_id) {
     job->tag_id = tag_id;
     job->progress = 0;
     job->job_id = generate_job_id();
+    job->state = CJOB_STATE_WAITING;
+    job->error = CJOB_ERROR_NO_ERROR;
   }
   
   return job;
@@ -458,6 +428,72 @@ float cjob_progress(const ClassificationJob * job) {
   return job->progress;
 }
 
+ClassificationJobState cjob_state(const ClassificationJob * job) {
+  return job->state;
+}
+
+ClassificationJobError cjob_error(const ClassificationJob *job) {
+  return job->error;
+}
+
+void cjob_cancel(ClassificationJob *job) {
+  job->state = CJOB_STATE_CANCELLED;
+}
+
+static void cjob_process(ClassificationJob *job, const ItemSource *item_source, TagDB *tag_db, 
+                  const Pool *random_background, Queue *tagging_queue) {
+  debug("cjob_process: %s", job->job_id);
+  /* If the job is cancelled bail out before doing anything */
+  if (job->state == CJOB_STATE_CANCELLED) return;
+  
+  int i;
+  ItemList *items = is_fetch_all_items(item_source);
+  int number_of_items = item_list_size(items);
+  float progress_increment = 80.0 / number_of_items;
+
+  job->state = CJOB_STATE_TRAINING;
+  Tag *tag = tag_db_load_tag_by_id(tag_db, job->tag_id);
+  if (!tag) {
+    info("tag %i does not exist", job->tag_id);
+    job->state = CJOB_STATE_ERROR;
+    job->error = CJOB_ERROR_NO_SUCH_TAG;
+  } else {
+    job->progress = 5.0;
+  
+    TrainedClassifier *tc = train(tag, item_source);
+    job->progress = 10.0;
+  
+    job->state = CJOB_STATE_CALCULATING;
+    Classifier *classifier = precompute(tc, random_background);
+    job->progress = 20.0;
+  
+    job->state = CJOB_STATE_CLASSIFYING;  
+    for (i = 1; i <= number_of_items; i++) {
+      Item *item = item_list_item_at(items, i);
+      
+      if (NULL == item) {
+        error("item at %i was NULL", i);
+      } else {
+        Tagging *tagging = classify(classifier, item);
+        if (NULL != tagging) {
+          TaggingInsertionJob *tagging_job = create_tagging_insertion_job(tagging);
+          q_enqueue(tagging_queue, tagging_job);
+        } else {
+          error("Got NULL tagging");
+        }
+      }
+  
+      job->progress += progress_increment;
+    }
+  
+    job->progress = 100.0;
+    job->state = CJOB_STATE_COMPLETE;
+    
+    free_classifier(classifier);
+    tc_free(tc);
+    free_tag(tag);
+  }
+}
 
 /********************************************************************************
  * Tagging insertion Job functions

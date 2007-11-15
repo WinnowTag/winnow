@@ -11,8 +11,10 @@
 #include "../src/cls_config.h"
 #include "../src/classification_engine.h"
 #include "tagging_store_fixtures.h"
+#include "../src/logging.h"
 
 #define TAG_ID 48
+#define BOGUS_TAG_ID 11111
 
 /************************************************************************
  * End to End tests
@@ -28,8 +30,41 @@ START_TEST(inserts_taggings) {
   mark_point();
   assert_tagging_count_is(11);
   assert_equal_f(100.0, cjob_progress(job));
+  assert_equal(CJOB_STATE_COMPLETE, cjob_state(job));
   free_classification_engine(ce);
+  free_config(config);
 } END_TEST
+
+START_TEST(cancelled_job_doesnt_insert_taggings_if_cancelled_before_processed) {
+  Config *config = load_config("fixtures/real-db.conf");
+  ClassificationEngine *ce = create_classification_engine(config);
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_ID);
+  info("cancelled job: %s", cjob_id(job));
+  cjob_cancel(job);
+  ce_start(ce);
+  ce_stop(ce);
+  mark_point();
+  //assert_tagging_count_is(0);
+  free_classification_engine(ce);
+  free_config(config);
+}
+END_TEST
+
+START_TEST(can_send_bogus_tag_id_without_taking_down_the_server) {
+  Config *config = load_config("fixtures/real-db.conf");
+  ClassificationEngine *ce = create_classification_engine(config);
+  ClassificationJob *job = ce_add_classification_job(ce, BOGUS_TAG_ID);
+  
+  ce_start(ce);
+  ce_stop(ce);
+  assert_tagging_count_is(0);
+  assert_equal(CJOB_STATE_ERROR, cjob_state(job));
+  assert_equal(CJOB_ERROR_NO_SUCH_TAG, cjob_error(job));
+  
+  free_classification_engine(ce);
+  free_config(config);
+}
+END_TEST
 
 
 /************************************************************************
@@ -54,6 +89,7 @@ START_TEST(add_job_to_queue) {
   assert_equal(TAG_ID, cjob_tag_id(job));
   assert_equal(0.0, cjob_progress(job));
   assert_not_null(cjob_id(job));
+  assert_equal(CJOB_STATE_WAITING, cjob_state(job));
   assert_equal(1, ce_num_jobs_in_system(ce));
   assert_equal(1, ce_num_waiting_jobs(ce));
 } END_TEST
@@ -65,6 +101,22 @@ START_TEST(retrieve_job_via_id) {
   assert_equal(job, fetched_job);
 } END_TEST
 
+START_TEST(cancelling_a_job_removes_it_from_the_system_once_a_worker_gets_to_it) {
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_ID);
+  assert_equal(1, ce_num_waiting_jobs(ce));
+  cjob_cancel(job);
+  assert_equal(1, ce_num_waiting_jobs(ce));
+  ce_start(ce);
+  ce_stop(ce);
+  assert_equal(0, ce_num_waiting_jobs(ce));
+  assert_equal(0, ce_num_jobs_in_system(ce));
+} END_TEST
+
+START_TEST(cancelling_a_job_sets_its_state_to_cancelled) {
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_ID);
+  cjob_cancel(job);
+  assert_equal(CJOB_STATE_CANCELLED, cjob_state(job));
+} END_TEST
 
 /************************************************************************
  * Initialization tests.
@@ -133,11 +185,15 @@ Suite * classification_engine_suite(void) {
   // START_TESTS
   tcase_add_test(tc_jt_case, add_job_to_queue);
   tcase_add_test(tc_jt_case, retrieve_job_via_id);
+  tcase_add_test(tc_jt_case, cancelling_a_job_sets_its_state_to_cancelled);
+  tcase_add_test(tc_jt_case, cancelling_a_job_removes_it_from_the_system_once_a_worker_gets_to_it);
   // END_TESTS
 
   TCase *tc_end_to_end = tcase_create("end to end");
   tcase_add_checked_fixture(tc_end_to_end, setup_tagging_store, teardown_tagging_store);
   tcase_add_test(tc_end_to_end, inserts_taggings);
+  tcase_add_test(tc_end_to_end, cancelled_job_doesnt_insert_taggings_if_cancelled_before_processed);
+  tcase_add_test(tc_end_to_end, can_send_bogus_tag_id_without_taking_down_the_server);
   
   suite_add_tcase(s, tc_initialization_case);
   suite_add_tcase(s, tc_jt_case);
