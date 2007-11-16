@@ -48,6 +48,28 @@ static void teardown_httpd() {
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
     
+void assert_file_contains_line(char * filename, char * line) {
+  int found = 0;
+  char buf[1024];
+  FILE *file = fopen(filename, "r");
+  
+  if (NULL == file) {
+    fail("Could not open file");
+  }
+  
+  while (NULL != fgets(buf, 1024, file)) {
+    if (buf == strstr(buf, line)) {
+      found = 1;
+    }
+  }
+  
+  fclose(file);
+  
+  if (!found) {
+    fail("%s not found in %s", line, filename);
+  }
+}
+
 START_TEST(test_http_initialization) {
   assert_get("http://localhost:8008/", 404, devnull);
 } END_TEST
@@ -106,15 +128,14 @@ START_TEST(test_post_with_valid_tag_id_queues_job) {
   assert_not_null(job);
   assert_equal(48, cjob_tag_id(job));
   
-  char grep[1024];
-  sprintf(grep, "grep 'Location: /classifier/jobs/%s' headers.txt", id);
-  fail_if(system(grep), "Headers were missing location: %s", id);
+  char line[1024];
+  sprintf(line, "Location: /classifier/jobs/%s", id);
+  assert_file_contains_line("headers.txt", line);
 
   xmlXPathFreeObject(result);  
   xmlXPathFreeContext(context);
   xmlFree(doc);
-}
-END_TEST
+} END_TEST
 
 START_TEST(delete_without_job_id_is_405) {
   /* This is 405 since it goes to the start job handler */
