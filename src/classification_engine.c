@@ -500,6 +500,7 @@ static void cjob_process(ClassificationJob *job, const ItemSource *item_source, 
       job->progress += progress_increment;
     }
   
+    tag_db_update_last_classified_at(tag_db, tag);
     job->progress = 100.0;
     job->state = CJOB_STATE_COMPLETE;
     

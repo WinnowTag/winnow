@@ -320,12 +320,14 @@ int read_tagging_file(TagList *taglist, const char * user, const char * filename
 
 #define FIND_TAG_STMT "select user_id, name from tags where id = ?" 
 #define LOAD_EXAMPLES "select feed_item_id, strength from taggings where tag_id = ?"
+#define UPDATE_LAST_CLASSIFIED_AT "update tags set last_classified_at = UTC_TIMESTAMP() where id = ?"
 
 struct TAG_DB {
   const DBConfig *config;
   MYSQL *mysql;
   MYSQL_STMT *find_tag_stmt;
   MYSQL_STMT *load_examples_stmt;
+  MYSQL_STMT *update_last_classified_at_stmt;
 };
 
 static int establish_connection(TagDB *tag_db);
@@ -361,6 +363,7 @@ void free_tag_db(TagDB *tag_db) {
   if (tag_db) {
     if (tag_db->find_tag_stmt) mysql_stmt_close(tag_db->find_tag_stmt);
     if (tag_db->load_examples_stmt) mysql_stmt_close(tag_db->load_examples_stmt);
+    if (tag_db->update_last_classified_at_stmt) mysql_stmt_close(tag_db->update_last_classified_at_stmt);
     if (tag_db->mysql) mysql_close(tag_db->mysql);
     free(tag_db);
   }
@@ -483,6 +486,28 @@ Tag * tag_db_load_tag_by_id(TagDB *tag_db, int tag_id) {
     goto exit;
 }
 
+int tag_db_update_last_classified_at(TagDB *tag_db, const Tag *tag) {
+  int failed = false;
+  if (tag_db && tag_db_is_alive(tag_db)) {
+    MYSQL_BIND param[1];
+    memset(param, 0, sizeof(param));
+    param[0].buffer_type = MYSQL_TYPE_LONG;
+    param[0].buffer = (char*) &(tag->tag_id);
+    
+    if (mysql_stmt_bind_param(tag_db->update_last_classified_at_stmt, param)) {
+      error("Error binding parameters: %s", mysql_stmt_error(tag_db->update_last_classified_at_stmt));
+      failed = true;
+    }
+    
+    if (mysql_stmt_execute(tag_db->update_last_classified_at_stmt)) {
+      error("Error executing last classified update statement: %s", mysql_stmt_error(tag_db->update_last_classified_at_stmt));
+      failed = true;
+    }
+  }
+  
+  return failed;
+}
+
 /** Establishes the MySQL connection and prepares the statements needs to load a tag.
  *
  *  @returns true on successful connection establishment, false otherwise.
@@ -497,8 +522,9 @@ int establish_connection(TagDB *tag_db) {
   } else {
     tag_db->find_tag_stmt = mysql_stmt_init(tag_db->mysql);
     tag_db->load_examples_stmt = mysql_stmt_init(tag_db->mysql);
+    tag_db->update_last_classified_at_stmt = mysql_stmt_init(tag_db->mysql);
 
-    if (NULL == tag_db->find_tag_stmt || NULL == tag_db->load_examples_stmt) {
+    if (NULL == tag_db->find_tag_stmt || NULL == tag_db->load_examples_stmt || NULL == tag_db->update_last_classified_at_stmt) {
       error("Error creating prepared statement: %s", mysql_error(tag_db->mysql));
       success = false;
     } else if (mysql_stmt_prepare(tag_db->find_tag_stmt, FIND_TAG_STMT, strlen(FIND_TAG_STMT))) {
@@ -506,6 +532,9 @@ int establish_connection(TagDB *tag_db) {
       success = false;
     } else if (mysql_stmt_prepare(tag_db->load_examples_stmt, LOAD_EXAMPLES, strlen(LOAD_EXAMPLES))) {
       error("Error preparing hard coded statement: %s : %s" LOAD_EXAMPLES, mysql_error(tag_db->mysql));
+      success = false;
+    } else if (mysql_stmt_prepare(tag_db->update_last_classified_at_stmt, UPDATE_LAST_CLASSIFIED_AT, strlen(UPDATE_LAST_CLASSIFIED_AT))) {
+      error("Error preparing hard coded statement: %s : %s", UPDATE_LAST_CLASSIFIED_AT, mysql_error(tag_db->mysql));
       success = false;
     }
   }
