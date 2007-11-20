@@ -14,7 +14,7 @@
 
 static int build_tagging_path(const char *, const char *, char *, int);
 static int read_tagging_file(TagList* taglist, const char *, const char *);
-static Tag * add_tag(TagList*, const char *, const char *);
+static Tag * taglist_find_or_add_tag(TagList*, const char *, const char *);
 static int * fill_example_array(Pvoid_t tag_examples, int size);
 static int tag_add_example(Tag *tag, int example, float strength);
 static TagList * create_tag_list(void);
@@ -62,13 +62,31 @@ TagList * create_tag_list(void) {
   return list;
 }
 
+static void taglist_add_tag(TagList *taglist, const Tag *tag) {
+  if (taglist && tag) {
+    /* Do we need to grow the taglist? */
+    if (taglist->size == taglist->tag_list_allocation) {
+      Tag **new_list = realloc(taglist->tags, taglist->tag_list_allocation * 2);
+      if (NULL == new_list) {
+        fatal("Out of memory allocating tag list");
+      } else {
+        taglist->tags = new_list;
+        taglist->tag_list_allocation *= 2;
+      }
+    }
+        
+    taglist->tags[taglist->size] = tag;
+    taglist->size++;
+  }
+}
+
 /** Adds a tag to a tag list.
  *
  *  If the tag is already in the list, that tag is returned.
  *
  *  This is a private function that should only be called by tag list creators.
  */
-Tag *add_tag(TagList *taglist, const char * user, const char * tag_name) {
+Tag *taglist_find_or_add_tag(TagList *taglist, const char * user, const char * tag_name) {
   int i;
   Tag *tag = NULL;
   
@@ -81,24 +99,11 @@ Tag *add_tag(TagList *taglist, const char * user, const char * tag_name) {
   }
   
   if (NULL == tag) {
-    /* Do we need to grow the taglist? */
-    if (taglist->size == taglist->tag_list_allocation) {
-      Tag **new_list = realloc(taglist->tags, taglist->tag_list_allocation * 2);
-      if (NULL == new_list) {
-        fatal("Out of memory allocating tag list");
-      } else {
-        taglist->tags = new_list;
-        taglist->tag_list_allocation *= 2;
-      }
-    }
-    
     tag = create_tag(user, tag_name, -1, -1);
-    
     if (NULL == tag) {
       fatal("Out of memory allocation a tag");
     } else {
-      taglist->tags[taglist->size] = tag;
-      taglist->size++;
+      taglist_add_tag(taglist, tag);    
     }
   }
   
@@ -288,7 +293,7 @@ int read_tagging_file(TagList *taglist, const char * user, const char * filename
     float strength;
      
     while (EOF != fscanf(file, "%255[^,],%d,%f\n", tag_name, &item_id, &strength)) {
-      Tag *tag = add_tag(taglist, user, tag_name);
+      Tag *tag = taglist_find_or_add_tag(taglist, user, tag_name);
       if (NULL == tag) {
         failure = true;
         break;
@@ -312,6 +317,7 @@ int read_tagging_file(TagList *taglist, const char * user, const char * filename
 
 #define FIND_TAG_STMT "select user_id, name from tags where id = ?" 
 #define LOAD_EXAMPLES "select feed_item_id, strength from taggings where tag_id = ?"
+#define LOAD_TAGS_FOR_USER "select id, name from tags where user_id = ? and (last_classified_at is NULL or updated_on > last_classified_at)"
 #define UPDATE_LAST_CLASSIFIED_AT "update tags set last_classified_at = UTC_TIMESTAMP() where id = ?"
 
 struct TAG_DB {
@@ -320,6 +326,7 @@ struct TAG_DB {
   MYSQL_STMT *find_tag_stmt;
   MYSQL_STMT *load_examples_stmt;
   MYSQL_STMT *update_last_classified_at_stmt;
+  MYSQL_STMT *find_tags_for_user_stmt;
 };
 
 static int establish_connection(TagDB *tag_db);
@@ -382,7 +389,48 @@ int tag_db_is_alive(TagDB *tag_db) {
 }
 
 TagList * tag_db_load_tags_to_classify_for_user(TagDB *tag_db, int user_id) {
-  return NULL;
+  if (NULL == tag_db) return NULL;
+  TagList *taglist = create_tag_list();
+  
+  if (taglist) {
+    MYSQL_BIND param[1];
+    memset(param, 0, sizeof(param));
+    param[0].buffer_type = MYSQL_TYPE_LONG;
+    param[0].buffer = (char*) &user_id;
+    
+    if (mysql_stmt_bind_param(tag_db->find_tags_for_user_stmt, param)) goto load_tags_error;
+    if (mysql_stmt_execute(tag_db->find_tags_for_user_stmt)) goto load_tags_error;
+    if (mysql_stmt_store_result(tag_db->find_tags_for_user_stmt)) goto load_tags_error;
+    
+    int tag_id;
+    char tag_name[256];
+    MYSQL_BIND result[2];
+    memset(result, 0, sizeof(result));
+    result[0].buffer_type = MYSQL_TYPE_LONG;
+    result[0].buffer = (char *) &tag_id;
+    result[1].buffer_type = MYSQL_TYPE_VAR_STRING;
+    result[1].buffer = tag_name;
+    result[1].buffer_length = 256;
+    
+    if (mysql_stmt_bind_result(tag_db->find_tags_for_user_stmt, result)) goto load_tags_error;
+    
+    while (!mysql_stmt_fetch(tag_db->find_tags_for_user_stmt)) {
+      Tag *tag = create_tag("", tag_name, user_id, tag_id);
+      
+      if (tag) {
+        taglist_add_tag(taglist, tag);
+      }
+    }
+  }
+  
+  mysql_stmt_free_result(tag_db->find_tags_for_user_stmt);
+exit:
+  return taglist;
+load_tags_error:
+  error("Error loading tags for user %i: %s", user_id, mysql_stmt_error(tag_db->find_tags_for_user_stmt));
+  free_taglist(taglist);
+  taglist = NULL;
+  goto exit;
 }
 
 /** Loads a tag from the database.
@@ -399,7 +447,7 @@ Tag * tag_db_load_tag_by_id(TagDB *tag_db, int tag_id) {
     param[0].buffer = (char *) &tag_id;
     
     if (mysql_stmt_bind_param(tag_db->find_tag_stmt, param)) goto tag_query_error;
-    if (mysql_stmt_execute(tag_db->find_tag_stmt))          goto tag_query_error;
+    if (mysql_stmt_execute(tag_db->find_tag_stmt))           goto tag_query_error;
     
     char tag_name[256];
     unsigned long tag_name_length = 0;
@@ -519,8 +567,10 @@ int establish_connection(TagDB *tag_db) {
     tag_db->find_tag_stmt = mysql_stmt_init(tag_db->mysql);
     tag_db->load_examples_stmt = mysql_stmt_init(tag_db->mysql);
     tag_db->update_last_classified_at_stmt = mysql_stmt_init(tag_db->mysql);
+    tag_db->find_tags_for_user_stmt = mysql_stmt_init(tag_db->mysql);
 
-    if (NULL == tag_db->find_tag_stmt || NULL == tag_db->load_examples_stmt || NULL == tag_db->update_last_classified_at_stmt) {
+    if (NULL == tag_db->find_tag_stmt || NULL == tag_db->load_examples_stmt || 
+        NULL == tag_db->update_last_classified_at_stmt || NULL == tag_db->find_tags_for_user_stmt) {
       error("Error creating prepared statement: %s", mysql_error(tag_db->mysql));
       success = false;
     } else if (mysql_stmt_prepare(tag_db->find_tag_stmt, FIND_TAG_STMT, strlen(FIND_TAG_STMT))) {
@@ -531,6 +581,9 @@ int establish_connection(TagDB *tag_db) {
       success = false;
     } else if (mysql_stmt_prepare(tag_db->update_last_classified_at_stmt, UPDATE_LAST_CLASSIFIED_AT, strlen(UPDATE_LAST_CLASSIFIED_AT))) {
       error("Error preparing hard coded statement: %s : %s", UPDATE_LAST_CLASSIFIED_AT, mysql_error(tag_db->mysql));
+      success = false;
+    } else if (mysql_stmt_prepare(tag_db->find_tags_for_user_stmt, LOAD_TAGS_FOR_USER, strlen(LOAD_TAGS_FOR_USER))) {
+      error("Error preparing hard coded statement: %s : %s", LOAD_TAGS_FOR_USER, mysql_error(tag_db->mysql));
       success = false;
     }
   }

@@ -77,6 +77,10 @@ START_TEST(test_get_tags_for_user) {
   assert_not_null(tag_list);
   assert_equal(6, tag_list->size);
   assert_not_null(tag_list->tags);
+  
+  assert_equal(38, tag_tag_id(tag_list->tags[0]));
+  assert_equal(40, tag_tag_id(tag_list->tags[1]));
+  free_taglist(tag_list);
 }
 END_TEST
 
@@ -90,7 +94,7 @@ tag_db_suite(void) {
 // START_TESTS
   tcase_add_test(tc_case, test_create_tag_db);
   tcase_add_test(tc_case, test_update_last_classified_time_for_a_tag);
-//  tcase_add_test(tc_case, test_get_tags_for_user);
+  tcase_add_test(tc_case, test_get_tags_for_user);
 // END_TESTS
 
   suite_add_tcase(s, tc_case);
