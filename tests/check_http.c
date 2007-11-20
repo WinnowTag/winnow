@@ -137,6 +137,23 @@ START_TEST(test_post_with_valid_tag_id_queues_job) {
   xmlFree(doc);
 } END_TEST
 
+START_TEST(test_post_with_user_id_queues_job) {
+  FILE *data = fopen("test_data.xml", "w");
+  char *post_data = "<?xml version='1.0'?>\n<classification-job><user-id>2</user-id></classification-job>";
+  assert_post("http://localhost:8008/classifier/jobs", post_data, 201, data, devnull);
+  fclose(data);
+  mark_point();
+  
+  assert_equal(1, ce_num_jobs_in_system(ce));
+  xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
+  fail_unless(doc != NULL, "Failed to parse XML");
+  assert_xpath("/classification-job/id/text()", doc);
+  
+  xmlFree(doc);
+}
+END_TEST
+
+
 START_TEST(delete_without_job_id_is_405) {
   /* This is 405 since it goes to the start job handler */
   assert_delete("http://localhost:8008/classifier/jobs/", 405, devnull);
@@ -150,7 +167,7 @@ END_TEST
 
 
 START_TEST(deleting_job_sets_it_cancelled) {
-  ClassificationJob *job = ce_add_classification_job(ce, 48);
+  ClassificationJob *job = ce_add_classification_job_for_tag(ce, 48);
   char url[256];
   snprintf(url, 256, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
   assert_delete(url, 204, devnull);
@@ -169,7 +186,7 @@ END_TEST
 //
 START_TEST(test_job_status) {
   char url[256];
-  ClassificationJob *job = ce_add_classification_job(ce, 39);
+  ClassificationJob *job = ce_add_classification_job_for_tag(ce, 39);
   sprintf(url, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
   FILE *data = fopen("test_data.xml", "w");
   assert_get(url, 200, data);
@@ -190,7 +207,7 @@ START_TEST(test_job_status) {
 
 START_TEST(test_completed_job_status) {
   char url[256];
-  ClassificationJob *job = ce_add_classification_job(ce, 39);
+  ClassificationJob *job = ce_add_classification_job_for_tag(ce, 39);
   ce_start(ce);
   ce_stop(ce);
   sprintf(url, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
@@ -213,7 +230,7 @@ START_TEST(test_completed_job_status) {
 
 START_TEST(cancelled_job_returns_404) {
   char url[256];
-  ClassificationJob *job = ce_add_classification_job(ce, 48);
+  ClassificationJob *job = ce_add_classification_job_for_tag(ce, 48);
   cjob_cancel(job);
   sprintf(url, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
   assert_get(url, 404, devnull);
@@ -239,10 +256,11 @@ Suite * http_suite(void) {
   tcase_add_test(tc_case, test_post_to_create_job_with_invalid_xml_returns_415);
   tcase_add_test(tc_case, test_post_to_create_job_with_tag_id_missing_returns_422);
   tcase_add_test(tc_case, test_post_with_valid_tag_id_queues_job);
+ // tcase_add_test(tc_case, test_post_with_user_id_queues_job);
   tcase_add_test(tc_case, deleting_job_sets_it_cancelled);
   tcase_add_test(tc_case, delete_without_job_id_is_405);
   tcase_add_test(tc_case, delete_with_missing_job_id_is_404);
-  tcase_add_test(tc_case, cancelled_job_returns_404);
+  
   // END_TESTS
 #endif
   suite_add_tcase(s, tc_case);

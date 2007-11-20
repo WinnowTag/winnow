@@ -26,7 +26,10 @@ typedef enum CLASSIFICATION_JOB_STATE {
 
 typedef enum CLASSIFICATION_JOB_ERROR {
   CJOB_ERROR_NO_ERROR,
-  CJOB_ERROR_NO_SUCH_TAG
+  CJOB_ERROR_NO_SUCH_TAG,
+  CJOB_ERROR_NO_TAGS_FOR_USER,
+  CJOB_ERROR_BAD_JOB_TYPE,
+  CJOB_ERROR_UNKNOWN_ERROR
 } ClassificationJobError;
 
 extern ClassificationEngine * create_classification_engine(const Config * config);
@@ -39,12 +42,14 @@ extern int                    ce_kill(ClassificationEngine *engine);
 /* Job tracking and management */
 extern int                    ce_num_jobs_in_system(const ClassificationEngine *engine);
 extern int                    ce_num_waiting_jobs(const ClassificationEngine *engine);
-extern ClassificationJob    * ce_add_classification_job(ClassificationEngine *engine, int tag_id);
+extern ClassificationJob    * ce_add_classification_job_for_tag(ClassificationEngine *engine, int tag_id);
+extern ClassificationJob    * ce_add_classification_job_for_user(ClassificationEngine *engine, int user_id);
 extern ClassificationJob    * ce_fetch_classification_job(const ClassificationEngine *engine, const char * job_id);
 
 /** Functions for Classification Jobs */
 extern const char *  cjob_id(const ClassificationJob * job);
 extern int                    cjob_tag_id(const ClassificationJob * job);
+extern int                    cjob_user_id(const ClassificationJob * job);
 extern float                  cjob_progress(const ClassificationJob * job);
 extern ClassificationJobState cjob_state(const ClassificationJob *job);
 extern void                   cjob_cancel(ClassificationJob *job);

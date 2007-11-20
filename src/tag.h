@@ -30,6 +30,8 @@ typedef struct TAGLIST {
 typedef struct TAG_DB TagDB;
 
 // Tag list functions
+extern TagList    *  create_tag_list(void);
+extern void          taglist_add_tag(TagList *taglist, Tag *tag);
 extern TagList    *  load_tags_from_file   (const char * corpus, const char * user);
 extern void          free_taglist          (TagList *taglist);
 

@@ -17,7 +17,6 @@ static int read_tagging_file(TagList* taglist, const char *, const char *);
 static Tag * taglist_find_or_add_tag(TagList*, const char *, const char *);
 static int * fill_example_array(Pvoid_t tag_examples, int size);
 static int tag_add_example(Tag *tag, int example, float strength);
-static TagList * create_tag_list(void);
 
 /** Load tags from a file
  *
@@ -62,7 +61,7 @@ TagList * create_tag_list(void) {
   return list;
 }
 
-static void taglist_add_tag(TagList *taglist, Tag *tag) {
+void taglist_add_tag(TagList *taglist, Tag *tag) {
   if (taglist && tag) {
     /* Do we need to grow the taglist? */
     if (taglist->size == taglist->tag_list_allocation) {

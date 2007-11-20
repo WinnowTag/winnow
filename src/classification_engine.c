@@ -86,10 +86,17 @@ struct CLASSIFICATION_ENGINE {
   pthread_t insertion_worker_thread;
 };
 
+typedef enum CLASSIFICATION_JOB_TYPE {
+  CJOB_TYPE_TAG_JOB,
+  CJOB_TYPE_USER_JOB
+} ClassificationJobType;
+
 struct CLASSIFICATION_JOB {
-  const char * job_id;
+  const char * job_id;  
   int tag_id;
+  int user_id;
   float progress;
+  ClassificationJobType type;
   ClassificationJobState state;
   ClassificationJobError error;
 };
@@ -99,7 +106,8 @@ typedef struct TAGGING_INSERTION_JOB {
   Tagging *tagging;
 } TaggingInsertionJob;
 
-static ClassificationJob * create_classification_job(int tag_id);
+static ClassificationJob * create_tag_classification_job(int tag_id);
+static ClassificationJob * create_user_classification_job(int tag_id);
 static void free_classification_job(ClassificationJob *job);
 static void *classification_worker_func(void *engine_vp);
 static void *insertion_worker_func(void *engine_vp);
@@ -185,11 +193,31 @@ void free_classification_engine(ClassificationEngine *engine) {
 /* Adds a classification job to the engine.
  * 
  */
-ClassificationJob * ce_add_classification_job(ClassificationEngine * engine, int tag_id) {
+ClassificationJob * ce_add_classification_job_for_tag(ClassificationEngine * engine, int tag_id) {
   ClassificationJob *job = NULL;
   if (engine) {
     PWord_t job_pointer;
-    job = create_classification_job(tag_id);
+    job = create_tag_classification_job(tag_id);
+    JSLI(job_pointer, engine->classification_jobs, (uint8_t*) cjob_id(job));
+    if (NULL == job_pointer) {
+      free_classification_job(job);
+      fatal("Error malloc'ing Judy array entry for classification job");
+    } else {
+      *job_pointer = (Word_t) job;
+      q_enqueue(engine->classification_job_queue, job);    
+    }    
+  }
+  return job;
+}
+
+/* Adds a classification job to the engine.
+ * 
+ */
+ClassificationJob * ce_add_classification_job_for_user(ClassificationEngine * engine, int user_id) {
+  ClassificationJob *job = NULL;
+  if (engine) {
+    PWord_t job_pointer;
+    job = create_user_classification_job(user_id);
     JSLI(job_pointer, engine->classification_jobs, (uint8_t*) cjob_id(job));
     if (NULL == job_pointer) {
       free_classification_job(job);
@@ -381,6 +409,11 @@ void *insertion_worker_func(void *engine_vp) {
 /********************************************************************************
  * Classification Job functions
  ********************************************************************************/
+#define SET_JOB_ERROR(job, err, msg, ...) \
+  job->state = CJOB_STATE_ERROR; \
+  job->error = err;              \
+  error(msg, __VA_ARGS__);
+
 static const char * generate_job_id() {
   char *job_id = calloc(JOB_ID_SIZE, sizeof(char));
   if (NULL == job_id) {
@@ -394,14 +427,31 @@ static const char * generate_job_id() {
   return job_id;
 }
 
-ClassificationJob * create_classification_job(int tag_id) {
+ClassificationJob * create_tag_classification_job(int tag_id) {
   ClassificationJob *job = malloc(sizeof(ClassificationJob));
   if (job) {
     job->tag_id = tag_id;
+    job->user_id = 0;
     job->progress = 0;
     job->job_id = generate_job_id();
     job->state = CJOB_STATE_WAITING;
     job->error = CJOB_ERROR_NO_ERROR;
+    job->type = CJOB_TYPE_TAG_JOB;
+  }
+  
+  return job;
+}
+
+ClassificationJob * create_user_classification_job(int user_id) {
+  ClassificationJob *job = malloc(sizeof(ClassificationJob));
+  if (job) {
+    job->tag_id = 0;
+    job->user_id = user_id;
+    job->progress = 0;
+    job->job_id = generate_job_id();
+    job->state = CJOB_STATE_WAITING;
+    job->error = CJOB_ERROR_NO_ERROR;
+    job->type = CJOB_TYPE_USER_JOB;
   }
   
   return job;
@@ -422,6 +472,10 @@ const char * cjob_id(const ClassificationJob * job) {
 
 int cjob_tag_id(const ClassificationJob * job) {
   return job->tag_id;
+}
+
+int cjob_user_id(const ClassificationJob * job) {
+  return job->user_id;
 }
 
 float cjob_progress(const ClassificationJob * job) {
@@ -454,41 +508,50 @@ void cjob_cancel(ClassificationJob *job) {
   job->state = CJOB_STATE_CANCELLED;
 }
 
-static void cjob_process(ClassificationJob *job, const ItemSource *item_source, TagDB *tag_db, 
-                  const Pool *random_background, Queue *tagging_queue) {
-  debug("cjob_process: %s", job->job_id);
-  /* If the job is cancelled bail out before doing anything */
-  if (job->state == CJOB_STATE_CANCELLED) return;
+/** Do the actual classification.
+ * 
+ *  TODO Check malloc'ing eventually
+ */
+static int cjob_classify(ClassificationJob *job, const TagList *taglist, const ItemSource *item_source, 
+                          const Pool *random_background, Queue *tagging_queue) {
+  
+  if (taglist->size < 1) {
+    return 1;
+  }
   
   int i;
+  int failed = false;
   ItemList *items = is_fetch_all_items(item_source);
   int number_of_items = item_list_size(items);
-  float progress_increment = 80.0 / number_of_items;
+  const float progress_increment = 80.0 / number_of_items;
 
-  job->state = CJOB_STATE_TRAINING;
-  Tag *tag = tag_db_load_tag_by_id(tag_db, job->tag_id);
-  if (!tag) {
-    info("tag %i does not exist", job->tag_id);
-    job->state = CJOB_STATE_ERROR;
-    job->error = CJOB_ERROR_NO_SUCH_TAG;
-  } else {
-    job->progress = 5.0;
-  
-    TrainedClassifier *tc = train(tag, item_source);
-    job->progress = 10.0;
-  
-    job->state = CJOB_STATE_CALCULATING;
-    Classifier *classifier = precompute(tc, random_background);
-    job->progress = 20.0;
-  
-    job->state = CJOB_STATE_CLASSIFYING;  
-    for (i = 1; i <= number_of_items; i++) {
-      Item *item = item_list_item_at(items, i);
+  TrainedClassifier **tc = calloc(taglist->size, sizeof(TrainedClassifier*));
+  if (!tc) goto malloc_error;
+  for (i = 0; i < taglist->size; i++) {
+    tc[i] = train(taglist->tags[i], item_source);      
+  }
+  job->progress = 10.0;
       
-      if (NULL == item) {
-        error("item at %i was NULL", i);
-      } else {
-        Tagging *tagging = classify(classifier, item);
+  job->state = CJOB_STATE_CALCULATING;
+  Classifier **classifier = calloc(taglist->size, sizeof(Classifier*));
+  if (!classifier) goto malloc_error;
+  for (i = 0; i < taglist->size; i++) {
+    classifier[i] = precompute(tc[i], random_background);
+  }
+  job->progress = 20.0;
+            
+  job->state = CJOB_STATE_CLASSIFYING;  
+  for (i = 1; i <= number_of_items; i++) {
+    Item *item = item_list_item_at(items, i);
+    
+    if (NULL == item) {
+      error("item at %i was NULL", i);
+    } else {
+      int j;
+      
+      for (j = 0; j < taglist->size; j++) {
+        Tagging *tagging = classify(classifier[j], item);
+        
         if (NULL != tagging) {
           TaggingInsertionJob *tagging_job = create_tagging_insertion_job(tagging);
           q_enqueue(tagging_queue, tagging_job);
@@ -496,17 +559,84 @@ static void cjob_process(ClassificationJob *job, const ItemSource *item_source, 
           error("Got NULL tagging");
         }
       }
-  
-      job->progress += progress_increment;
     }
+
+    job->progress += progress_increment;
+  }
   
-    tag_db_update_last_classified_at(tag_db, tag);
-    job->progress = 100.0;
-    job->state = CJOB_STATE_COMPLETE;
+exit:
+
+  for (i = 0; i < taglist->size; i++) {
+    if (tc && tc[i]) {
+      tc_free(tc[i]);      
+    }
     
-    free_classifier(classifier);
-    tc_free(tc);
-    free_tag(tag);
+    if (classifier && classifier[i]) {
+      free_classifier(classifier[i]);      
+    }
+  }  
+  
+  if (classifier) {
+    free(classifier);
+  }
+  
+  if (tc) {
+    free(tc);
+  }  
+  
+  return failed;
+  
+malloc_error:
+  job->error = CJOB_STATE_ERROR;
+  job->error = CJOB_ERROR_UNKNOWN_ERROR;
+  fatal("Malloc error in classification processing");
+  failed = true;
+  goto exit;
+}
+
+static void cjob_process(ClassificationJob *job, const ItemSource *item_source, TagDB *tag_db, 
+                  const Pool *random_background, Queue *tagging_queue) {
+  debug("cjob_process: %s", job->job_id);
+  /* If the job is cancelled bail out before doing anything */
+  if (job->state == CJOB_STATE_CANCELLED) return;
+  
+  job->state = CJOB_STATE_TRAINING;  
+  TagList *taglist = NULL;
+  
+  switch (job->type) {
+    case CJOB_TYPE_TAG_JOB: {
+      Tag *tag = tag_db_load_tag_by_id(tag_db, job->tag_id);
+      if (tag) {
+        taglist = create_tag_list();
+        taglist_add_tag(taglist, tag);
+      } else {
+        SET_JOB_ERROR(job, CJOB_ERROR_NO_SUCH_TAG, "Tag %i does not exist", job->tag_id);
+      }
+    }
+    break;
+    case CJOB_TYPE_USER_JOB:
+      taglist = tag_db_load_tags_to_classify_for_user(tag_db, job->user_id);          
+      if (!taglist || taglist->size == 0) {
+        SET_JOB_ERROR(job, CJOB_ERROR_NO_TAGS_FOR_USER, "No tags for user %i", job->user_id);
+      }
+    break;
+    default:
+      SET_JOB_ERROR(job, CJOB_ERROR_BAD_JOB_TYPE, "Unknown CJOB type: %i", job->type);
+    break;
+  }
+    
+  if (taglist) {
+    job->progress = 5.0;
+    if (!cjob_classify(job, taglist, item_source, random_background, tagging_queue)) {
+      int i;
+      for (i = 0; i < taglist->size; i++) {
+        tag_db_update_last_classified_at(tag_db, taglist->tags[i]);        
+      }
+      
+      job->progress = 100.0;
+      job->state = CJOB_STATE_COMPLETE;
+    }
+    free_taglist(taglist);      
   }
 }
 

@@ -142,7 +142,7 @@ static int start_job(ClassificationEngine *ce, struct MHD_Connection *connection
       SEND_MISSING_TAG_ID(ret);
     } else {
       int tag_id = (int) strtol((char *) nodes->nodeTab[0]->content, NULL, 10);
-      ClassificationJob *job = ce_add_classification_job(ce, tag_id);
+      ClassificationJob *job = ce_add_classification_job_for_tag(ce, tag_id);
       info("Starting classification job for tag %i", tag_id);
       
       xmlChar *xml = xml_for_job(job);
@@ -158,7 +158,7 @@ static int start_job(ClassificationEngine *ce, struct MHD_Connection *connection
           
   xmlFreeDoc(doc);
   
-  return ret; 
+  return ret;
 }
 
 static int job_handler(void * ce_vp, struct MHD_Connection * connection,
