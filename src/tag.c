@@ -17,6 +17,7 @@ static int read_tagging_file(TagList* taglist, const char *, const char *);
 static Tag * add_tag(TagList*, const char *, const char *);
 static int * fill_example_array(Pvoid_t tag_examples, int size);
 static int tag_add_example(Tag *tag, int example, float strength);
+static TagList * create_tag_list(void);
 
 /** Load tags from a file
  *
@@ -30,10 +31,8 @@ TagList * load_tags_from_file(const char * corpus, const char * user) {
     return NULL;
   }
   
-  taglist = malloc(sizeof(TagList));
-  if (NULL != taglist) {
-    taglist->tags = NULL;
-    
+  taglist = create_tag_list();
+  if (NULL != taglist) {    
     if (read_tagging_file(taglist, user, tagging_path)) {
       free_taglist(taglist);
       taglist = NULL;
@@ -46,24 +45,21 @@ TagList * load_tags_from_file(const char * corpus, const char * user) {
 /************************************************************************
  *  TagList functions
  ************************************************************************/
- 
-const Tag * taglist_tag_at(const TagList *taglist, int index) {
-  Tag *tag = NULL;
-  PWord_t tag_pointer;
-  Word_t J_index;
-  
-  JLBC(tag_pointer, taglist->tags, index, J_index);
-  if (NULL != tag_pointer) {
-    tag = (Tag*)(*tag_pointer);
+
+TagList * create_tag_list(void) {
+  TagList *list = malloc(sizeof(TagList));
+  if (list) {
+    list->size = 0;
+    list->tag_list_allocation = 7;
+    list->tags = calloc(list->tag_list_allocation, sizeof(TagList*));
+    if (!list->tags) {
+      free(list);
+      list = NULL;
+      fatal("Malloc error in tag list");
+    }
   }
   
-  return tag;
-}
-
-int taglist_size(const TagList *taglist) {
-  Word_t count;
-  JLC(count, taglist->tags, 0, -1);
-  return count;
+  return list;
 }
 
 /** Adds a tag to a tag list.
@@ -73,57 +69,53 @@ int taglist_size(const TagList *taglist) {
  *  This is a private function that should only be called by tag list creators.
  */
 Tag *add_tag(TagList *taglist, const char * user, const char * tag_name) {
+  int i;
   Tag *tag = NULL;
-  Word_t index = 0;
-  PWord_t tag_pointer;
   
-  JLF(tag_pointer, taglist->tags, index);
-  while (NULL != tag_pointer) {
-    Tag *temp_tag = (Tag*)(*tag_pointer);
+  for (i = 0; i < taglist->size; i++) {
+    Tag *temp_tag = taglist->tags[i];
     if ((0 == strcmp(temp_tag->tag_name, tag_name)) && (0 == strcmp(temp_tag->user, user))) {
       tag = temp_tag;
       break;
-    } 
-    
-    JLN(tag_pointer, taglist->tags, index);
+    }
   }
   
   if (NULL == tag) {
+    /* Do we need to grow the taglist? */
+    if (taglist->size == taglist->tag_list_allocation) {
+      Tag **new_list = realloc(taglist->tags, taglist->tag_list_allocation * 2);
+      if (NULL == new_list) {
+        fatal("Out of memory allocating tag list");
+      } else {
+        taglist->tags = new_list;
+        taglist->tag_list_allocation *= 2;
+      }
+    }
+    
     tag = create_tag(user, tag_name, -1, -1);
     
     if (NULL == tag) {
-      error("Out of memory allocation a tag");
+      fatal("Out of memory allocation a tag");
     } else {
-      Word_t count;
-      JLC(count, taglist->tags, 0, -1);
-      JLI(tag_pointer, taglist->tags, count + 1);
-      if (NULL == tag_pointer) {
-        error("Out of memory on Judy allocation");
-        free(tag);
-        tag = NULL;
-      } else {        
-        *tag_pointer = (Word_t)tag;
-      }
+      taglist->tags[taglist->size] = tag;
+      taglist->size++;
     }
   }
   
   return tag;
 }
 
-void free_taglist(TagList *taglist) {
-  Word_t bytes_freed;
-  PWord_t tag_pointer;
-  Word_t index;
-  
-  JLF(tag_pointer, taglist->tags, index);
-  while (NULL != tag_pointer) {
-    Tag *tag = (Tag*)(*tag_pointer);
-    free_tag(tag);
-    JLN(tag_pointer, taglist->tags, index);
-  }
-  
-  JLFA(bytes_freed, taglist->tags);
-  free(taglist);
+void free_taglist(TagList *taglist) { 
+  if (taglist) {
+    int i;
+    
+    for (i = 0; i < taglist->size; i++) {
+      free_tag(taglist->tags[i]);
+    }
+    
+    free(taglist->tags);
+    free(taglist);
+  }  
 }  
 
 /*****************************************************************************
@@ -387,6 +379,10 @@ int tag_db_is_alive(TagDB *tag_db) {
   }
   
   return alive;
+}
+
+TagList * tag_db_load_tags_to_classify_for_user(TagDB *tag_db, int user_id) {
+  return NULL;
 }
 
 /** Loads a tag from the database.

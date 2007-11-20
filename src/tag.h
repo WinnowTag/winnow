@@ -11,9 +11,6 @@
 #include <Judy.h>
 #include "cls_config.h"
 
-typedef struct TAGLIST {
-  Pvoid_t tags;
-} TagList;
 
 typedef struct TAG {
   char *user;
@@ -24,12 +21,16 @@ typedef struct TAG {
   Pvoid_t negative_examples;
 } Tag;
 
+typedef struct TAGLIST {
+  int size;
+  int tag_list_allocation;
+  Tag **tags;
+} TagList;
+
 typedef struct TAG_DB TagDB;
 
 // Tag list functions
 extern TagList    *  load_tags_from_file   (const char * corpus, const char * user);
-extern int           taglist_size          (const TagList *taglist);
-extern const Tag  *  taglist_tag_at        (const TagList *taglist, int index);
 extern void          free_taglist          (TagList *taglist);
 
 // Tag functions

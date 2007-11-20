@@ -22,9 +22,10 @@ check_all_SOURCES = check_all.c \
                 $(top_builddir)/src/classification_engine.h \
                 $(top_builddir)/src/tagging.h
                 
-check_all_CFLAGS = @CHECK_CFLAGS@
+check_all_CFLAGS = @CHECK_CFLAGS@ -g -DDEBUG
 check_all_LDADD = @CHECK_LIBS@  \
               $(top_builddir)/src/libclassifier.la
+check_all_LDFLAGS = -static
               
 check_db_SOURCES = check_db.c                    \
             check_db_item_source.c               \
@@ -40,3 +41,9 @@ check_db_SOURCES = check_db.c                    \
 check_db_CFLAGS = @CHECK_CFLAGS@
 check_db_LDADD = @CHECK_LIBS@  \
             $(top_builddir)/src/libclassifier.la
+
+bin_PROGRAMS = check_all.debug
+check_all_debug_SOURCES = $(check_all_SOURCES)
+check_all_debug_CFLAGS = @CHECK_CFLAGS@ -g -DDEBUG
+check_all_debug_LDADD = @CHECK_LIBS@ $(top_builddir)/src/libclassifier.la
+check_all_debug_LDFLAGS = -static

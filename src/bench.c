@@ -57,7 +57,7 @@ int main(int argc, char ** argv) {
   printf("Finished loading %d samples.\n", sample_size);
  
   tags = load_tags_from_file("corpus", "jedharris");
-  num_tags = taglist_size(tags);
+  num_tags = tags->size;
   current_tag = 1;
   printf("Loaded %d tags\n", num_tags);
  
@@ -110,7 +110,7 @@ void *do_classification(void *nothing) {
   while (current_tag <= num_tags) {
     did_work = 1;
     pthread_mutex_lock(&mutex);
-    const Tag *tag = taglist_tag_at(tags, current_tag);
+    const Tag *tag = tags->tags[current_tag];
     current_tag++;
     pthread_mutex_unlock(&mutex);
     

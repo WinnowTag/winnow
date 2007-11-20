@@ -22,7 +22,7 @@
 START_TEST (train_merges_examples_into_pools) {
   TagList *tags = load_tags_from_file("fixtures", "mock");
   assert_not_null(tags);
-  const Tag *tag = taglist_tag_at(tags, 1);
+  const Tag *tag = tags->tags[0];
   assert_not_null(tag);
   
   TrainedClassifier *trained = train(tag, is);

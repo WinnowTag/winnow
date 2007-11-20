@@ -70,6 +70,17 @@ START_TEST(test_update_last_classified_time_for_a_tag) {
   assert_last_classified_updated(48);
 } END_TEST
 
+START_TEST(test_get_tags_for_user) {
+  TagDB *tag_db = create_tag_db(&config);
+  assert_not_null(tag_db);
+  TagList *tag_list = tag_db_load_tags_to_classify_for_user(tag_db, 2);
+  assert_not_null(tag_list);
+  assert_equal(6, tag_list->size);
+  assert_not_null(tag_list->tags);
+}
+END_TEST
+
+
 Suite *
 tag_db_suite(void) {
   Suite *s = suite_create("Tag_db");  
@@ -79,6 +90,7 @@ tag_db_suite(void) {
 // START_TESTS
   tcase_add_test(tc_case, test_create_tag_db);
   tcase_add_test(tc_case, test_update_last_classified_time_for_a_tag);
+//  tcase_add_test(tc_case, test_get_tags_for_user);
 // END_TESTS
 
   suite_add_tcase(s, tc_case);
