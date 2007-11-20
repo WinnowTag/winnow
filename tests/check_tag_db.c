@@ -81,8 +81,26 @@ START_TEST(test_get_tags_for_user) {
   assert_equal(38, tag_tag_id(tag_list->tags[0]));
   assert_equal(40, tag_tag_id(tag_list->tags[1]));
   free_taglist(tag_list);
+  free_tag_db(tag_db);
 }
 END_TEST
+
+START_TEST(test_get_tags_for_user_loads_examples) {
+  TagDB *tag_db = create_tag_db(&config);
+  assert_not_null(tag_db);
+  TagList *tag_list = tag_db_load_tags_to_classify_for_user(tag_db, 2);
+  assert_not_null(tag_list);
+  
+  Tag *tag = tag_list->tags[0];
+  assert_not_null(tag);
+  assert_equal(11, tag_positive_examples_size(tag));
+  assert_equal(11, tag_negative_examples_size(tag));
+  
+  free_taglist(tag_list);
+  free_tag_db(tag_db);
+}
+END_TEST
+
 
 
 Suite *
@@ -95,6 +113,7 @@ tag_db_suite(void) {
   tcase_add_test(tc_case, test_create_tag_db);
   tcase_add_test(tc_case, test_update_last_classified_time_for_a_tag);
   tcase_add_test(tc_case, test_get_tags_for_user);
+  tcase_add_test(tc_case, test_get_tags_for_user_loads_examples);
 // END_TESTS
 
   suite_add_tcase(s, tc_case);

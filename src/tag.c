@@ -62,7 +62,7 @@ TagList * create_tag_list(void) {
   return list;
 }
 
-static void taglist_add_tag(TagList *taglist, const Tag *tag) {
+static void taglist_add_tag(TagList *taglist, Tag *tag) {
   if (taglist && tag) {
     /* Do we need to grow the taglist? */
     if (taglist->size == taglist->tag_list_allocation) {
@@ -363,6 +363,7 @@ void free_tag_db(TagDB *tag_db) {
     if (tag_db->find_tag_stmt) mysql_stmt_close(tag_db->find_tag_stmt);
     if (tag_db->load_examples_stmt) mysql_stmt_close(tag_db->load_examples_stmt);
     if (tag_db->update_last_classified_at_stmt) mysql_stmt_close(tag_db->update_last_classified_at_stmt);
+    if (tag_db->find_tags_for_user_stmt) mysql_stmt_close(tag_db->find_tags_for_user_stmt);
     if (tag_db->mysql) mysql_close(tag_db->mysql);
     free(tag_db);
   }
@@ -388,6 +389,49 @@ int tag_db_is_alive(TagDB *tag_db) {
   return alive;
 }
 
+static int tag_db_load_tag_examples(TagDB *tag_db, Tag *tag) {
+  int failure = true;
+  
+  if (tag_db && tag) {
+    MYSQL_BIND params[1];
+    memset(params, 0, sizeof(params));
+    params[0].buffer_type = MYSQL_TYPE_LONG;
+    params[0].buffer = (char*) &(tag->tag_id);
+                      
+    if (!mysql_stmt_bind_param(tag_db->load_examples_stmt, params) && 
+        !mysql_stmt_execute(tag_db->load_examples_stmt)) {              
+      int item_id;
+      float strength;
+      MYSQL_BIND examples[2];
+      memset(examples, 0, sizeof(examples));
+      examples[0].buffer_type = MYSQL_TYPE_LONG;
+      examples[0].buffer = (char *) &item_id;
+      examples[1].buffer_type = MYSQL_TYPE_FLOAT;
+      examples[1].buffer = (char *) &strength;
+      
+      if (!mysql_stmt_bind_result(tag_db->load_examples_stmt, examples) && 
+          !mysql_stmt_store_result(tag_db->load_examples_stmt)) {                
+        while (!mysql_stmt_fetch(tag_db->load_examples_stmt)) {
+          tag_add_example(tag, item_id, strength);
+        }
+        failure = false;
+        mysql_stmt_free_result(tag_db->load_examples_stmt);
+      }
+    }    
+  } 
+  
+  return failure;
+}
+
+/** Loads the tags that need to be classified for a given user.
+ * 
+ *  Tags that need to be classified are those that have not been classified
+ *  since the tag was last updated.
+ * 
+ *  @param tag_db The Tag database.
+ *  @param user_id The id of the user to get the tags for.
+ *  @returns A TagList of the tags that need to be classified for a user.
+ */
 TagList * tag_db_load_tags_to_classify_for_user(TagDB *tag_db, int user_id) {
   if (NULL == tag_db) return NULL;
   TagList *taglist = create_tag_list();
@@ -419,6 +463,9 @@ TagList * tag_db_load_tags_to_classify_for_user(TagDB *tag_db, int user_id) {
       
       if (tag) {
         taglist_add_tag(taglist, tag);
+        if (tag_db_load_tag_examples(tag_db, tag)) {
+          goto load_tags_error;
+        }
       }
     }
   }
@@ -468,26 +515,7 @@ Tag * tag_db_load_tag_by_id(TagDB *tag_db, int tag_id) {
     
     if (!stmt_fetch_result) {
       tag = create_tag("", tag_name, user_id, tag_id);
-      if (tag) {
-        if (mysql_stmt_bind_param(tag_db->load_examples_stmt, param)) goto load_example_error;
-        if (mysql_stmt_execute(tag_db->load_examples_stmt))           goto load_example_error;
-        
-        int item_id;
-        float strength;
-        MYSQL_BIND examples[2];
-        memset(examples, 0, sizeof(examples));
-        examples[0].buffer_type = MYSQL_TYPE_LONG;
-        examples[0].buffer = (char *) &item_id;
-        examples[1].buffer_type = MYSQL_TYPE_FLOAT;
-        examples[1].buffer = (char *) &strength;
-        
-        if (mysql_stmt_bind_result(tag_db->load_examples_stmt, examples)) goto load_example_error;
-        if (mysql_stmt_store_result(tag_db->load_examples_stmt))          goto load_example_error;
-        
-        while (!mysql_stmt_fetch(tag_db->load_examples_stmt)) {
-          tag_add_example(tag, item_id, strength);
-        }
-      }
+      if (tag_db_load_tag_examples(tag_db, tag)) goto load_example_error;
     } else if (MYSQL_NO_DATA == stmt_fetch_result) {
       error("No tag found with id %i", tag_id);
     } else if (MYSQL_DATA_TRUNCATED == stmt_fetch_result) {
@@ -499,8 +527,7 @@ Tag * tag_db_load_tag_by_id(TagDB *tag_db, int tag_id) {
   }
   
   exit:
-    if (tag_db) {
-      mysql_stmt_free_result(tag_db->load_examples_stmt);
+    if (tag_db) {      
       mysql_stmt_free_result(tag_db->find_tag_stmt);
     }
     
