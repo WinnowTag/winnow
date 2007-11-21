@@ -94,7 +94,7 @@ struct CLASSIFICATION_ENGINE {
   
   /* Flag for whether classification is suspended */
   int is_classification_suspended;
-  
+   
   /* pthread mutex for suspension */
   pthread_mutex_t *classification_suspension_mutex;
   
@@ -110,6 +110,9 @@ struct CLASSIFICATION_ENGINE {
   
   /* Thread id for tagging store worker */
   pthread_t insertion_worker_thread;
+  
+  /* ItemSource flushing thread */
+  pthread_t flusher;
 };
 
 struct CLASSIFICATION_JOB {
@@ -132,6 +135,7 @@ static ClassificationJob * create_user_classification_job(int tag_id);
 static void free_classification_job(ClassificationJob *job);
 static void *classification_worker_func(void *engine_vp);
 static void *insertion_worker_func(void *engine_vp);
+static void *flusher_func(void *engine_vp);
 static TaggingInsertionJob * create_tagging_insertion_job(Tagging *tagging);
 static void free_tagging_insertion_job(TaggingInsertionJob *job);
 static void cjob_process(ClassificationJob *job, const ItemSource *is, TagDB *tagdb, const Pool *background, Queue *insertion_queue);
@@ -227,22 +231,33 @@ void free_classification_engine(ClassificationEngine *engine) {
   }
 }
 
+static int add_classification_job(ClassificationEngine *engine, ClassificationJob *job) {
+  int failure = false;
+  PWord_t job_pointer;
+  
+  JSLI(job_pointer, engine->classification_jobs, (uint8_t*) cjob_id(job));
+  if (NULL == job_pointer) {
+    failure = true;
+    fatal("Error malloc'ing Judy array entry for classification job");
+  } else {
+    *job_pointer = (Word_t) job;
+    q_enqueue(engine->classification_job_queue, job);    
+  }   
+  
+  return failure;
+}
+
 /* Adds a classification job to the engine.
  * 
  */
 ClassificationJob * ce_add_classification_job_for_tag(ClassificationEngine * engine, int tag_id) {
   ClassificationJob *job = NULL;
   if (engine) {
-    PWord_t job_pointer;
     job = create_tag_classification_job(tag_id);
-    JSLI(job_pointer, engine->classification_jobs, (uint8_t*) cjob_id(job));
-    if (NULL == job_pointer) {
+    if (add_classification_job(engine, job)) {
       free_classification_job(job);
-      fatal("Error malloc'ing Judy array entry for classification job");
-    } else {
-      *job_pointer = (Word_t) job;
-      q_enqueue(engine->classification_job_queue, job);    
-    }    
+      job = NULL;
+    }
   }
   return job;
 }
@@ -253,16 +268,11 @@ ClassificationJob * ce_add_classification_job_for_tag(ClassificationEngine * eng
 ClassificationJob * ce_add_classification_job_for_user(ClassificationEngine * engine, int user_id) {
   ClassificationJob *job = NULL;
   if (engine) {
-    PWord_t job_pointer;
     job = create_user_classification_job(user_id);
-    JSLI(job_pointer, engine->classification_jobs, (uint8_t*) cjob_id(job));
-    if (NULL == job_pointer) {
+    if (add_classification_job(engine, job)) {
       free_classification_job(job);
-      fatal("Error malloc'ing Judy array entry for classification job");
-    } else {
-      *job_pointer = (Word_t) job;
-      q_enqueue(engine->classification_job_queue, job);    
-    }    
+      job = NULL;
+    }
   }
   return job;
 }
@@ -335,6 +345,9 @@ int ce_start(ClassificationEngine * engine) {
       fatal("Error creating thread for insertion");
     }
     
+    if (pthread_create(&(engine->flusher), NULL, flusher_func, engine)) {
+      fatal("Error creating thread for item source flushing");
+    }    
   }
   
   return success;
@@ -406,8 +419,11 @@ int ce_resume(ClassificationEngine * engine) {
   return true;
 }
 
+/** This should eventually shut things down fast, but for now it just calls
+ *  ce_stop.
+ */
 int ce_kill(ClassificationEngine * engine) {
-  return false;
+  return ce_stop(engine);;
 }
 
 /********************************************************************************
@@ -515,6 +531,50 @@ void *insertion_worker_func(void *engine_vp) {
   info("insertion worker function ending");
   free_tagging_store(store);
   DB_THREAD_END;
+}
+
+void *flusher_func(void *engine_vp) {
+  ClassificationEngine *engine = (ClassificationEngine*) engine_vp;
+  
+  if (engine) {
+    pthread_mutex_t flush_wait_mutex;
+    pthread_cond_t flush_wait_cond;
+    
+    if (pthread_mutex_init(&flush_wait_mutex, NULL) || pthread_cond_init(&flush_wait_cond, NULL)) {
+      fatal("Could not create mutex or cond for flusher thread");
+    } else {
+      while (engine->is_running) {        
+        // This will run at 0200 everyday
+        time_t now = time(0);
+        struct tm now_tm;
+        localtime_r(&now, &now_tm);
+        
+        // If we are past 0200 move to the next day
+        if (now_tm.tm_hour >= 2) {
+          now_tm.tm_mday++;
+        }
+        
+        now_tm.tm_hour = 2;
+        now_tm.tm_min = 0;
+        now_tm.tm_sec = 0;
+        struct timespec wake_at;
+        wake_at.tv_sec = mktime(&now_tm);
+        wake_at.tv_nsec = 0;
+        
+        if (ETIMEDOUT == pthread_cond_timedwait(&flush_wait_cond, &flush_wait_mutex, &wake_at)) {
+          time_t woke_at = time(0);
+          info("Flusher thread woke up at %s", ctime(&woke_at));
+          ce_suspend(engine);
+          is_flush(engine->item_source);
+          ce_resume(engine);
+          time_t done_at = time(0);
+          info("Flushing complete and classification resumed at %s", ctime(&done_at));
+        } else {
+          // woke up for some other reasons
+        }
+      }
+    }    
+  }
 }
 
 /********************************************************************************
