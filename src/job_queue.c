@@ -117,11 +117,16 @@ void * q_dequeue_or_wait(Queue * q) {
    *     take the job off the queue.
    *  - Keep doing this until we get a job.
    */
-  while (NULL == job) {        
+  while (NULL == job) {
+    trace("getting cond lock: %i", pthread_self());
     pthread_mutex_lock(&(q->wait_condition_mutex));
     if (NULL == q->front) {
+      trace("pthread_cond_timedwait: %i", pthread_self());
       int rc = pthread_cond_timedwait(&(q->wait_condition), &(q->wait_condition_mutex), &ts);
-      if (ETIMEDOUT == rc) {
+      trace("queue wait return: %i", pthread_self());
+      if (ETIMEDOUT == rc) {        
+        trace("queue wait time out: %i", pthread_self());
+        pthread_mutex_unlock(&(q->wait_condition_mutex));
         break;
       }
     }
