@@ -161,11 +161,10 @@ START_TEST(suspended_classification_engine_processes_no_jobs) {
   ce_add_classification_job_for_tag(ce, TAG_ID);
   ce_add_classification_job_for_tag(ce, TAG_ID);
   assert_equal(2, ce_num_waiting_jobs(ce));
+  ce_start(ce);
   int suspended = ce_suspend(ce);
   assert_true(suspended);
-  ce_start(ce);
   assert_equal(2, ce_num_waiting_jobs(ce));
-  sleep(1); // Need to sleep so that workers can catch up
   ce_stop(ce);
   assert_equal(2, ce_num_waiting_jobs(ce));
 } END_TEST

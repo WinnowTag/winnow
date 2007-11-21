@@ -36,12 +36,24 @@
 #define DB_SYSTEM_END
 #endif
 
+#define INIT_MUTEX(mutex) \
+  mutex = calloc(1, sizeof(pthread_mutex_t)); \
+  if (!mutex) goto malloc_error;              \
+  if (pthread_mutex_init(mutex, NULL)) goto malloc_error;
+
+#define INIT_COND(cond) \
+  cond = calloc(1, sizeof(pthread_cond_t)); \
+  if (!cond) goto malloc_error;             \
+  if (pthread_cond_init(cond, NULL)) goto malloc_error;
+
 /* Size of a UUID string (36) + 1 for \0 */ 
 #define JOB_ID_SIZE 37
 
 struct CLASSIFICATION_ENGINE {
   /* Pointer to classification engine configuration */
   const Config *config;
+  
+  EngineConfig engine_config;
   
   /* Pointer to item source for classification.
    * 
@@ -89,6 +101,10 @@ struct CLASSIFICATION_ENGINE {
   /* pthread condition for suspension */
   pthread_cond_t *classification_suspension_cond;
   
+  pthread_mutex_t *suspension_notification_mutex;
+  pthread_cond_t *suspension_notification_cond;
+  int num_threads_suspended;
+    
   /* Thread ids for classification workers */
   pthread_t *classification_worker_threads;
   
@@ -130,18 +146,18 @@ ClassificationEngine * create_classification_engine(const Config *config) {
   
   if (engine) {
     engine->config = config;
+    cfg_engine_config(config, &(engine->engine_config));
     engine->is_running = false;
     engine->is_inserting = false;
     engine->is_classification_suspended = false;
     engine->classification_job_queue = NULL;
+    engine->num_threads_suspended = 0;
     
-    engine->classification_suspension_mutex = calloc(1, sizeof(pthread_mutex_t));
-    if (!engine->classification_suspension_mutex) goto malloc_error;
-    if (pthread_mutex_init(engine->classification_suspension_mutex, NULL)) goto malloc_error;
     
-    engine->classification_suspension_cond = calloc(1, sizeof(pthread_cond_t));
-    if (!engine->classification_suspension_cond) goto malloc_error;
-    if (pthread_cond_init(engine->classification_suspension_cond, NULL)) goto malloc_error;
+    INIT_MUTEX(engine->classification_suspension_mutex);
+    INIT_MUTEX(engine->suspension_notification_mutex);
+    INIT_COND(engine->classification_suspension_cond);
+    INIT_COND(engine->suspension_notification_cond);    
     
     /* Attempt to get a valid item store. */
 #ifdef HAVE_DATABASE_ACCESS
@@ -306,11 +322,9 @@ int ce_start(ClassificationEngine * engine) {
     engine->is_inserting = true;
 
     int i;
-    EngineConfig config;
-    cfg_engine_config(engine->config, &config);
     
-    engine->classification_worker_threads = calloc(config.num_workers, sizeof(pthread_t));
-    for (i = 0; i < config.num_workers; i++) {
+    engine->classification_worker_threads = calloc(engine->engine_config.num_workers, sizeof(pthread_t));
+    for (i = 0; i < engine->engine_config.num_workers; i++) {
       if (pthread_create(&(engine->classification_worker_threads[i]), NULL, classification_worker_func, engine)) {
         fatal("Error creating thread %i for classification", i + 1);
         exit(1);
@@ -336,12 +350,9 @@ int ce_stop(ClassificationEngine * engine) {
     pthread_mutex_lock(engine->classification_suspension_mutex);
     pthread_cond_broadcast(engine->classification_suspension_cond);
     pthread_mutex_unlock(engine->classification_suspension_mutex);
-    
-    EngineConfig config;
-    cfg_engine_config(engine->config, &config);
-    
+        
     int i;
-    for (i = 0; i < config.num_workers; i++) {
+    for (i = 0; i < engine->engine_config.num_workers; i++) {
       info("joining thread %i", engine->classification_worker_threads[i]);
       pthread_join(engine->classification_worker_threads[i], NULL);
     }
@@ -356,11 +367,30 @@ int ce_stop(ClassificationEngine * engine) {
   return success;
 }
 
+/** Suspends all classification.
+ * 
+ *  This function blocks until all worker threads have been suspeneded.
+ */
 int ce_suspend(ClassificationEngine * engine) {
   if (engine) {
     pthread_mutex_lock(engine->classification_suspension_mutex);
     engine->is_classification_suspended = true;
     pthread_mutex_unlock(engine->classification_suspension_mutex);
+    
+    /* Wait until all threads have registered as suspended before returning
+     * 
+     * We only do this if the system is running
+     *
+     * TODO Add a timeout?
+     */
+    if (engine->is_running) {
+      pthread_mutex_lock(engine->suspension_notification_mutex);
+      if (engine->num_threads_suspended < engine->engine_config.num_workers) {
+        pthread_cond_wait(engine->suspension_notification_cond, engine->suspension_notification_mutex);
+      }
+      pthread_mutex_unlock(engine->suspension_notification_mutex);
+    }
+    
     info("Engine suspended");
   }
   return true;
@@ -384,6 +414,21 @@ int ce_kill(ClassificationEngine * engine) {
  * Worker thread functions.
  ********************************************************************************/
 
+#define NOTIFY_SUSPENSION(ce) \
+  debug("Classification is suspended in %i", pthread_self());         \
+  pthread_mutex_lock(ce->suspension_notification_mutex);              \
+  ce->num_threads_suspended++;                                        \
+  if (ce->num_threads_suspended >= ce->engine_config.num_workers) {   \
+    pthread_cond_signal(ce->suspension_notification_cond);            \
+  }                                                                   \
+  pthread_mutex_unlock(ce->suspension_notification_mutex);
+
+#define NOTIFY_RESUMPTION(ce) \
+  pthread_mutex_lock(ce->suspension_notification_mutex);    \
+  ce->num_threads_suspended--;                              \
+  pthread_mutex_unlock(ce->suspension_notification_mutex);  \
+  debug("Classification resumed in %i", pthread_self());
+
 /* This is the function for classificaiton work threads.
  * 
  * Each worker shares the ItemSource, Random Background and Queues of
@@ -406,10 +451,20 @@ void *classification_worker_func(void *engine_vp) {
   TagDB *tag_db = create_tag_db(&tag_db_config);
   
   while (!q_empty(job_queue) || ce->is_running) {
+    /* Check if the engine is suspended.
+     * 
+     * If it is we wait on the classification_suspension_cond
+     * until the thread gets woken up again.
+     * 
+     * We can also be woken up to stop, in which case the classification
+     * will still be suspended and we quit straight away.
+     */
     pthread_mutex_lock(ce->classification_suspension_mutex);
       if (ce->is_classification_suspended) {
-        debug("Classification is suspended in %i", pthread_self());
+        NOTIFY_SUSPENSION(ce);
         pthread_cond_wait(ce->classification_suspension_cond, ce->classification_suspension_mutex);
+        NOTIFY_RESUMPTION(ce);
+        
         // Been woken up to exit - not to continue
         if (ce->is_classification_suspended) {
           pthread_mutex_unlock(ce->classification_suspension_mutex);
