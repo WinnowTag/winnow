@@ -22,6 +22,8 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            classification_engine.c   \
                            httpd.h httpd.c   
                            
-bin_PROGRAMS = cls_bench
+bin_PROGRAMS = cls_bench classifier
 cls_bench_SOURCES = bench.c
 cls_bench_LDADD = libclassifier.la
+classifier_SOURCES = main.c
+classifier_LDADD = libclassifier.la

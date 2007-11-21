@@ -219,7 +219,6 @@ static int start_job_handle(void * ce_vp, struct MHD_Connection * connection,
                              const char * url, const char * method, 
                              const char * version, const char * upload_data,
                              unsigned int * upload_data_size, void **memo) {
-  debug("%s with (%i) %s", method, *upload_data_size, upload_data);
   int ret = MHD_NO;  
   
   if (strcmp(MHD_HTTP_METHOD_POST, method)) {
@@ -260,7 +259,6 @@ static int process_request(void * ce_vp, struct MHD_Connection * connection,
   
   if (0 == strcmp(url, "/classifier/jobs/") || 0 == strcmp(url, "/classifier/jobs")) {
     ret = start_job_handle(ce_vp, connection, url, method, version, upload_data, upload_data_size, memo);
-    debug("ret = %i", ret);
   } else if (url == strstr(url, "/classifier/jobs/")) {
     ret = job_handler(ce_vp, connection, url, method, version);
   } else {

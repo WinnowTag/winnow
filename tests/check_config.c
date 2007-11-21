@@ -97,9 +97,8 @@ START_TEST(test_insertion_threshold) {
   EngineConfig econfig; 
   cfg_engine_config(config, &econfig);
   assert_equal_f(0.9, econfig.insertion_threshold);
-}
-END_TEST
-
+  free_config(config);
+} END_TEST
 
 Suite *
 config_suite(void) {

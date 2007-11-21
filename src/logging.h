@@ -14,7 +14,7 @@
 #define error(fmt, ...) _error(__FILE__, __LINE__, fmt, ## __VA_ARGS__)
 #define info(fmt, ...)  _info (__FILE__, __LINE__, fmt, ## __VA_ARGS__)
 #define debug(fmt, ...) _debug(__FILE__, __LINE__, fmt, ## __VA_ARGS__)
-#define trace(fmt, ...) _trace(__FILE__, __LINE__, fmt, ## __VA_ARGS__)
+#define trace(fmt, ...)
 
 extern void _fatal (const char *file, int line, const char *fmt, ...);
 extern void _error (const char *file, int line, const char *fmt, ...);

@@ -44,6 +44,7 @@ void _error(const char *file, int line, const char *fmt, ...) {
 	vfprintf(log_file, fmt, argp);
 	va_end(argp);
 	fprintf(log_file, "\n");
+	fflush(log_file);
 }
 
 void _info(const char *file, int line, const char *fmt, ...) {
@@ -53,6 +54,7 @@ void _info(const char *file, int line, const char *fmt, ...) {
 	vfprintf(log_file, fmt, argp);
 	va_end(argp);
 	fprintf(log_file, "\n");
+	fflush(log_file);
 }
 
 void _debug(const char *file, int line, const char *fmt, ...) {
@@ -62,4 +64,15 @@ void _debug(const char *file, int line, const char *fmt, ...) {
 	vfprintf(log_file, fmt, argp);
 	va_end(argp);
 	fprintf(log_file, "\n");
+	fflush(log_file);
+}
+
+void _trace(const char *file, int line, const char *fmt, ...) {
+  va_list argp;
+  fprintf(log_file, PREFIX("TRACE"), file, line);
+  va_start(argp, fmt);
+  vfprintf(log_file, fmt, argp);
+  va_end(argp);
+  fprintf(log_file, "\n");
+  fflush(log_file);
 }

@@ -356,9 +356,9 @@ int ce_start(ClassificationEngine * engine) {
 /* Gracefully stops the classification engine by allowing all current jobs to complete.
  */
 int ce_stop(ClassificationEngine * engine) {
-  debug("stopping engine");
   int success = true;
   if (engine && engine->is_running) {
+    info("stopping engine");
     engine->is_running = false;
     pthread_mutex_lock(engine->classification_suspension_mutex);
     pthread_cond_broadcast(engine->classification_suspension_cond);
@@ -366,18 +366,36 @@ int ce_stop(ClassificationEngine * engine) {
         
     int i;
     for (i = 0; i < engine->engine_config.num_workers; i++) {
-      info("joining thread %i", engine->classification_worker_threads[i]);
+      debug("joining thread %i", engine->classification_worker_threads[i]);
       pthread_join(engine->classification_worker_threads[i], NULL);
     }
-    info("Returned from cw join");
+    debug("Returned from cw join");
     engine->is_inserting = false;
-    info("is_inserting set to false");
+    debug("is_inserting set to false");
      
     pthread_join(engine->insertion_worker_thread, NULL);
     info("finishing with %i insertion jobs on queue", q_size(engine->tagging_store_queue));
   }
   
   return success;
+}
+
+/* This will block until the engine has been shutdown.
+ */
+void ce_run(ClassificationEngine *engine) {
+  if (engine) {
+    if (!engine->is_running) {
+      ce_start(engine);
+    }
+    
+    info("Classification Engine started, now blocking.");
+    int i;
+    for (i = 0; i < engine->engine_config.num_workers; i++) {
+      pthread_join(engine->classification_worker_threads[i], NULL);
+    }
+    
+    pthread_join(engine->insertion_worker_thread, NULL);
+  }
 }
 
 /** Suspends all classification.
@@ -488,8 +506,10 @@ void *classification_worker_func(void *engine_vp) {
         }
       }
     pthread_mutex_unlock(ce->classification_suspension_mutex);
-      
+     
+    trace("About to wait on queue, thread %i", pthread_self());
     ClassificationJob *job = (ClassificationJob*) q_dequeue_or_wait(job_queue);
+    trace("Returned from queue, thread %i", pthread_self());
     
     if (job) {
       info("Got job off queue: %s", cjob_id(job));
@@ -561,6 +581,7 @@ void *flusher_func(void *engine_vp) {
         wake_at.tv_sec = mktime(&now_tm);
         wake_at.tv_nsec = 0;
         
+        pthread_mutex_lock(&flush_wait_mutex);
         if (ETIMEDOUT == pthread_cond_timedwait(&flush_wait_cond, &flush_wait_mutex, &wake_at)) {
           time_t woke_at = time(0);
           info("Flusher thread woke up at %s", ctime(&woke_at));
@@ -572,6 +593,7 @@ void *flusher_func(void *engine_vp) {
         } else {
           // woke up for some other reasons
         }
+        pthread_mutex_unlock(&flush_wait_mutex);
       }
     }    
   }
