@@ -47,6 +47,14 @@ ItemList * is_fetch_all_items(const ItemSource *is) {
   return items;
 }
 
+int is_flush(const ItemSource *is) {
+  if (is->flush_func) {
+    return is->flush_func(is->state);
+  }
+  
+  return 0;
+}
+
 int is_alive(const ItemSource *is) {
   return is->alive_func(is->state); 
 }
@@ -68,6 +76,7 @@ void free_item_source(ItemSource *is) {
  ********************************************************************************/
 static Item * cis_fetch_item(const void *state, const int item_id);
 static ItemList * cis_fetch_all_items(const void *state);
+static int  cis_flush(const void *state);
 static void cis_free(void *state);
   
 
@@ -95,6 +104,7 @@ ItemSource * create_caching_item_source(ItemSource * is) {
     cis->fetch_func = cis_fetch_item;
     cis->fetch_all_func = cis_fetch_all_items;
     cis->free_func = cis_free;
+    cis->flush_func = cis_flush;
     cis->state = state;
   }
   return cis;
@@ -116,6 +126,22 @@ ItemList * cis_fetch_all_items(const void *state_vp) {
     items = state->items;
   }
   return items;
+}
+
+int cis_flush(const void *state_vp) {
+  CachingItemSourceState *state = (CachingItemSourceState*) state_vp;
+  if (state) {
+    if (state->items) {
+      free_item_list(state->items);      
+    }
+    
+    state->items = is_fetch_all_items(state->is);
+    state->loaded_at = time(0);
+    info("Flushed cached items at %s. Loaded %i items.", ctime(&(state->loaded_at)), item_list_size(state->items));
+    return 0;
+  }
+  
+  return 1;
 }
 
 void cis_free(void * state_vp) {

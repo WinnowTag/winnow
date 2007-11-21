@@ -23,6 +23,7 @@ typedef struct ITEM_LIST {
 typedef struct ITEMSOURCE {
   Item* (*fetch_func)(const void*, const int item_id);
   ItemList* (*fetch_all_func)(const void*);
+  int   (*flush_func)(const void*);
   int   (*alive_func)(const void*);
   void  (*free_func)(void*);
   void* state;
@@ -31,6 +32,7 @@ typedef struct ITEMSOURCE {
 /*** Item Source ****/
 extern Item *       is_fetch_item           (const ItemSource *is, const int item_id);
 extern ItemList *   is_fetch_all_items      (const ItemSource *is);
+extern int          is_flush                (const ItemSource *is);
 extern void         free_item_source        (ItemSource *is);
 extern int          is_alive                (const ItemSource *is);
 
