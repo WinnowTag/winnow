@@ -77,7 +77,17 @@ struct CLASSIFICATION_ENGINE {
   /* Flag for whether the engine is running */
   int is_running;
   
+  /* Flag for whether insertion is running */
   int is_inserting;
+  
+  /* Flag for whether classification is suspended */
+  int is_classification_suspended;
+  
+  /* pthread mutex for suspension */
+  pthread_mutex_t *classification_suspension_mutex;
+  
+  /* pthread condition for suspension */
+  pthread_cond_t *classification_suspension_cond;
   
   /* Thread ids for classification workers */
   pthread_t *classification_worker_threads;
@@ -122,7 +132,16 @@ ClassificationEngine * create_classification_engine(const Config *config) {
     engine->config = config;
     engine->is_running = false;
     engine->is_inserting = false;
+    engine->is_classification_suspended = false;
     engine->classification_job_queue = NULL;
+    
+    engine->classification_suspension_mutex = calloc(1, sizeof(pthread_mutex_t));
+    if (!engine->classification_suspension_mutex) goto malloc_error;
+    if (pthread_mutex_init(engine->classification_suspension_mutex, NULL)) goto malloc_error;
+    
+    engine->classification_suspension_cond = calloc(1, sizeof(pthread_cond_t));
+    if (!engine->classification_suspension_cond) goto malloc_error;
+    if (pthread_cond_init(engine->classification_suspension_cond, NULL)) goto malloc_error;
     
     /* Attempt to get a valid item store. */
 #ifdef HAVE_DATABASE_ACCESS
@@ -152,6 +171,10 @@ item_source_error:
   engine = NULL;
   error("No item source defined or supported");
   goto exit;
+malloc_error:
+  fatal("Malloc error in classification engine initialization");
+  engine = NULL;
+  goto exit;
 }
 
 /* Frees the classification engine.
@@ -177,6 +200,9 @@ void free_classification_engine(ClassificationEngine *engine) {
     }
     Word_t bytes;
     JSLFA(bytes, engine->classification_jobs);
+    
+    pthread_cond_destroy(engine->classification_suspension_cond);
+    pthread_mutex_destroy(engine->classification_suspension_mutex);
     
     free_pool(engine->random_background);
     free_queue(engine->classification_job_queue);
@@ -307,6 +333,9 @@ int ce_stop(ClassificationEngine * engine) {
   int success = true;
   if (engine && engine->is_running) {
     engine->is_running = false;
+    pthread_mutex_lock(engine->classification_suspension_mutex);
+    pthread_cond_broadcast(engine->classification_suspension_cond);
+    pthread_mutex_unlock(engine->classification_suspension_mutex);
     
     EngineConfig config;
     cfg_engine_config(engine->config, &config);
@@ -325,6 +354,26 @@ int ce_stop(ClassificationEngine * engine) {
   }
   
   return success;
+}
+
+int ce_suspend(ClassificationEngine * engine) {
+  if (engine) {
+    pthread_mutex_lock(engine->classification_suspension_mutex);
+    engine->is_classification_suspended = true;
+    pthread_mutex_unlock(engine->classification_suspension_mutex);
+    info("Engine suspended");
+  }
+  return true;
+}
+
+int ce_resume(ClassificationEngine * engine) {
+  if (engine) {
+    pthread_mutex_lock(engine->classification_suspension_mutex);
+    engine->is_classification_suspended = false;
+    pthread_cond_broadcast(engine->classification_suspension_cond);
+    pthread_mutex_unlock(engine->classification_suspension_mutex);
+  }
+  return true;
 }
 
 int ce_kill(ClassificationEngine * engine) {
@@ -357,6 +406,18 @@ void *classification_worker_func(void *engine_vp) {
   TagDB *tag_db = create_tag_db(&tag_db_config);
   
   while (!q_empty(job_queue) || ce->is_running) {
+    pthread_mutex_lock(ce->classification_suspension_mutex);
+      if (ce->is_classification_suspended) {
+        debug("Classification is suspended in %i", pthread_self());
+        pthread_cond_wait(ce->classification_suspension_cond, ce->classification_suspension_mutex);
+        // Been woken up to exit - not to continue
+        if (ce->is_classification_suspended) {
+          pthread_mutex_unlock(ce->classification_suspension_mutex);
+          break;
+        }
+      }
+    pthread_mutex_unlock(ce->classification_suspension_mutex);
+      
     ClassificationJob *job = (ClassificationJob*) q_dequeue_or_wait(job_queue);
     
     if (job) {

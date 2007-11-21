@@ -42,6 +42,8 @@ extern void                   free_classification_engine(ClassificationEngine * 
 extern int                    ce_is_running(const ClassificationEngine *engine);
 extern int                    ce_start(ClassificationEngine *engine);
 extern int                    ce_stop(ClassificationEngine *engine);
+extern int                    ce_suspend(ClassificationEngine *engine);
+extern int                    ce_resume(ClassificationEngine *engine);
 extern int                    ce_kill(ClassificationEngine *engine);
 
 /* Job tracking and management */

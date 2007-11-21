@@ -157,6 +157,31 @@ START_TEST(cancelling_a_job_sets_its_state_to_cancelled) {
   assert_equal(CJOB_STATE_CANCELLED, cjob_state(job));
 } END_TEST
 
+START_TEST(suspended_classification_engine_processes_no_jobs) {
+  ce_add_classification_job_for_tag(ce, TAG_ID);
+  ce_add_classification_job_for_tag(ce, TAG_ID);
+  assert_equal(2, ce_num_waiting_jobs(ce));
+  int suspended = ce_suspend(ce);
+  assert_true(suspended);
+  ce_start(ce);
+  assert_equal(2, ce_num_waiting_jobs(ce));
+  sleep(1); // Need to sleep so that workers can catch up
+  ce_stop(ce);
+  assert_equal(2, ce_num_waiting_jobs(ce));
+} END_TEST
+
+START_TEST(resuming_suspended_engine_processes_jobs) {
+  ce_add_classification_job_for_tag(ce, TAG_ID);
+  ce_add_classification_job_for_tag(ce, TAG_ID);
+  assert_equal(2, ce_num_waiting_jobs(ce));
+  int suspended = ce_suspend(ce);
+  assert_true(suspended);
+  ce_start(ce);
+  ce_resume(ce);
+  ce_stop(ce);
+  assert_equal(0, ce_num_waiting_jobs(ce));
+} END_TEST
+
 /************************************************************************
  * Initialization tests.
  ************************************************************************/
@@ -222,6 +247,8 @@ Suite * classification_engine_suite(void) {
   tcase_add_test(tc_jt_case, cancelling_a_job_sets_its_state_to_cancelled);
   tcase_add_test(tc_jt_case, cancelling_a_job_removes_it_from_the_system_once_a_worker_gets_to_it);
   tcase_add_test(tc_jt_case, add_user_job_to_queue);
+  tcase_add_test(tc_jt_case, suspended_classification_engine_processes_no_jobs);
+  tcase_add_test(tc_jt_case, resuming_suspended_engine_processes_jobs);
   // END_TESTS
 
   TCase *tc_end_to_end = tcase_create("end to end");
