@@ -148,6 +148,7 @@ START_TEST(test_post_with_user_id_queues_job) {
   xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
   fail_unless(doc != NULL, "Failed to parse XML");
   assert_xpath("/classification-job/id/text()", doc);
+  assert_xpath("/classification-job/user-id[text() = '2']", doc);
   
   xmlFree(doc);
 }
@@ -256,7 +257,7 @@ Suite * http_suite(void) {
   tcase_add_test(tc_case, test_post_to_create_job_with_invalid_xml_returns_415);
   tcase_add_test(tc_case, test_post_to_create_job_with_tag_id_missing_returns_422);
   tcase_add_test(tc_case, test_post_with_valid_tag_id_queues_job);
- // tcase_add_test(tc_case, test_post_with_user_id_queues_job);
+  tcase_add_test(tc_case, test_post_with_user_id_queues_job);
   tcase_add_test(tc_case, deleting_job_sets_it_cancelled);
   tcase_add_test(tc_case, delete_without_job_id_is_405);
   tcase_add_test(tc_case, delete_with_missing_job_id_is_404);

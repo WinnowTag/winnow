@@ -32,6 +32,11 @@ typedef enum CLASSIFICATION_JOB_ERROR {
   CJOB_ERROR_UNKNOWN_ERROR
 } ClassificationJobError;
 
+typedef enum CLASSIFICATION_JOB_TYPE {
+  CJOB_TYPE_TAG_JOB,
+  CJOB_TYPE_USER_JOB
+} ClassificationJobType;
+
 extern ClassificationEngine * create_classification_engine(const Config * config);
 extern void                   free_classification_engine(ClassificationEngine * engine);
 extern int                    ce_is_running(const ClassificationEngine *engine);
@@ -47,7 +52,8 @@ extern ClassificationJob    * ce_add_classification_job_for_user(ClassificationE
 extern ClassificationJob    * ce_fetch_classification_job(const ClassificationEngine *engine, const char * job_id);
 
 /** Functions for Classification Jobs */
-extern const char *  cjob_id(const ClassificationJob * job);
+extern const char *           cjob_id(const ClassificationJob * job);
+extern int                    cjob_type(const ClassificationJob * job);
 extern int                    cjob_tag_id(const ClassificationJob * job);
 extern int                    cjob_user_id(const ClassificationJob * job);
 extern float                  cjob_progress(const ClassificationJob * job);

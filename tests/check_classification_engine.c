@@ -203,11 +203,6 @@ START_TEST(test_engine_initialization_without_corpus_defined) {
   free_config(config);
 } END_TEST
 
-START_TEST(end_to_end_test) {
-  
-}
-END_TEST
-
 Suite * classification_engine_suite(void) {
   Suite *s = suite_create("classification_engine");
   TCase *tc_initialization_case = tcase_create("initialization");

@@ -86,11 +86,6 @@ struct CLASSIFICATION_ENGINE {
   pthread_t insertion_worker_thread;
 };
 
-typedef enum CLASSIFICATION_JOB_TYPE {
-  CJOB_TYPE_TAG_JOB,
-  CJOB_TYPE_USER_JOB
-} ClassificationJobType;
-
 struct CLASSIFICATION_JOB {
   const char * job_id;  
   int tag_id;
@@ -472,6 +467,10 @@ const char * cjob_id(const ClassificationJob * job) {
 
 int cjob_tag_id(const ClassificationJob * job) {
   return job->tag_id;
+}
+
+int cjob_type(const ClassificationJob * job) {
+  return job->type;
 }
 
 int cjob_user_id(const ClassificationJob * job) {

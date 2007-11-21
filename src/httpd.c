@@ -56,7 +56,7 @@
    MHD_destroy_response(response);
 
 #define SEND_XML_DATA(returncode, httpcode, data, location) \
-  struct MHD_Response *response = MHD_create_response_from_data(strlen(data), data, MHD_NO, MHD_NO); \
+  struct MHD_Response *response = MHD_create_response_from_data(strlen(data), data, MHD_YES, MHD_YES); \
   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                     \
   if (location) MHD_add_response_header(response, MHD_HTTP_HEADER_LOCATION, location);               \
   returncode = MHD_queue_response(connection, httpcode, response);                                   \
@@ -86,16 +86,25 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
   xmlNodePtr root = xmlNewNode(NULL, BAD_CAST "classification-job");
   xmlDocSetRootElement(doc, root);
   
-  xmlChar progress_buffer[16];
-  xmlChar tag_id_buffer[16];
-  xmlStrPrintf(progress_buffer, 16, BAD_CAST "%.1f", cjob_progress(job));
-  xmlStrPrintf(tag_id_buffer, 16, BAD_CAST "%d", cjob_tag_id(job));
-  
   xmlNodePtr id = xmlNewChild(root, NULL, BAD_CAST "id", BAD_CAST cjob_id(job));
+  
+  if (CJOB_TYPE_TAG_JOB == cjob_type(job)) {
+    xmlChar tag_id_buffer[16];
+    xmlStrPrintf(tag_id_buffer, 16, BAD_CAST "%d", cjob_tag_id(job));
+    xmlNodePtr tag_id = xmlNewChild(root, NULL, BAD_CAST "tag-id", tag_id_buffer);
+    xmlAttrPtr tag_id_type = xmlNewProp(tag_id, BAD_CAST "type", BAD_CAST "integer");    
+  } else if (CJOB_TYPE_USER_JOB == cjob_type(job)) {
+    xmlChar user_id_buffer[16];
+    xmlStrPrintf(user_id_buffer, 16, BAD_CAST "%d", cjob_user_id(job));
+    xmlNodePtr tag_id = xmlNewChild(root, NULL, BAD_CAST "user-id", user_id_buffer);
+    xmlAttrPtr tag_id_type = xmlNewProp(tag_id, BAD_CAST "type", BAD_CAST "integer");
+  }
+  
+  xmlChar progress_buffer[16];
+  xmlStrPrintf(progress_buffer, 16, BAD_CAST "%.1f", cjob_progress(job));  
   xmlNodePtr progress = xmlNewChild(root, NULL, BAD_CAST "progress", progress_buffer);
-  xmlAttrPtr progress_type = xmlNewProp(progress, BAD_CAST "type", BAD_CAST "float");  
-  xmlNodePtr tag_id = xmlNewChild(root, NULL, BAD_CAST "tag-id", tag_id_buffer);
-  xmlAttrPtr tag_id_type = xmlNewProp(tag_id, BAD_CAST "type", BAD_CAST "integer");  
+  xmlAttrPtr progress_type = xmlNewProp(progress, BAD_CAST "type", BAD_CAST "float");
+  
   xmlNodePtr status = xmlNewChild(root, NULL, BAD_CAST "status", BAD_CAST cjob_state_msg(job));
   
   xmlDocDumpFormatMemory(doc, &buffer, &buffersize, 1);
@@ -133,27 +142,38 @@ static int start_job(ClassificationEngine *ce, struct MHD_Connection *connection
     debug("XML was malformed: %s", xml_input);
     SEND_415(ret);
   } else {
-    xmlXPathContextPtr context = xmlXPathNewContext(doc);
+    ClassificationJob *job = NULL;
+    xmlXPathContextPtr context = xmlXPathNewContext(doc);    
     xmlXPathObjectPtr result = xmlXPathEvalExpression(BAD_CAST "/classification-job/tag-id/text()", context);
-    xmlNodeSetPtr nodes = result->nodesetval;
-    int size = (nodes) ? nodes->nodeNr : 0;
     
-    if (NULL == result || size != 1) {
-      SEND_MISSING_TAG_ID(ret);
-    } else {
-      int tag_id = (int) strtol((char *) nodes->nodeTab[0]->content, NULL, 10);
-      ClassificationJob *job = ce_add_classification_job_for_tag(ce, tag_id);
+    if (!xmlXPathNodeSetIsEmpty(result->nodesetval)) {
+      int tag_id = (int) strtol((char *) result->nodesetval->nodeTab[0]->content, NULL, 10);
       info("Starting classification job for tag %i", tag_id);
+      job = ce_add_classification_job_for_tag(ce, tag_id);
+    } else {
+      xmlXPathFreeObject(result);
+      result = xmlXPathEvalExpression(BAD_CAST "/classification-job/user-id/text()", context);
       
-      xmlChar *xml = xml_for_job(job);
-      char *url = url_for_job(job);
-      SEND_XML_DATA(ret, 201, (char *) xml, url);
-      xmlFree(xml);
-      free(url);
+      if (!xmlXPathNodeSetIsEmpty(result->nodesetval)) {
+        int user_id = (int) strtol((char *) result->nodesetval->nodeTab[0]->content, NULL, 10);
+        info("Starting classification job for user %i", user_id);
+        job = ce_add_classification_job_for_user(ce, user_id);
+      } else {
+        SEND_MISSING_TAG_ID(ret);        
+      }     
     }
             
     xmlXPathFreeObject(result);
-    xmlXPathFreeContext(context);                                                       
+    xmlXPathFreeContext(context);
+    
+    if (job) {
+      xmlChar *xml = xml_for_job(job);
+      info("XML = %s", (char *) xml);
+      char *url = url_for_job(job);
+      SEND_XML_DATA(ret, 201, (char *) xml, url);
+      xmlFree(xml);
+      free(url);      
+    }
   }
           
   xmlFreeDoc(doc);
