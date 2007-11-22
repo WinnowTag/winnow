@@ -17,6 +17,7 @@ typedef struct TAG {
   char *tag_name;
   int user_id;
   int tag_id;
+  float bias;
   Pvoid_t positive_examples;
   Pvoid_t negative_examples;
 } Tag;
@@ -42,6 +43,7 @@ extern const char * tag_tag_name                (const Tag *tag);
 extern int          tag_tag_id                  (const Tag *tag);
 extern const char * tag_user                    (const Tag *tag);
 extern int          tag_user_id                 (const Tag *tag);
+extern float        tag_bias                    (const Tag *tag);
 extern int *        tag_positive_examples       (const Tag *tag);
 extern int *        tag_negative_examples       (const Tag *tag);
 extern int          tag_negative_examples_size  (const Tag *tag);

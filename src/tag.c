@@ -12,6 +12,8 @@
 #include <string.h>
 #include "logging.h"
 
+#define DEFAULT_BIAS 1.0
+
 static int build_tagging_path(const char *, const char *, char *, int);
 static int read_tagging_file(TagList* taglist, const char *, const char *);
 static Tag * taglist_find_or_add_tag(TagList*, const char *, const char *);
@@ -131,6 +133,7 @@ Tag * create_tag(const char * user, const char * tag_name, int user_id, int tag_
   if (NULL != tag) {
     tag->user_id = user_id;
     tag->tag_id  = tag_id;
+    tag->bias = DEFAULT_BIAS;
     tag->positive_examples = NULL;
     tag->negative_examples = NULL;
     
@@ -178,6 +181,10 @@ int tag_user_id(const Tag * tag) {
 
 int tag_tag_id(const Tag * tag) {
   return tag->tag_id;
+}
+
+float tag_bias(const Tag * tag) {
+  return tag->bias;
 }
 
 int tag_positive_examples_size(const Tag * tag) {
@@ -314,9 +321,9 @@ int read_tagging_file(TagList *taglist, const char * user, const char * filename
 #include <mysql.h>
 #include <errmsg.h>
 
-#define FIND_TAG_STMT "select user_id, name from tags where id = ?" 
+#define FIND_TAG_STMT "select user_id, name, bias from tags where id = ?" 
 #define LOAD_EXAMPLES "select feed_item_id, strength from taggings where tag_id = ?"
-#define LOAD_TAGS_FOR_USER "select id, name from tags where user_id = ? and (last_classified_at is NULL or updated_on > last_classified_at)"
+#define LOAD_TAGS_FOR_USER "select id, name, bias from tags where user_id = ? and (last_classified_at is NULL or updated_on > last_classified_at)"
 #define UPDATE_LAST_CLASSIFIED_AT "update tags set last_classified_at = UTC_TIMESTAMP() where id = ?"
 
 struct TAG_DB {
@@ -447,13 +454,19 @@ TagList * tag_db_load_tags_to_classify_for_user(TagDB *tag_db, int user_id) {
     
     int tag_id;
     char tag_name[256];
-    MYSQL_BIND result[2];
+    float bias;
+    my_bool null_bias;
+    
+    MYSQL_BIND result[3];
     memset(result, 0, sizeof(result));
     result[0].buffer_type = MYSQL_TYPE_LONG;
     result[0].buffer = (char *) &tag_id;
     result[1].buffer_type = MYSQL_TYPE_VAR_STRING;
     result[1].buffer = tag_name;
     result[1].buffer_length = 256;
+    result[2].buffer_type = MYSQL_TYPE_FLOAT;
+    result[2].buffer = (char*) &bias;
+    result[2].is_null = &null_bias;
     
     if (mysql_stmt_bind_result(tag_db->find_tags_for_user_stmt, result)) goto load_tags_error;
     
@@ -464,6 +477,9 @@ TagList * tag_db_load_tags_to_classify_for_user(TagDB *tag_db, int user_id) {
         taglist_add_tag(taglist, tag);
         if (tag_db_load_tag_examples(tag_db, tag)) {
           goto load_tags_error;
+        }
+        if (!null_bias) {
+          tag->bias = bias;
         }
       }
     }
@@ -499,7 +515,10 @@ Tag * tag_db_load_tag_by_id(TagDB *tag_db, int tag_id) {
     unsigned long tag_name_length = 0;
     memset(tag_name, 0, sizeof(tag_name));
     unsigned long user_id;
-    MYSQL_BIND results[2];
+    float bias;
+    my_bool null_bias;
+    
+    MYSQL_BIND results[3];
     memset(results, 0, sizeof(results));
     results[0].buffer_type = MYSQL_TYPE_LONG;
     results[0].buffer = (char *) &user_id;
@@ -507,6 +526,9 @@ Tag * tag_db_load_tag_by_id(TagDB *tag_db, int tag_id) {
     results[1].buffer = (char *) tag_name;
     results[1].buffer_length = 256;
     results[1].length = &tag_name_length;
+    results[2].buffer_type = MYSQL_TYPE_FLOAT;
+    results[2].buffer = (char *) &bias;
+    results[2].is_null = &null_bias;
    
     if (mysql_stmt_bind_result(tag_db->find_tag_stmt, results)) goto tag_query_error;
     if (mysql_stmt_store_result(tag_db->find_tag_stmt))         goto tag_query_error;
@@ -515,6 +537,9 @@ Tag * tag_db_load_tag_by_id(TagDB *tag_db, int tag_id) {
     if (!stmt_fetch_result) {
       tag = create_tag("", tag_name, user_id, tag_id);
       if (tag_db_load_tag_examples(tag_db, tag)) goto load_example_error;
+      if (!null_bias) {
+        tag->bias = bias;
+      }      
     } else if (MYSQL_NO_DATA == stmt_fetch_result) {
       error("No tag found with id %i", tag_id);
     } else if (MYSQL_DATA_TRUNCATED == stmt_fetch_result) {

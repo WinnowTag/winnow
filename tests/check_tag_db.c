@@ -27,9 +27,10 @@ static void setup() {
   mysql = mysql_init(NULL);
   mysql_real_connect(mysql, config.host, config.user, config.password, config.database, 0, NULL, 0);
    
-  if (mysql_query(mysql, "update tags set last_classified_at = NULL")) fail(mysql_error(mysql));
+  if (mysql_query(mysql, "update tags set last_classified_at = NULL, bias = NULL")) fail(mysql_error(mysql));
   if (mysql_query(mysql, "update tags set updated_on = '2007-11-1 00:00:00'")) fail(mysql_error(mysql));
   if (mysql_query(mysql, "update tags set last_classified_at = '2007-11-1 00:00:00' where id = 39")) fail(mysql_error(mysql));   
+  if (mysql_query(mysql, "update tags set bias = 1.2 where id = 38")) fail(mysql_error(mysql));   
 }
 
 static void teardown() {
@@ -82,8 +83,7 @@ START_TEST(test_get_tags_for_user) {
   assert_equal(40, tag_tag_id(tag_list->tags[1]));
   free_taglist(tag_list);
   free_tag_db(tag_db);
-}
-END_TEST
+} END_TEST
 
 START_TEST(test_get_tags_for_user_loads_examples) {
   TagDB *tag_db = create_tag_db(&config);
@@ -98,9 +98,42 @@ START_TEST(test_get_tags_for_user_loads_examples) {
   
   free_taglist(tag_list);
   free_tag_db(tag_db);
-}
-END_TEST
+} END_TEST
 
+START_TEST(test_default_bias_should_be_1) {
+  TagDB *tag_db = create_tag_db(&config);
+  assert_not_null(tag_db);
+  Tag *tag = tag_db_load_tag_by_id(tag_db, 48);
+  assert_not_null(tag);
+  assert_equal_f(1.0, tag_bias(tag));
+  free_tag(tag);
+  free_tag_db(tag_db);
+} END_TEST
+
+START_TEST (test_loads_bias_for_tag) {
+  TagDB *tag_db = create_tag_db(&config);
+  assert_not_null(tag_db);
+  Tag *tag = tag_db_load_tag_by_id(tag_db, 38);
+  assert_not_null(tag);
+  assert_equal_f(1.2, tag_bias(tag));
+  free_tag(tag);
+  free_tag_db(tag_db);
+} END_TEST
+
+START_TEST (test_load_bias_for_tag_list) {
+  TagDB *tag_db = create_tag_db(&config);
+  assert_not_null(tag_db);
+  TagList *tag_list = tag_db_load_tags_to_classify_for_user(tag_db, 2);
+  assert_not_null(tag_list);
+    
+  Tag *tag = tag_list->tags[0];
+  assert_not_null(tag);
+  assert_equal(38, tag_tag_id(tag));
+  assert_equal_f(1.2, tag_bias(tag));
+  
+  free_taglist(tag_list);
+  free_tag_db(tag_db);
+} END_TEST
 
 
 Suite *
@@ -114,6 +147,9 @@ tag_db_suite(void) {
   tcase_add_test(tc_case, test_update_last_classified_time_for_a_tag);
   tcase_add_test(tc_case, test_get_tags_for_user);
   tcase_add_test(tc_case, test_get_tags_for_user_loads_examples);
+  tcase_add_test(tc_case, test_default_bias_should_be_1);
+  tcase_add_test(tc_case, test_loads_bias_for_tag);
+  tcase_add_test(tc_case, test_load_bias_for_tag_list);
 // END_TESTS
 
   suite_add_tcase(s, tc_case);
