@@ -21,6 +21,7 @@
 #define DEFAULT_CONFIG_FILE "config.conf"
 #define DEFAULT_LOG_FILE "classifier.log"
 #define SHORT_OPTS "hvdc:l:"
+#define USAGE "Usage: classifier [-dvh] [-c CONFIGFILE] [-l LOGFILE]\n"
 
 static Config *config;
 static ClassificationEngine *engine;
@@ -90,7 +91,7 @@ int main(int argc, char **argv) {
       break;
       case 'h':
         // TODO Add help
-        printf("TODO: add help\n");
+        printf(USAGE);
         exit(0);
       default:
         exit(EXIT_FAILURE);
