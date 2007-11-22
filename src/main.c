@@ -16,10 +16,11 @@
 #include "cls_config.h"
 #include "classification_engine.h"
 #include "httpd.h"
+#include "misc.h"
 
 #define DEFAULT_CONFIG_FILE "config.conf"
 #define DEFAULT_LOG_FILE "classifier.log"
-#define SHORT_OPTS "hvc:l:"
+#define SHORT_OPTS "hvdc:l:"
 
 static Config *config;
 static ClassificationEngine *engine;
@@ -55,8 +56,12 @@ void termination_handler(int sig) {
 }
 
 int main(int argc, char **argv) {
+  int pid, sid;
+  int daemonize = false;
   char *config_file = DEFAULT_CONFIG_FILE;
   char *log_file = DEFAULT_LOG_FILE;
+  char real_config_file[MAXPATHLEN];
+  char real_log_file[MAXPATHLEN];
   
   int longindex;
   int opt;
@@ -80,6 +85,9 @@ int main(int argc, char **argv) {
       case 'l':
         log_file = optarg;
       break;
+      case 'd':
+        daemonize = true;
+      break;
       case 'h':
         // TODO Add help
         printf("TODO: add help\n");
@@ -90,6 +98,38 @@ int main(int argc, char **argv) {
     }
   }
   
+  if (NULL == realpath(config_file, real_config_file)) {
+    fprintf(stderr, "Could not find %s\n", real_config_file);
+    exit(EXIT_FAILURE);
+  }
+  
+  if (NULL == realpath(log_file, real_log_file)) {
+    fprintf(stderr, "Could not find %s\n", real_log_file);
+    exit(EXIT_FAILURE);
+  }
+  
+  if (daemonize) {
+    pid = fork();
+    
+    if (pid < 0) {
+      exit(EXIT_FAILURE);
+    } else if (pid > 0) {
+      // exit the foreground process
+      exit(EXIT_SUCCESS);
+    }
+    
+    umask(0);
+    
+    sid = setsid();
+    if (sid < 0) {
+      exit(EXIT_FAILURE);
+    }
+    
+    if (chdir("/") < 0) {
+      exit(EXIT_FAILURE);
+    }
+  }
+  
   if (signal(SIGINT, termination_handler) == SIG_IGN) 
     signal(SIGINT, SIG_IGN);
   if (signal(SIGHUP, termination_handler) == SIG_IGN) 
@@ -97,11 +137,11 @@ int main(int argc, char **argv) {
   if (signal(SIGTERM, termination_handler) == SIG_IGN)
     signal(SIGTERM, SIG_IGN);
     
-  initialize_logging(log_file);
-  config = load_config(config_file);
+  initialize_logging(real_log_file);
+  config = load_config(real_config_file);
   engine = create_classification_engine(config);
-  httpd = httpd_start(config, engine);
+  httpd = httpd_start(config, engine);  
+  ce_run(engine);
   
-  ce_run(engine);  
   return EXIT_SUCCESS;
 }
