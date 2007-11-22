@@ -33,6 +33,7 @@ TrainedClassifier * train(const Tag *tag, const ItemSource *is) {
     tc->user = tag_user(tag);
     tc->tag_id = tag_tag_id(tag);
     tc->tag_name = tag_tag_name(tag);
+    tc->bias = tag_bias(tag);
     tc->positive_pool = new_pool();
     tc->negative_pool = new_pool();
     
@@ -81,6 +82,7 @@ Classifier * precompute(const TrainedClassifier *tc, const Pool *background) {
     classifier->tag_name = tc_get_tag_name(tc);
     classifier->tag_id = tc_get_tag_id(tc);
     classifier->user_id = tc_get_user_id(tc);
+    classifier->bias = tc_get_bias(tc);
     classifier->clues = NULL;
     
     struct PROB_TOKEN positive_token, negative_token, background_token;
@@ -88,9 +90,9 @@ Classifier * precompute(const TrainedClassifier *tc, const Pool *background) {
     const Pool *negative_pool = tc_get_negative_pool(tc);
     const ProbToken *foregrounds[] = {&positive_token};
     const ProbToken *backgrounds[] = {&negative_token, &background_token};
-    positive_token.pool_size = pool_total_tokens(positive_pool);
-    negative_token.pool_size = pool_total_tokens(negative_pool);
-    background_token.pool_size = pool_total_tokens(background);
+    positive_token.pool_size = pool_total_tokens(positive_pool) / classifier->bias;
+    negative_token.pool_size = pool_total_tokens(negative_pool) * classifier->bias;
+    background_token.pool_size = pool_total_tokens(background)  * classifier->bias;
     const int fg_total_tokens = positive_token.pool_size;
     const int bg_total_tokens = negative_token.pool_size + background_token.pool_size;
     Token working_token;
@@ -268,6 +270,10 @@ const Clue ** select_clues(const Classifier * classifier, const Item *item, int 
 }
 
 /**** Trained classifier functions ****/
+float tc_get_bias(const TrainedClassifier *tc) {
+  return tc->bias;
+}
+
 const Pool * tc_get_positive_pool(const TrainedClassifier *tc) {
   return tc->positive_pool;
 }

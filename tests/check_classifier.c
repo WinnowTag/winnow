@@ -45,6 +45,7 @@ START_TEST (train_merges_examples_into_pools) {
 START_TEST (train_keeps_user_and_tag) {
   Tag *tag = create_tag("mock", "tag", 34, 56);
   assert_not_null(tag);
+  tag->bias = 1.2;
   
   TrainedClassifier *trained = train(tag, is);
   assert_not_null(trained);
@@ -53,6 +54,7 @@ START_TEST (train_keeps_user_and_tag) {
   assert_equal_s("tag",  tc_get_tag_name(trained));
   assert_equal(34, tc_get_user_id(trained));
   assert_equal(56, tc_get_tag_id(trained));
+  assert_equal_f(1.2, tc_get_bias(trained));
   
   tc_free(trained);
 } END_TEST
@@ -101,6 +103,37 @@ START_TEST (precompute_creates_probabilities_for_each_token_in_tc) {
   free_pool(random_background);
 } END_TEST
 
+START_TEST (test_with_bias) {
+  int tokens_1[][2] = {1, 5, 2, 15};
+  int tokens_2[][2] = {1, 5, 2, 5};
+  Item *i1 = create_item_with_tokens(1, tokens_1, 2);
+  Item *i2 = create_item_with_tokens(2, tokens_2, 2);
+  
+  Pool *rb = new_pool();
+  TrainedClassifier tc;
+  tc.user = "user";
+  tc.tag_name = "tag";
+  tc.bias = 1.0;
+  tc.positive_pool = new_pool();
+  tc.negative_pool = new_pool();
+  pool_add_item(tc.positive_pool, i1);
+  pool_add_item(tc.negative_pool, i2);
+  
+  Classifier *cls = precompute(&tc, rb);
+  tc.bias = 1.1;
+  Classifier *cls_biased = precompute(&tc, rb);
+    
+  assert_equal_f(0.33912483912, cls_probability_for(cls, 1));
+  assert_equal_f(0.383957, cls_probability_for(cls_biased, 1));
+  
+  free_classifier(cls);
+  free_classifier(cls_biased);
+  free_pool(rb);
+  free_pool(tc.positive_pool);
+  free_pool(tc.negative_pool);
+  free_item(i1);
+  free_item(i2);
+} END_TEST
 
 #define TOKEN_PROBS(pc, ps, nc, ns, bc, bs)         \
       ProbToken positive, negative, random; \
@@ -354,6 +387,7 @@ classifier_suite(void) {
   tcase_add_checked_fixture(tc_precomputer, setup_mock_item_source, teardown_mock_item_source);
   tcase_add_test(tc_precomputer, precompute_keeps_user_and_tag);
   tcase_add_test(tc_precomputer, precompute_creates_probabilities_for_each_token_in_tc);
+  tcase_add_test(tc_precomputer, test_with_bias);
   tcase_add_test(tc_precomputer, probability_1);
   tcase_add_test(tc_precomputer, probability_2);
   tcase_add_test(tc_precomputer, probability_3);

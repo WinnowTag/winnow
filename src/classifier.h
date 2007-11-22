@@ -58,6 +58,7 @@ typedef struct TRAINED_CLASSIFIER {
   const char * tag_name;
   int user_id;
   int tag_id;
+  float bias;
   Pool *positive_pool;
   Pool *negative_pool;
 } TrainedClassifier;
@@ -67,6 +68,7 @@ typedef struct CLASSIFIER {
   const char * tag_name;
   int user_id;
   int tag_id;
+  float bias;
   Pvoid_t clues;
 } Classifier;
 
@@ -89,6 +91,7 @@ double                     probability (const ProbToken *foreground[], int n_pos
                                         int fg_size, int bg_size);
 
 /**** Functions for handling TrainedClassifiers  ****/
+float         tc_get_bias           (const TrainedClassifier *tc);
 const char *  tc_get_tag_name       (const TrainedClassifier *tc);
 const char *  tc_get_user           (const TrainedClassifier *tc);
 int           tc_get_tag_id         (const TrainedClassifier *tc);
