@@ -14,29 +14,35 @@
 #include "logging.h"
 
 #define CONTENT_TYPE "application/xml"
-#define NOT_FOUND "<?xml version='1.0' ?>\n<error-msg>Resource not found.</error-msg>"
-#define METHOD_NOT_ALLOWED "<?xml version='1.0' ?>\n<error-msg>Method is not allowed for that resource.</error-msg>"
-#define BAD_XML "<?xml version='1.0' ?>\n<error-msg>Badly formatted XML.</error-msg>"
-#define MISSING_TAG_ID "<?xml version='1.0' ?>\n<error-msg>Missing tag id in job description</error-msg>"
+#define NOT_FOUND "<?xml version='1.0' ?>\n<errors><error>Resource not found.</error></errors>"
+#define METHOD_NOT_ALLOWED "<?xml version='1.0' ?>\n<errors><error>Method is not allowed for that resource.</errors></errors>"
+#define BAD_XML "<?xml version='1.0' ?>\n<error><error>Badly formatted XML.</error></errors>"
+#define MISSING_TAG_ID "<?xml version='1.0' ?>\n<errors><error>Missing tag or user id in job description</error></errors>"
 
 #ifdef HAVE_LIBMICROHTTPD
 #include <microhttpd.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 
+#define LOG_RESPONSE(url, code) \
+  debug("%s resulted in %i", url, code);
+
 #define SEND_204(returncode) \
+   LOG_RESPONSE(url, MHD_HTTP_NO_CONTENT); \
    struct MHD_Response *response = MHD_create_response_from_data(0, "", MHD_NO, MHD_NO); \
    MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);        \
    returncode = MHD_queue_response(connection, MHD_HTTP_NO_CONTENT, response);           \
    MHD_destroy_response(response);
 
 #define SEND_404(returncode) \
+    LOG_RESPONSE(url, MHD_HTTP_NOT_FOUND); \
    struct MHD_Response *response = MHD_create_response_from_data(strlen(NOT_FOUND), NOT_FOUND, MHD_NO, MHD_NO); \
    MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                               \
    returncode = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);                                   \
    MHD_destroy_response(response);
 
 #define SEND_405(returncode, allowed) \
+   LOG_RESPONSE(url, MHD_HTTP_METHOD_NOT_ALLOWED); \
    struct MHD_Response *response = MHD_create_response_from_data(strlen(METHOD_NOT_ALLOWED), METHOD_NOT_ALLOWED, MHD_NO, MHD_NO); \
    MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                   \
    MHD_add_response_header(response, MHD_HTTP_HEADER_ALLOW, allowed);                               \
@@ -44,18 +50,21 @@
    MHD_destroy_response(response);
 
 #define SEND_415(returncode) \
+   LOG_RESPONSE(url, MHD_HTTP_UNSUPPORTED_MEDIA_TYPE); \
    struct MHD_Response *response = MHD_create_response_from_data(strlen(BAD_XML), BAD_XML, MHD_NO, MHD_NO); \
    MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                   \
    returncode = MHD_queue_response(connection, MHD_HTTP_UNSUPPORTED_MEDIA_TYPE, response);          \
    MHD_destroy_response(response);
 
 #define SEND_MISSING_TAG_ID(returncode) \
+   debug("Missing tag_id sending %i", MHD_HTTP_UNPROCESSABLE_ENTITY); \
    struct MHD_Response *response = MHD_create_response_from_data(strlen(MISSING_TAG_ID), MISSING_TAG_ID, MHD_NO, MHD_NO); \
    MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                   \
    returncode = MHD_queue_response(connection, MHD_HTTP_UNPROCESSABLE_ENTITY, response);            \
    MHD_destroy_response(response);
 
 #define SEND_XML_DATA(returncode, httpcode, data, location) \
+  debug("Sending XML: %s", data); \
   struct MHD_Response *response = MHD_create_response_from_data(strlen(data), data, MHD_YES, MHD_YES); \
   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                     \
   if (location) MHD_add_response_header(response, MHD_HTTP_HEADER_LOCATION, location);               \
@@ -134,7 +143,7 @@ static const char * extract_job_id(const char * url) {
 /********************************************************************************
  * HTTP Interface Handlers
  ********************************************************************************/
-static int start_job(ClassificationEngine *ce, struct MHD_Connection *connection, const char *xml_input) {
+static int start_job(ClassificationEngine *ce, struct MHD_Connection *connection, const char * url, const char *xml_input) {
   int ret;
   xmlDocPtr doc = xmlParseDoc(BAD_CAST xml_input);
           
@@ -229,7 +238,7 @@ static int start_job_handle(void * ce_vp, struct MHD_Connection * connection,
       if (!pd) {
         SEND_415(ret);
       } else {
-        ret = start_job(ce_vp, connection, pd->buffer);
+        ret = start_job(ce_vp, connection, url, pd->buffer);
         free(pd->buffer);
         free(pd); 
       }
@@ -257,13 +266,19 @@ static int process_request(void * ce_vp, struct MHD_Connection * connection,
                            unsigned int * upload_data_size, void **memo) {
   int ret;
   
-  if (0 == strcmp(url, "/classifier/jobs/") || 0 == strcmp(url, "/classifier/jobs")) {
+  if (0 == strcmp(url, "/classifier/jobs/") || 
+      0 == strcmp(url, "/classifier/jobs")  ||
+      0 == strcmp(url, "/classifier/jobs.xml")) {
+    info("%s %s size(%i) start_job", method, url, upload_data_size);
     ret = start_job_handle(ce_vp, connection, url, method, version, upload_data, upload_data_size, memo);
   } else if (url == strstr(url, "/classifier/jobs/")) {
+    info("%s %s size(%i) job", method, url, upload_data_size);
     ret = job_handler(ce_vp, connection, url, method, version);
   } else {
+    info("%s %s size(%i) 404", method, url, upload_data_size);
     SEND_404(ret);
   }
+  
   
   return ret;
 }
