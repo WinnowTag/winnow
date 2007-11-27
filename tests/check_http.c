@@ -86,7 +86,7 @@ START_TEST(test_missing_job_id_returns_405) {
 } END_TEST
 
 START_TEST(test_post_to_create_job_with_tag_id_missing_returns_422) {
-  char *post_data = "<?xml version='1.0'?>\n<classification-job><tag-id></tag-id></classification-job>\n";
+  char *post_data = "<?xml version='1.0'?>\n<job><tag-id></tag-id></job>\n";
   assert_post("http://localhost:8008/classifier/jobs", post_data, 422, devnull, devnull);
 } END_TEST
 
@@ -105,7 +105,7 @@ START_TEST(test_post_with_valid_tag_id_queues_job) {
   FILE *headers = fopen("headers.txt", "w");
   FILE *data    = fopen("test_data.xml", "w"); 
   assert_equal(0, ce_num_jobs_in_system(ce));
-  char *post_data = "<?xml version='1.0'?>\n<classification-job><tag-id>48</tag-id></classification-job>";
+  char *post_data = "<?xml version='1.0'?>\n<job><tag-id>48</tag-id></job>";
   assert_post("http://localhost:8008/classifier/jobs", post_data, 201, data, headers);
   fclose(headers);
   fclose(data);
@@ -114,11 +114,11 @@ START_TEST(test_post_with_valid_tag_id_queues_job) {
   assert_equal(1, ce_num_jobs_in_system(ce));
   xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
   fail_unless(doc != NULL, "Failed to parse xml");
-  assert_xpath("/classification-job/id/text()", doc);
+  assert_xpath("/job/id/text()", doc);
   mark_point();
   
   xmlXPathContextPtr context = xmlXPathNewContext(doc);
-  xmlXPathObjectPtr result = xmlXPathEvalExpression(BAD_CAST "/classification-job/id/text()", context);
+  xmlXPathObjectPtr result = xmlXPathEvalExpression(BAD_CAST "/job/id/text()", context);
   xmlNodeSetPtr nodeset = result->nodesetval;
   mark_point();
   char *id = (char *) nodeset->nodeTab[0]->content;
@@ -139,7 +139,7 @@ START_TEST(test_post_with_valid_tag_id_queues_job) {
 
 START_TEST(test_post_with_user_id_queues_job) {
   FILE *data = fopen("test_data.xml", "w");
-  char *post_data = "<?xml version='1.0'?>\n<classification-job><user-id>2</user-id></classification-job>";
+  char *post_data = "<?xml version='1.0'?>\n<job><user-id>2</user-id></job>";
   assert_post("http://localhost:8008/classifier/jobs", post_data, 201, data, devnull);
   fclose(data);
   mark_point();
@@ -147,8 +147,8 @@ START_TEST(test_post_with_user_id_queues_job) {
   assert_equal(1, ce_num_jobs_in_system(ce));
   xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
   fail_unless(doc != NULL, "Failed to parse XML");
-  assert_xpath("/classification-job/id/text()", doc);
-  assert_xpath("/classification-job/user-id[text() = '2']", doc);
+  assert_xpath("/job/id/text()", doc);
+  assert_xpath("/job/user-id[text() = '2']", doc);
   
   xmlFree(doc);
 }
@@ -179,11 +179,11 @@ END_TEST
 
 // Expected xml should look like this:
 //
-//  <classification-job>
+//  <job>
 //    <id>ID</id>
 //    <progress type="float">0.0</progress>
 //    <status>Status</status>
-//  </classification-job>
+//  </job>
 //
 START_TEST(test_job_status) {
   char url[256];
@@ -194,14 +194,35 @@ START_TEST(test_job_status) {
   fclose(data);
   
   char idpath[1024];
-  sprintf(idpath, "/classification-job/id[text() = '%s']", cjob_id(job));
+  sprintf(idpath, "/job/id[text() = '%s']", cjob_id(job));
                 
   xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
   if (doc == NULL) fail("Failed to parse xml");
   
   assert_xpath(idpath, doc);
-  assert_xpath("/classification-job/progress[text() = '0.0']", doc);
-  assert_xpath("/classification-job/status[text() = 'Waiting']", doc);
+  assert_xpath("/job/progress[text() = '0.0']", doc);
+  assert_xpath("/job/status[text() = 'Waiting']", doc);
+  
+  xmlFree(doc);
+} END_TEST
+
+START_TEST(test_job_status_with_xml_suffix) {
+  char url[256];
+  ClassificationJob *job = ce_add_classification_job_for_tag(ce, 39);
+  sprintf(url, "http://localhost:8008/classifier/jobs/%s.xml", cjob_id(job));
+  FILE *data = fopen("test_data.xml", "w");
+  assert_get(url, 200, data);
+  fclose(data);
+  
+  char idpath[1024];
+  sprintf(idpath, "/job/id[text() = '%s']", cjob_id(job));
+                
+  xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
+  if (doc == NULL) fail("Failed to parse xml");
+  
+  assert_xpath(idpath, doc);
+  assert_xpath("/job/progress[text() = '0.0']", doc);
+  assert_xpath("/job/status[text() = 'Waiting']", doc);
   
   xmlFree(doc);
 } END_TEST
@@ -217,14 +238,14 @@ START_TEST(test_completed_job_status) {
   fclose(data);
   
   char idpath[1024];
-  sprintf(idpath, "/classification-job/id[text() = '%s']", cjob_id(job));
+  sprintf(idpath, "/job/id[text() = '%s']", cjob_id(job));
                 
   xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
   if (doc == NULL) fail("Failed to parse xml");
   
   assert_xpath(idpath, doc);
-  assert_xpath("/classification-job/progress[text() = '100.0']", doc);
-  assert_xpath("/classification-job/status[text() = 'Complete']", doc);
+  assert_xpath("/job/progress[text() = '100.0']", doc);
+  assert_xpath("/job/status[text() = 'Complete']", doc);
   
   xmlFree(doc);
 } END_TEST
@@ -249,6 +270,7 @@ Suite * http_suite(void) {
   // START_TESTS
   tcase_add_test(tc_case, test_http_initialization);
   tcase_add_test(tc_case, test_job_status);
+  tcase_add_test(tc_case, test_job_status_with_xml_suffix);
   tcase_add_test(tc_case, test_completed_job_status); 
   tcase_add_test(tc_case, test_missing_job_returns_404);
   tcase_add_test(tc_case, test_missing_job_id_returns_405);

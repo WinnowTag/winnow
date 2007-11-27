@@ -92,7 +92,7 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
   xmlChar *buffer = NULL;
   int buffersize;
   xmlDocPtr doc = xmlNewDoc(BAD_CAST "1.0");
-  xmlNodePtr root = xmlNewNode(NULL, BAD_CAST "classification-job");
+  xmlNodePtr root = xmlNewNode(NULL, BAD_CAST "job");
   xmlDocSetRootElement(doc, root);
   
   xmlNodePtr id = xmlNewChild(root, NULL, BAD_CAST "id", BAD_CAST cjob_id(job));
@@ -153,7 +153,7 @@ static int start_job(ClassificationEngine *ce, struct MHD_Connection *connection
   } else {
     ClassificationJob *job = NULL;
     xmlXPathContextPtr context = xmlXPathNewContext(doc);    
-    xmlXPathObjectPtr result = xmlXPathEvalExpression(BAD_CAST "/classification-job/tag-id/text()", context);
+    xmlXPathObjectPtr result = xmlXPathEvalExpression(BAD_CAST "/job/tag-id/text()", context);
     
     if (!xmlXPathNodeSetIsEmpty(result->nodesetval)) {
       int tag_id = (int) strtol((char *) result->nodesetval->nodeTab[0]->content, NULL, 10);
@@ -161,7 +161,7 @@ static int start_job(ClassificationEngine *ce, struct MHD_Connection *connection
       job = ce_add_classification_job_for_tag(ce, tag_id);
     } else {
       xmlXPathFreeObject(result);
-      result = xmlXPathEvalExpression(BAD_CAST "/classification-job/user-id/text()", context);
+      result = xmlXPathEvalExpression(BAD_CAST "/job/user-id/text()", context);
       
       if (!xmlXPathNodeSetIsEmpty(result->nodesetval)) {
         int user_id = (int) strtol((char *) result->nodesetval->nodeTab[0]->content, NULL, 10);
@@ -266,16 +266,23 @@ static int process_request(void * ce_vp, struct MHD_Connection * connection,
                            unsigned int * upload_data_size, void **memo) {
   int ret;
   
-  if (0 == strcmp(url, "/classifier/jobs/") || 
-      0 == strcmp(url, "/classifier/jobs")  ||
-      0 == strcmp(url, "/classifier/jobs.xml")) {
-    info("%s %s size(%i) start_job", method, url, upload_data_size);
-    ret = start_job_handle(ce_vp, connection, url, method, version, upload_data, upload_data_size, memo);
-  } else if (url == strstr(url, "/classifier/jobs/")) {
-    info("%s %s size(%i) job", method, url, upload_data_size);
-    ret = job_handler(ce_vp, connection, url, method, version);
+  char processesed_url[1024];
+  strncpy(processesed_url, url, sizeof(processesed_url));
+  
+  char *ext;
+  if (ext = strcasestr(processesed_url, ".xml")) {
+    ext[0] = '\0';
+  }
+  
+  if (0 == strcmp(processesed_url, "/classifier/jobs/") || 
+      0 == strcmp(processesed_url, "/classifier/jobs")) {
+    info("%s %s size(%i) start_job", method, processesed_url, *upload_data_size);
+    ret = start_job_handle(ce_vp, connection, processesed_url, method, version, upload_data, upload_data_size, memo);
+  } else if (processesed_url == strstr(processesed_url, "/classifier/jobs/")) {
+    info("%s %s size(%i) job", method, processesed_url, *upload_data_size);
+    ret = job_handler(ce_vp, connection, processesed_url, method, version);
   } else {
-    info("%s %s size(%i) 404", method, url, upload_data_size);
+    info("%s %s size(%i) 404", method, processesed_url, *upload_data_size);
     SEND_404(ret);
   }
   
