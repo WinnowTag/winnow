@@ -58,6 +58,7 @@ void free_tagging_store(TaggingStore *store) {
 int tagging_store_store(TaggingStore *store, const Tagging *tagging) {
   int success = true;
   if (store && tagging && tagging->strength >= store->insertion_threshold) {
+    info("Storing tagging (tag_id=%i,item_id=%i,strength=%f)", tagging->tag_id, tagging->item_id, tagging->strength);
     MYSQL_BIND params[4];
     memset(params, 0, sizeof(params));
     params[0].buffer_type = MYSQL_TYPE_LONG;

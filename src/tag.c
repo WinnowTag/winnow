@@ -322,7 +322,7 @@ int read_tagging_file(TagList *taglist, const char * user, const char * filename
 #include <errmsg.h>
 
 #define FIND_TAG_STMT "select user_id, name, bias from tags where id = ?" 
-#define LOAD_EXAMPLES "select feed_item_id, strength from taggings where tag_id = ?"
+#define LOAD_EXAMPLES "select feed_item_id, strength from taggings where tag_id = ? and classifier_tagging = 0"
 #define LOAD_TAGS_FOR_USER "select id, name, bias from tags where user_id = ? and (last_classified_at is NULL or updated_on > last_classified_at)"
 #define UPDATE_LAST_CLASSIFIED_AT "update tags set last_classified_at = UTC_TIMESTAMP() where id = ?"
 

@@ -542,7 +542,6 @@ void *insertion_worker_func(void *engine_vp) {
     TaggingInsertionJob *job = q_dequeue_or_wait(ce->tagging_store_queue);
     
     if (job) {
-      info("Got insertion job off queue %s", job->job_id);
       tagging_store_store(store, job->tagging);
       free_tagging_insertion_job(job);
     }

@@ -31,9 +31,11 @@ static void setup() {
   if (mysql_query(mysql, "update tags set updated_on = '2007-11-1 00:00:00'")) fail(mysql_error(mysql));
   if (mysql_query(mysql, "update tags set last_classified_at = '2007-11-1 00:00:00' where id = 39")) fail(mysql_error(mysql));   
   if (mysql_query(mysql, "update tags set bias = 1.2 where id = 38")) fail(mysql_error(mysql));   
+  if (mysql_query(mysql, "insert ignore into taggings(user_id, tag_id,feed_item_id,strength,classifier_tagging) VALUES (2, 39, 1, 1.0, 1)")) fail(mysql_error(mysql));   
 }
 
 static void teardown() {
+  if (mysql_query(mysql, "delete from taggings where classifier_tagging = 1")) fail(mysql_error(mysql));   
   free_tag_db(tag_db);
   mysql_close(mysql);
   mysql = NULL;

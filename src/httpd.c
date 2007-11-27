@@ -9,6 +9,7 @@
 #include <config.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include "httpd.h"
 #include "cls_config.h"
 #include "logging.h"
@@ -306,6 +307,9 @@ Httpd * httpd_start(Config *config, ClassificationEngine *ce) {
                                   process_request,
                                   ce,
                                   MHD_OPTION_END);
+    if (NULL == httpd->mhd) {
+      fatal("Could not start httpd: %s", strerror(errno));
+    }
   }
   
   return httpd;
