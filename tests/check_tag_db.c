@@ -55,7 +55,7 @@ START_TEST (test_create_tag_db) {
   Tag *tag = tag_db_load_tag_by_id(tag_db, 39);
   assert_not_null(tag);
   assert_equal_s("Evilution", tag_tag_name(tag));
-  assert_equal_s("", tag_user(tag));
+  assert_null(tag_user(tag));
   assert_equal(39, tag_tag_id(tag));
   assert_equal(2, tag_user_id(tag));
   assert_equal(20, tag_positive_examples_size(tag));
@@ -83,6 +83,11 @@ START_TEST(test_get_tags_for_user) {
   
   assert_equal(38, tag_tag_id(tag_list->tags[0]));
   assert_equal(40, tag_tag_id(tag_list->tags[1]));
+  assert_equal(41, tag_tag_id(tag_list->tags[2]));
+  assert_equal(44, tag_tag_id(tag_list->tags[3]));
+  assert_equal(45, tag_tag_id(tag_list->tags[4]));
+  assert_equal(47, tag_tag_id(tag_list->tags[5]));
+  
   free_taglist(tag_list);
   free_tag_db(tag_db);
 } END_TEST

@@ -51,8 +51,9 @@ TagList * create_tag_list(void) {
   TagList *list = malloc(sizeof(TagList));
   if (list) {
     list->size = 0;
-    list->tag_list_allocation = 7;
-    list->tags = calloc(list->tag_list_allocation, sizeof(TagList*));
+    list->tag_list_allocation = 5
+    ;
+    list->tags = calloc(list->tag_list_allocation, sizeof(Tag*));
     if (!list->tags) {
       free(list);
       list = NULL;
@@ -67,7 +68,7 @@ void taglist_add_tag(TagList *taglist, Tag *tag) {
   if (taglist && tag) {
     /* Do we need to grow the taglist? */
     if (taglist->size == taglist->tag_list_allocation) {
-      Tag **new_list = realloc(taglist->tags, taglist->tag_list_allocation * 2);
+      Tag **new_list = realloc(taglist->tags, taglist->tag_list_allocation * 2 * sizeof(Tag*));
       if (NULL == new_list) {
         fatal("Out of memory allocating tag list");
       } else {
@@ -137,15 +138,23 @@ Tag * create_tag(const char * user, const char * tag_name, int user_id, int tag_
     tag->positive_examples = NULL;
     tag->negative_examples = NULL;
     
-    int length = strlen(user) + 1;
-    tag->user = malloc(sizeof(char) * length);
-    if (NULL == tag->user) goto create_tag_malloc_error;
-    strncpy(tag->user, user, length);
+    if (NULL != user) {
+      int length = strlen(user) + 1;
+      tag->user = malloc(sizeof(char) * length);
+      if (NULL == tag->user) goto create_tag_malloc_error;
+      strncpy(tag->user, user, length);      
+    } else {
+      tag->user = NULL;
+    }
     
-    length = strlen(tag_name) + 1;
-    tag->tag_name = malloc(sizeof(char) * length);
-    if (NULL == tag->tag_name) goto create_tag_malloc_error;
-    strncpy(tag->tag_name, tag_name, length);
+    if (NULL != tag_name) {
+      int length = strlen(tag_name) + 1;
+      tag->tag_name = malloc(sizeof(char) * length);
+      if (NULL == tag->tag_name) goto create_tag_malloc_error;
+      strncpy(tag->tag_name, tag_name, length);      
+    } else {
+      tag->tag_name = NULL;
+    }
   }
   
   return tag;
@@ -471,7 +480,7 @@ TagList * tag_db_load_tags_to_classify_for_user(TagDB *tag_db, int user_id) {
     if (mysql_stmt_bind_result(tag_db->find_tags_for_user_stmt, result)) goto load_tags_error;
     
     while (!mysql_stmt_fetch(tag_db->find_tags_for_user_stmt)) {
-      Tag *tag = create_tag("", tag_name, user_id, tag_id);
+      Tag *tag = create_tag(NULL, tag_name, user_id, tag_id);
       
       if (tag) {
         taglist_add_tag(taglist, tag);
@@ -535,7 +544,7 @@ Tag * tag_db_load_tag_by_id(TagDB *tag_db, int tag_id) {
     int stmt_fetch_result = mysql_stmt_fetch(tag_db->find_tag_stmt);
     
     if (!stmt_fetch_result) {
-      tag = create_tag("", tag_name, user_id, tag_id);
+      tag = create_tag(NULL, tag_name, user_id, tag_id);
       if (tag_db_load_tag_examples(tag_db, tag)) goto load_example_error;
       if (!null_bias) {
         tag->bias = bias;
