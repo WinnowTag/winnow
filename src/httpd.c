@@ -111,8 +111,13 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
   }
   
   if (CJOB_STATE_ERROR == cjob_state(job)) {
-    xmlNodePtr error_msg = xmlNewChild(root, NULL, BAD_CAST "error-message", cjob_error_msg(job));
+    xmlNodePtr error_msg = xmlNewChild(root, NULL, BAD_CAST "error-message", BAD_CAST cjob_error_msg(job));
   }
+  
+  xmlChar duration_buffer[16];
+  xmlStrPrintf(duration_buffer, 16, BAD_CAST "%d", cjob_duration(job));
+  xmlNodePtr duration = xmlNewChild(root, NULL, BAD_CAST "duration", duration_buffer);
+  xmlAttrPtr duration_type = xmlNewProp(duration, BAD_CAST "type", BAD_CAST "integer");
   
   xmlChar progress_buffer[16];
   xmlStrPrintf(progress_buffer, 16, BAD_CAST "%.1f", cjob_progress(job));  

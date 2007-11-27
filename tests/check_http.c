@@ -246,6 +246,7 @@ START_TEST(test_completed_job_status) {
   assert_xpath(idpath, doc);
   assert_xpath("/job/progress[text() = '100.0']", doc);
   assert_xpath("/job/status[text() = 'Complete']", doc);
+  assert_xpath("/job/duration/text()", doc);
   
   xmlFree(doc);
 } END_TEST

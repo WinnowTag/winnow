@@ -123,6 +123,9 @@ struct CLASSIFICATION_JOB {
   ClassificationJobType type;
   ClassificationJobState state;
   ClassificationJobError error;
+  time_t created_at;
+  time_t started_at;
+  time_t completed_at;
 };
 
 typedef struct TAGGING_INSERTION_JOB {
@@ -629,6 +632,7 @@ ClassificationJob * create_tag_classification_job(int tag_id) {
     job->state = CJOB_STATE_WAITING;
     job->error = CJOB_ERROR_NO_ERROR;
     job->type = CJOB_TYPE_TAG_JOB;
+    job->created_at = time(0);
   }
   
   return job;
@@ -644,6 +648,7 @@ ClassificationJob * create_user_classification_job(int user_id) {
     job->state = CJOB_STATE_WAITING;
     job->error = CJOB_ERROR_NO_ERROR;
     job->type = CJOB_TYPE_USER_JOB;
+    job->created_at = time(0);
   }
   
   return job;
@@ -714,6 +719,21 @@ const char * cjob_error_msg(const ClassificationJob *job) {
 
 void cjob_cancel(ClassificationJob *job) {
   job->state = CJOB_STATE_CANCELLED;
+}
+
+int cjob_duration(const ClassificationJob *job) {
+  int duration;
+  
+  if (CJOB_STATE_COMPLETE == job->state) {
+    duration =  job->completed_at - job->started_at;
+  } else if (CJOB_STATE_WAITING == job->state) {
+    duration = 0;
+  } else {
+    time_t now = time(0);
+    duration = now - job->started_at;
+  }
+  
+  return duration;
 }
 
 /** Do the actual classification.
@@ -808,6 +828,7 @@ static void cjob_process(ClassificationJob *job, const ItemSource *item_source, 
   /* If the job is cancelled bail out before doing anything */
   if (job->state == CJOB_STATE_CANCELLED) return;
   
+  job->started_at = time(0);
   job->state = CJOB_STATE_TRAINING;  
   TagList *taglist = NULL;
   
@@ -846,6 +867,8 @@ static void cjob_process(ClassificationJob *job, const ItemSource *item_source, 
     }
     free_taglist(taglist);      
   }
+  
+  job->completed_at = time(0);
 }
 
 /********************************************************************************
