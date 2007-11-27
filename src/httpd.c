@@ -110,6 +110,10 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
     xmlAttrPtr tag_id_type = xmlNewProp(tag_id, BAD_CAST "type", BAD_CAST "integer");
   }
   
+  if (CJOB_STATE_ERROR == cjob_state(job)) {
+    xmlNodePtr error_msg = xmlNewChild(root, NULL, BAD_CAST "error-message", cjob_error_msg(job));
+  }
+  
   xmlChar progress_buffer[16];
   xmlStrPrintf(progress_buffer, 16, BAD_CAST "%.1f", cjob_progress(job));  
   xmlNodePtr progress = xmlNewChild(root, NULL, BAD_CAST "progress", progress_buffer);

@@ -692,12 +692,24 @@ static const char * state_msgs[] = {
     "Error"
 };
 
+static const char * error_msgs[] = {
+    "No error",
+    "Tag does not exist",
+    "No tags to classify for user",
+    "Bad job type",
+    "Unknown error"
+};
+
 const char * cjob_state_msg(const ClassificationJob * job) {
   return state_msgs[job->state];
 }
 
 ClassificationJobError cjob_error(const ClassificationJob *job) {
   return job->error;
+}
+
+const char * cjob_error_msg(const ClassificationJob *job) {
+  return error_msgs[job->error];
 }
 
 void cjob_cancel(ClassificationJob *job) {

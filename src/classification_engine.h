@@ -61,5 +61,8 @@ extern int                    cjob_tag_id(const ClassificationJob * job);
 extern int                    cjob_user_id(const ClassificationJob * job);
 extern float                  cjob_progress(const ClassificationJob * job);
 extern ClassificationJobState cjob_state(const ClassificationJob *job);
+extern const char *           cjob_state_msg(const ClassificationJob *job);
+extern ClassificationJobError cjob_error(const ClassificationJob *job);
+extern const char *           cjob_error_msg(const ClassificationJob *job);
 extern void                   cjob_cancel(ClassificationJob *job);
 #endif /*CLASSIFICATION_ENGINE_H_*/

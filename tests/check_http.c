@@ -256,8 +256,31 @@ START_TEST(cancelled_job_returns_404) {
   cjob_cancel(job);
   sprintf(url, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
   assert_get(url, 404, devnull);
-}
-END_TEST
+} END_TEST
+
+START_TEST(test_error_job_status) {
+  char url[256];
+  ClassificationJob *job = ce_add_classification_job_for_tag(ce, 1000);
+  ce_start(ce);
+  ce_stop(ce);
+  
+  sprintf(url, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
+  FILE *data = fopen("test_data.xml", "w");
+  assert_get(url, 200, data);
+  fclose(data);
+  
+  char idpath[1024];
+  sprintf(idpath, "/job/id[text() = '%s']", cjob_id(job));
+                
+  xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
+  if (doc == NULL) fail("Failed to parse xml");
+  
+  assert_xpath(idpath, doc);
+  assert_xpath("/job/status[text() = 'Error']", doc);
+  assert_xpath("/job/error-message/text()", doc);
+  
+  xmlFree(doc);
+} END_TEST
 
 #endif
 
@@ -271,6 +294,7 @@ Suite * http_suite(void) {
   tcase_add_test(tc_case, test_http_initialization);
   tcase_add_test(tc_case, test_job_status);
   tcase_add_test(tc_case, test_job_status_with_xml_suffix);
+  tcase_add_test(tc_case, test_error_job_status);
   tcase_add_test(tc_case, test_completed_job_status); 
   tcase_add_test(tc_case, test_missing_job_returns_404);
   tcase_add_test(tc_case, test_missing_job_id_returns_405);
