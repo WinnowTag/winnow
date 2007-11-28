@@ -13,12 +13,13 @@
 #include "httpd.h"
 #include "cls_config.h"
 #include "logging.h"
+#include "misc.h"
 
 #define CONTENT_TYPE "application/xml"
-#define NOT_FOUND "<?xml version='1.0' ?>\n<errors><error>Resource not found.</error></errors>"
-#define METHOD_NOT_ALLOWED "<?xml version='1.0' ?>\n<errors><error>Method is not allowed for that resource.</errors></errors>"
-#define BAD_XML "<?xml version='1.0' ?>\n<error><error>Badly formatted XML.</error></errors>"
-#define MISSING_TAG_ID "<?xml version='1.0' ?>\n<errors><error>Missing tag or user id in job description</error></errors>"
+#define NOT_FOUND "<?xml version='1.0' ?>\n<errors><error>Resource not found.</error></errors>\n"
+#define METHOD_NOT_ALLOWED "<?xml version='1.0' ?>\n<errors><error>Method is not allowed for that resource.</errors></errors>\n"
+#define BAD_XML "<?xml version='1.0' ?>\n<error><error>Badly formatted XML.</error></errors>\n"
+#define MISSING_TAG_ID "<?xml version='1.0' ?>\n<errors><error>Missing tag or user id in job description</error></errors>\n"
 
 #ifdef HAVE_LIBMICROHTTPD
 #include <microhttpd.h>
@@ -57,6 +58,12 @@
    returncode = MHD_queue_response(connection, MHD_HTTP_UNSUPPORTED_MEDIA_TYPE, response);          \
    MHD_destroy_response(response);
 
+#define SEND_500(returncode) \
+   LOG_RESPONSE(url, MHD_HTTP_INTERNAL_SERVER_ERROR); \
+   struct MHD_Response *response = MHD_create_response_from_data(strlen("Error"), "Error", MHD_NO, MHD_NO); \
+   returncode = MHD_queue_response(connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);                                   \
+   MHD_destroy_response(response);
+
 #define SEND_MISSING_TAG_ID(returncode) \
    debug("Missing tag_id sending %i", MHD_HTTP_UNPROCESSABLE_ENTITY); \
    struct MHD_Response *response = MHD_create_response_from_data(strlen(MISSING_TAG_ID), MISSING_TAG_ID, MHD_NO, MHD_NO); \
@@ -83,11 +90,11 @@ struct posted_data {
   char *buffer;
 };
 
-/*  <classification-job>
+/*  <job>
  *    <id>ID</id>
  *    <progress type="float">0.0</progress>
  *    <tag-id type="integer">N</tag-id>
- *  </classification-job>
+ *  </job>
  */
 static xmlChar * xml_for_job(const ClassificationJob *job) {
   xmlChar *buffer = NULL;
@@ -238,64 +245,73 @@ static int start_job_handle(void * ce_vp, struct MHD_Connection * connection,
                              const char * url, const char * method, 
                              const char * version, const char * upload_data,
                              unsigned int * upload_data_size, void **memo) {
-  int ret = MHD_NO;  
+  int ret = MHD_NO;
+  const char *clen = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_CONTENT_LENGTH);
   
   if (strcmp(MHD_HTTP_METHOD_POST, method)) {
     SEND_405(ret, "POST");
-  } else {
-    if (*upload_data_size == 0) {     
-      struct posted_data *pd = *memo;
-      if (!pd) {
-        SEND_415(ret);
-      } else {
-        ret = start_job(ce_vp, connection, url, pd->buffer);
-        free(pd->buffer);
-        free(pd); 
-      }
-    } else if (!(*memo)) {
-      struct posted_data *pd;
-      *memo = pd = malloc(sizeof(struct posted_data));      
+  } else if (clen && !strcmp(clen, "0")) {
+    SEND_415(ret);
+  } else {  
+    debug("posted %s", upload_data);
+    // First call, but data is empty
+    int first_call = false;
+    
+    struct posted_data *pd = *memo;
+    if (!(pd)) {
+      first_call = true;
+      pd = malloc(sizeof(struct posted_data));
+      pd->buffer = NULL;
+      pd->size = 0;
+      *memo = pd;
+    }
+      
+    if (*upload_data_size > 0 && pd->size == 0) {
       pd->buffer = calloc(*upload_data_size, sizeof(char));
       pd->size = *upload_data_size;
       strncpy(pd->buffer, upload_data, pd->size);
-      debug("memoize: %s", pd->buffer);
       *upload_data_size = 0;
-      ret = MHD_YES;
-    } else {
+      ret = MHD_YES;      
+    } else if (*upload_data_size > 0 && pd->size > 0) {
       // TODO Need to handle incremental processing of POST'ed data
-      error("Need to handle incremental processing of POST'ed data");
-    }    
+      error("Need to handle incremental processing of POST'ed data");      
+    } else if (*upload_data_size == 0 && pd->size > 0) {
+      ret = start_job(ce_vp, connection, url, pd->buffer);
+      free(pd->buffer);
+      free(pd);
+    } else {
+      ret = MHD_YES;
+    }
   }
   
   return ret;
 }
 /* This is the base response handler. It just returns a 404. */
 static int process_request(void * ce_vp, struct MHD_Connection * connection,
-                           const char * url, const char * method, 
+                           const char * raw_url, const char * method, 
                            const char * version, const char * upload_data,
                            unsigned int * upload_data_size, void **memo) {
-  int ret;
+  int ret = 1;
   
-  char processesed_url[1024];
-  strncpy(processesed_url, url, sizeof(processesed_url));
+  char url[1024];
+  strncpy(url, raw_url, sizeof(url));
   
   char *ext;
-  if (ext = strcasestr(processesed_url, ".xml")) {
+  if (ext = strcasestr(url, ".xml")) {
     ext[0] = '\0';
-  }
-  
-  if (0 == strcmp(processesed_url, "/classifier/jobs/") || 
-      0 == strcmp(processesed_url, "/classifier/jobs")) {
-    info("%s %s size(%i) start_job", method, processesed_url, *upload_data_size);
-    ret = start_job_handle(ce_vp, connection, processesed_url, method, version, upload_data, upload_data_size, memo);
-  } else if (processesed_url == strstr(processesed_url, "/classifier/jobs/")) {
-    info("%s %s size(%i) job", method, processesed_url, *upload_data_size);
-    ret = job_handler(ce_vp, connection, processesed_url, method, version);
+  }  
+ 
+  if (0 == strcmp(url, "/classifier/jobs/") || 
+      0 == strcmp(url, "/classifier/jobs")) {
+    info("%s %s size(%i) start_job\n", method, url, *upload_data_size);
+    ret = start_job_handle(ce_vp, connection, url, method, version, upload_data, upload_data_size, memo);
+  } else if (url == strstr(url, "/classifier/jobs/")) {
+    info("%s %s size(%i) job", method, url, *upload_data_size);
+    ret = job_handler(ce_vp, connection, url, method, version);
   } else {
-    info("%s %s size(%i) 404", method, processesed_url, *upload_data_size);
+    info("%s %s size(%i) 404", method, url, *upload_data_size);
     SEND_404(ret);
   }
-  
   
   return ret;
 }
@@ -309,7 +325,7 @@ Httpd * httpd_start(Config *config, ClassificationEngine *ce) {
     HttpdConfig httpd_config;
     cfg_httpd_config(config, &httpd_config);
     
-    httpd->mhd = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY,
+    httpd->mhd = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG,
                                   httpd_config.port,
                                   NULL,
                                   NULL,

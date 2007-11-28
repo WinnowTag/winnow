@@ -2,7 +2,8 @@ TESTS = check_all check_db check_http
 check_PROGRAMS = check_all check_db check_http
 
 check_http_SOURCE = check_http.c
-check_http_CFLAGS = @CHECK_CFLAGS@
+check_http_CFLAGS = @CHECK_CFLAGS@ -g -DDEBUG
+check_http_LDFLAGS = -static
 check_http_LDADD  = @CHECK_LIBS@ $(top_builddir)/src/libclassifier.la
 
 check_all_SOURCES = check_all.c \

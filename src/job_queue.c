@@ -60,7 +60,6 @@ void free_queue(Queue * queue) {
   if (queue) {
     Node *node = queue->front;
     while (node) {
-      debug("freeing node %x", node);
       Node *next = node->next;
       free(node);
       node = next;
