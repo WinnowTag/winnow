@@ -13,17 +13,17 @@
 #include "../src/cls_config.h"
 #include "../src/db_item_source.h"
 
+Config *config;
 DBConfig dbconfig;
 
 static void setup_config(void) {
-  dbconfig.host = "localhost";
-  dbconfig.user = "seangeo";
-  dbconfig.password = "seangeo";
-  dbconfig.database = "classifier_test";
-  dbconfig.port = 0;  
+  config = load_config("conf/test.conf");
+  cfg_item_db_config(config, &dbconfig);
 }
 
-static void teardown_config(void) { }
+static void teardown_config(void) { 
+  free_config(config);
+}
 
 START_TEST (test_loads_time) {
   ItemSource *is = create_db_item_source(&dbconfig);

@@ -21,7 +21,7 @@
  ************************************************************************/
 START_TEST(inserts_taggings) {
   assert_tagging_count_is(0);
-  Config *config = load_config("fixtures/real-db.conf");
+  Config *config = load_config("conf/test.conf");
   ClassificationEngine *ce = create_classification_engine(config);
   ce_start(ce);
   ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
@@ -37,7 +37,7 @@ START_TEST(inserts_taggings) {
 
 START_TEST(inserts_taggings_for_all_users_tags) {
   assert_tagging_count_is(0);
-  Config *config = load_config("fixtures/real-db.conf");
+  Config *config = load_config("conf/test.conf");
   ClassificationEngine *ce = create_classification_engine(config);
   ce_start(ce);
   ClassificationJob *job = ce_add_classification_job_for_user(ce, 2);
@@ -53,7 +53,7 @@ START_TEST(inserts_taggings_for_all_users_tags) {
 
 START_TEST (test_new_items_job_insert_taggings_for_items_with_time_later_than_last_classified) {
   assert_tagging_count_is(0);
-  Config *config = load_config("fixtures/real-db.conf");
+  Config *config = load_config("conf/test.conf");
   ClassificationEngine *ce = create_classification_engine(config);
   ce_start(ce);
   ClassificationJob *job = ce_add_classify_new_items_job_for_tag(ce, 38);
@@ -66,7 +66,7 @@ START_TEST (test_new_items_job_insert_taggings_for_items_with_time_later_than_la
 
 
 START_TEST(cancelled_job_doesnt_insert_taggings_if_cancelled_before_processed) {
-  Config *config = load_config("fixtures/real-db.conf");
+  Config *config = load_config("conf/test.conf");
   ClassificationEngine *ce = create_classification_engine(config);
   ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
   info("cancelled job: %s", cjob_id(job));
@@ -80,7 +80,7 @@ START_TEST(cancelled_job_doesnt_insert_taggings_if_cancelled_before_processed) {
 } END_TEST
 
 START_TEST(can_send_bogus_tag_id_without_taking_down_the_server) {
-  Config *config = load_config("fixtures/real-db.conf");
+  Config *config = load_config("conf/test.conf");
   ClassificationEngine *ce = create_classification_engine(config);
   ClassificationJob *job = ce_add_classification_job_for_tag(ce, BOGUS_TAG_ID);
   
@@ -95,7 +95,7 @@ START_TEST(can_send_bogus_tag_id_without_taking_down_the_server) {
 } END_TEST
 
 START_TEST(can_send_bogus_user_id_without_taking_down_the_server) {
-  Config *config = load_config("fixtures/real-db.conf");
+  Config *config = load_config("conf/test.conf");
   ClassificationEngine *ce = create_classification_engine(config);
   ClassificationJob *job = ce_add_classification_job_for_user(ce, 10);
   
@@ -116,7 +116,7 @@ Config *ce_config;
 ClassificationEngine *ce;
 
 static void setup_engine() {
-  ce_config = load_config("fixtures/real-db.conf");
+  ce_config = load_config("conf/test.conf");
   ce = create_classification_engine(ce_config);
 }
 
@@ -200,7 +200,7 @@ START_TEST(resuming_suspended_engine_processes_jobs) {
  ************************************************************************/
 
 START_TEST(test_engine_initialization) {
-  Config *config = load_config("fixtures/real-db.conf");
+  Config *config = load_config("conf/test.conf");
   assert_not_null(config);
   ClassificationEngine *engine = create_classification_engine(config);
   assert_not_null(engine);
@@ -210,7 +210,7 @@ START_TEST(test_engine_initialization) {
 } END_TEST
 
 START_TEST(test_engine_starting_and_stopping) {
-  Config *config = load_config("fixtures/real-db.conf");
+  Config *config = load_config("conf/test.conf");
   assert_not_null(config);
   ClassificationEngine *engine = create_classification_engine(config);
   assert_not_null(engine);

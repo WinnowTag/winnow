@@ -19,8 +19,6 @@ check_all_SOURCES = check_all.c \
                 check_queue.c $(top_builddir)/src/queue.h \
                 check_config.c $(top_builddir)/src/config.h \
                 check_caching_item_source.c \
-                check_classification_engine.c \
-                $(top_builddir)/src/classification_engine.h \
                 $(top_builddir)/src/tagging.h
                 
 check_all_CFLAGS = @CHECK_CFLAGS@ -g -DDEBUG
@@ -33,6 +31,8 @@ check_db_SOURCES = check_db.c                    \
             check_tag_db.c                       \
             check_tagging_store.c                \
             check_db_random_background.c         \
+            check_classification_engine.c        \
+            $(top_builddir)/src/classification_engine.h \
             $(top_builddir)/src/db_item_source.h \
             $(top_builddir)/src/item.h           \
             $(top_builddir)/src/item_source.h    \

@@ -19,7 +19,7 @@ Suite * queue_suite (void);
 Suite * samples_suite(void);
 Suite * config_suite (void);
 Suite * caching_item_source_suite(void);
-Suite * classification_engine_suite(void);
+
 
 int main(void) {
   initialize_logging("test.log");
@@ -35,7 +35,6 @@ int main(void) {
   srunner_add_suite(sr, queue_suite());
   srunner_add_suite(sr, config_suite());
   srunner_add_suite(sr, caching_item_source_suite());
-  srunner_add_suite(sr, classification_engine_suite());
   
   srunner_run_all(sr, CK_NORMAL);
   number_failed = srunner_ntests_failed(sr);

@@ -13,29 +13,27 @@
 #include "mock_item_source.h"
 #include "../src/random_background.h"
 
-DBConfig db_config;
+Config *config;
+DBConfig dbconfig;
 
 static void setup(void) {
   setup_mock_item_source();
-  db_config.host = "localhost";
-  db_config.user = "seangeo";
-  db_config.password = "seangeo";
-  db_config.database = "classifier_test";
+  config = load_config("conf/test.conf");
+  cfg_item_db_config(config, &dbconfig);
 }
 
 static void teardown(void) {
   teardown_mock_item_source();
+  free_config(config);
 }
 
 START_TEST(test_load_random_background_from_db) {
-  Pool *pool = create_random_background_from_db(is, &db_config);
+  Pool *pool = create_random_background_from_db(is, &dbconfig);
   assert_not_null(pool);
   assert_equal(3, pool_num_tokens(pool));
   assert_equal(32, pool_total_tokens(pool));
   free_pool(pool);
-}
-END_TEST
-
+} END_TEST
 
 Suite * db_random_background_suite(void) {
   Suite *s = suite_create("db_random_background");

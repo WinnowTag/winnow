@@ -12,20 +12,19 @@
 #include "assertions.h"
 #include "mysql.h"
 
-DBConfig config;
+Config *config;
+DBConfig dbconfig;
 TagDB *tag_db;
 MYSQL *mysql;
 
 static void setup() {
-  config.host = "localhost";
-  config.user = "seangeo";
-  config.password = "seangeo";
-  config.database = "classifier_test";
-  tag_db = create_tag_db(&config);
+  config = load_config("conf/test.conf");
+  cfg_tag_db_config(config, &dbconfig);
+  tag_db = create_tag_db(&dbconfig);
   assert_not_null(tag_db);
   
   mysql = mysql_init(NULL);
-  mysql_real_connect(mysql, config.host, config.user, config.password, config.database, 0, NULL, 0);
+  mysql_real_connect(mysql, dbconfig.host, dbconfig.user, dbconfig.password, dbconfig.database, 0, NULL, 0);
    
   if (mysql_query(mysql, "update tags set last_classified_at = NULL, bias = NULL")) fail(mysql_error(mysql));
   if (mysql_query(mysql, "update tags set updated_on = '2007-11-1 00:00:00'")) fail(mysql_error(mysql));
@@ -65,7 +64,7 @@ START_TEST (test_create_tag_db) {
 } END_TEST
 
 START_TEST(test_update_last_classified_time_for_a_tag) {
-  TagDB *tag_db = create_tag_db(&config);
+  TagDB *tag_db = create_tag_db(&dbconfig);
   assert_not_null(tag_db);
   Tag *tag = tag_db_load_tag_by_id(tag_db, 48);
   assert_not_null(tag);
@@ -75,7 +74,7 @@ START_TEST(test_update_last_classified_time_for_a_tag) {
 } END_TEST
 
 START_TEST(test_get_tags_for_user) {
-  TagDB *tag_db = create_tag_db(&config);
+  TagDB *tag_db = create_tag_db(&dbconfig);
   assert_not_null(tag_db);
   TagList *tag_list = tag_db_load_tags_to_classify_for_user(tag_db, 2);
   assert_not_null(tag_list);
@@ -94,7 +93,7 @@ START_TEST(test_get_tags_for_user) {
 } END_TEST
 
 START_TEST(test_get_tags_for_user_loads_examples) {
-  TagDB *tag_db = create_tag_db(&config);
+  TagDB *tag_db = create_tag_db(&dbconfig);
   assert_not_null(tag_db);
   TagList *tag_list = tag_db_load_tags_to_classify_for_user(tag_db, 2);
   assert_not_null(tag_list);
@@ -109,7 +108,7 @@ START_TEST(test_get_tags_for_user_loads_examples) {
 } END_TEST
 
 START_TEST (test_get_tags_for_user_loads_last_classified_time) {
-  TagDB *tag_db = create_tag_db(&config);
+  TagDB *tag_db = create_tag_db(&dbconfig);
   assert_not_null(tag_db);
   TagList *tag_list = tag_db_load_tags_to_classify_for_user(tag_db, 2);
   assert_not_null(tag_list);
@@ -132,7 +131,7 @@ START_TEST (test_get_tags_for_user_loads_last_classified_time) {
 } END_TEST
 
 START_TEST (test_get_tags_for_user_loads_updated_at_time) {
-  TagDB *tag_db = create_tag_db(&config);
+  TagDB *tag_db = create_tag_db(&dbconfig);
   assert_not_null(tag_db);
   TagList *tag_list = tag_db_load_tags_to_classify_for_user(tag_db, 2);
   assert_not_null(tag_list);
@@ -155,7 +154,7 @@ START_TEST (test_get_tags_for_user_loads_updated_at_time) {
 } END_TEST
 
 START_TEST (test_load_tag_by_id_loads_last_classified_time) {
-  TagDB *tag_db = create_tag_db(&config);
+  TagDB *tag_db = create_tag_db(&dbconfig);
   assert_not_null(tag_db);
   
   Tag *tag = tag_db_load_tag_by_id(tag_db, 38);
@@ -176,7 +175,7 @@ START_TEST (test_load_tag_by_id_loads_last_classified_time) {
 } END_TEST
 
 START_TEST (test_load_tag_by_id_loads_updated_at_time) {
-  TagDB *tag_db = create_tag_db(&config);
+  TagDB *tag_db = create_tag_db(&dbconfig);
   assert_not_null(tag_db);
   Tag *tag = tag_db_load_tag_by_id(tag_db, 38);
   assert_not_null(tag);
@@ -196,7 +195,7 @@ START_TEST (test_load_tag_by_id_loads_updated_at_time) {
 } END_TEST
 
 START_TEST(test_default_bias_should_be_1) {
-  TagDB *tag_db = create_tag_db(&config);
+  TagDB *tag_db = create_tag_db(&dbconfig);
   assert_not_null(tag_db);
   Tag *tag = tag_db_load_tag_by_id(tag_db, 48);
   assert_not_null(tag);
@@ -206,7 +205,7 @@ START_TEST(test_default_bias_should_be_1) {
 } END_TEST
 
 START_TEST (test_loads_bias_for_tag) {
-  TagDB *tag_db = create_tag_db(&config);
+  TagDB *tag_db = create_tag_db(&dbconfig);
   assert_not_null(tag_db);
   Tag *tag = tag_db_load_tag_by_id(tag_db, 38);
   assert_not_null(tag);
@@ -216,7 +215,7 @@ START_TEST (test_loads_bias_for_tag) {
 } END_TEST
 
 START_TEST (test_load_bias_for_tag_list) {
-  TagDB *tag_db = create_tag_db(&config);
+  TagDB *tag_db = create_tag_db(&dbconfig);
   assert_not_null(tag_db);
   TagList *tag_list = tag_db_load_tags_to_classify_for_user(tag_db, 2);
   assert_not_null(tag_list);
@@ -231,7 +230,7 @@ START_TEST (test_load_bias_for_tag_list) {
 } END_TEST
 
 START_TEST (test_get_all_tag_ids) {
-  TagDB *tag_db = create_tag_db(&config);
+  TagDB *tag_db = create_tag_db(&dbconfig);
   assert_not_null(tag_db);
   int size;
   int *tag_ids = tag_db_get_all_tag_ids(tag_db, &size);
