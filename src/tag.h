@@ -9,6 +9,7 @@
 #define TAG_H 1
 
 #include <Judy.h>
+#include <time.h>
 #include "cls_config.h"
 
 
@@ -18,6 +19,8 @@ typedef struct TAG {
   int user_id;
   int tag_id;
   float bias;
+  time_t last_classified_at;
+  time_t updated_at;
   Pvoid_t positive_examples;
   Pvoid_t negative_examples;
 } Tag;
@@ -48,6 +51,8 @@ extern int *        tag_positive_examples       (const Tag *tag);
 extern int *        tag_negative_examples       (const Tag *tag);
 extern int          tag_negative_examples_size  (const Tag *tag);
 extern int          tag_positive_examples_size  (const Tag *tag);
+extern time_t       tag_last_classified_at      (const Tag *tag);
+extern time_t       tag_updated_at      (const Tag *tag);
 
 // TagDB functions
 extern TagDB   * create_tag_db          (DBConfig *db_config);

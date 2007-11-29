@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "logging.h"
+#include "time_helper.h"
 
 #define DEFAULT_BIAS 1.0
 
@@ -135,6 +136,8 @@ Tag * create_tag(const char * user, const char * tag_name, int user_id, int tag_
     tag->user_id = user_id;
     tag->tag_id  = tag_id;
     tag->bias = DEFAULT_BIAS;
+    tag->last_classified_at = 0;
+    tag->updated_at = 0;
     tag->positive_examples = NULL;
     tag->negative_examples = NULL;
     
@@ -194,6 +197,14 @@ int tag_tag_id(const Tag * tag) {
 
 float tag_bias(const Tag * tag) {
   return tag->bias;
+}
+
+time_t tag_last_classified_at(const Tag *tag) {
+  return tag->last_classified_at;
+}
+
+time_t tag_updated_at(const Tag *tag) {
+  return tag->updated_at;
 }
 
 int tag_positive_examples_size(const Tag * tag) {
@@ -330,9 +341,9 @@ int read_tagging_file(TagList *taglist, const char * user, const char * filename
 #include <mysql.h>
 #include <errmsg.h>
 
-#define FIND_TAG_STMT "select user_id, name, bias from tags where id = ?" 
+#define FIND_TAG_STMT "select user_id, name, bias, last_classified_at, updated_on from tags where id = ?" 
 #define LOAD_EXAMPLES "select feed_item_id, strength from taggings where tag_id = ? and classifier_tagging = 0"
-#define LOAD_TAGS_FOR_USER "select id, name, bias from tags where user_id = ? and (last_classified_at is NULL or updated_on > last_classified_at)"
+#define LOAD_TAGS_FOR_USER "select id, name, bias, last_classified_at, updated_on from tags where user_id = ? and (last_classified_at is NULL or updated_on > last_classified_at)"
 #define UPDATE_LAST_CLASSIFIED_AT "update tags set last_classified_at = UTC_TIMESTAMP() where id = ?"
 
 struct TAG_DB {
@@ -464,9 +475,11 @@ TagList * tag_db_load_tags_to_classify_for_user(TagDB *tag_db, int user_id) {
     int tag_id;
     char tag_name[256];
     float bias;
-    my_bool null_bias;
+    my_bool null_bias, null_last_classified, null_updated_at;
+    MYSQL_TIME last_classified;
+    MYSQL_TIME updated_at;
     
-    MYSQL_BIND result[3];
+    MYSQL_BIND result[5];
     memset(result, 0, sizeof(result));
     result[0].buffer_type = MYSQL_TYPE_LONG;
     result[0].buffer = (char *) &tag_id;
@@ -476,6 +489,12 @@ TagList * tag_db_load_tags_to_classify_for_user(TagDB *tag_db, int user_id) {
     result[2].buffer_type = MYSQL_TYPE_FLOAT;
     result[2].buffer = (char*) &bias;
     result[2].is_null = &null_bias;
+    result[3].buffer_type = MYSQL_TYPE_DATETIME;
+    result[3].buffer = (char*) &last_classified;
+    result[3].is_null = &null_last_classified;
+    result[4].buffer_type = MYSQL_TYPE_DATETIME;
+    result[4].buffer = (char*) &updated_at;
+    result[4].is_null = &null_updated_at;
     
     if (mysql_stmt_bind_result(tag_db->find_tags_for_user_stmt, result)) goto load_tags_error;
     
@@ -489,6 +508,12 @@ TagList * tag_db_load_tags_to_classify_for_user(TagDB *tag_db, int user_id) {
         }
         if (!null_bias) {
           tag->bias = bias;
+        }
+        if (!null_last_classified) {
+          convert_mysql_time(&last_classified, &(tag->last_classified_at));
+        }
+        if (!null_updated_at) {
+          convert_mysql_time(&updated_at, &(tag->updated_at));
         }
       }
     }
@@ -525,9 +550,10 @@ Tag * tag_db_load_tag_by_id(TagDB *tag_db, int tag_id) {
     memset(tag_name, 0, sizeof(tag_name));
     unsigned long user_id;
     float bias;
-    my_bool null_bias;
+    MYSQL_TIME last_classified, updated_at;
+    my_bool null_bias, null_last_classified, null_updated_at;
     
-    MYSQL_BIND results[3];
+    MYSQL_BIND results[5];
     memset(results, 0, sizeof(results));
     results[0].buffer_type = MYSQL_TYPE_LONG;
     results[0].buffer = (char *) &user_id;
@@ -538,6 +564,12 @@ Tag * tag_db_load_tag_by_id(TagDB *tag_db, int tag_id) {
     results[2].buffer_type = MYSQL_TYPE_FLOAT;
     results[2].buffer = (char *) &bias;
     results[2].is_null = &null_bias;
+    results[3].buffer_type = MYSQL_TYPE_DATETIME;
+    results[3].buffer = (char*) &last_classified;
+    results[3].is_null = &null_last_classified;
+    results[4].buffer_type = MYSQL_TYPE_DATETIME;
+    results[4].buffer = (char*) &updated_at;
+    results[4].is_null = &null_updated_at;
    
     if (mysql_stmt_bind_result(tag_db->find_tag_stmt, results)) goto tag_query_error;
     if (mysql_stmt_store_result(tag_db->find_tag_stmt))         goto tag_query_error;
@@ -548,7 +580,13 @@ Tag * tag_db_load_tag_by_id(TagDB *tag_db, int tag_id) {
       if (tag_db_load_tag_examples(tag_db, tag)) goto load_example_error;
       if (!null_bias) {
         tag->bias = bias;
-      }      
+      }
+      if (!null_last_classified) {
+        convert_mysql_time(&last_classified, &(tag->last_classified_at));
+      }
+      if (!null_updated_at) {
+        convert_mysql_time(&updated_at, &(tag->updated_at));
+      }
     } else if (MYSQL_NO_DATA == stmt_fetch_result) {
       error("No tag found with id %i", tag_id);
     } else if (MYSQL_DATA_TRUNCATED == stmt_fetch_result) {
