@@ -13,7 +13,9 @@
 #include "logging.h"
 
 #define FETCH_ITEM_SQL "select token_id, frequency from feed_item_tokens where feed_item_id = ?"
-#define FETCH_ALL_ITEMS_SQL "select feed_item_id, token_id, frequency from feed_item_tokens"
+#define FETCH_ALL_ITEMS_SQL "select feed_item_id, token_id, frequency from feed_item_tokens \
+                              join feed_items on feed_items.id = feed_item_tokens.feed_item_id \
+                              order by time desc, feed_item_id"
 
 typedef struct DB_ITEMSOURCE {
   /* DB connection configuration */

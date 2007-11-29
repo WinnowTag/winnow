@@ -170,6 +170,7 @@ ItemList * create_item_list() {
   if (NULL != item_list) {
     item_list->size = 0;
     item_list->items = NULL;
+    item_list->ordered_items = NULL;
   } else {
     fatal("Error allocation memory for ItemList");
   }
@@ -201,7 +202,7 @@ Item * item_list_item_at(const ItemList *item_list, int index) {
   if (item_list) {
     PWord_t item_pointer;
     Word_t item_index;
-    JLBC(item_pointer, item_list->items, index, item_index);
+    JLG(item_pointer, item_list->ordered_items, index);
     if (item_pointer) {
       item = (Item*) (*item_pointer);
     }
@@ -213,6 +214,14 @@ Item * item_list_item_at(const ItemList *item_list, int index) {
 void item_list_add_item(ItemList *item_list, const Item *item) {
   PWord_t item_pointer;
   int item_id = item_get_id(item);
+  
+  JLI(item_pointer, item_list->ordered_items, item_list->size);
+  if (NULL != item_pointer) {
+    *item_pointer = (Word_t) item;
+  } else {
+    fatal("Error adding item %i to ordered items list at index %i", item_id, item_list->size);
+  }
+  
   JLI(item_pointer, item_list->items, item_id);
   if (NULL != item_pointer) {
     *item_pointer = (Word_t) item;

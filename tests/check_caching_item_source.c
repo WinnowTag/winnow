@@ -40,7 +40,7 @@ START_TEST(test_all_items_accessible_by_index) {
   assert_not_null(items);
   Item *item = item_list_item_at(items, _i);
   assert_not_null(item);
-  assert_equal(_i, item_get_id(item));
+  assert_equal(_i + 1, item_get_id(item));
   free_item_source(cis);
 } END_TEST
 
@@ -75,7 +75,7 @@ Suite * caching_item_source_suite(void) {
   
   // START_TESTS
   tcase_add_loop_test(tc_case, test_all_items_accessible_by_id, 1, 5);
-  tcase_add_loop_test(tc_case, test_all_items_accessible_by_index, 1, 5);
+  tcase_add_loop_test(tc_case, test_all_items_accessible_by_index, 0, 4);
   tcase_add_test(tc_case, test_sizeof_item_list);
   tcase_add_test(tc_case, test_flushing);
   // END_TESTS

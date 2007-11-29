@@ -13,7 +13,10 @@
 
 typedef struct ITEM_LIST {
   int size;
+  /* Stores items by item id */
   Pvoid_t items;
+  /* Stores items in order of insertion */
+  Pvoid_t ordered_items;
 } ItemList;
 
 /** An item source stores a reference to an item loading function

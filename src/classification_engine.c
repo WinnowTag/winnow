@@ -769,7 +769,7 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist, const I
   job->progress = 20.0;
             
   job->state = CJOB_STATE_CLASSIFYING;  
-  for (i = 1; i <= number_of_items; i++) {
+  for (i = 0; i < number_of_items; i++) {
     Item *item = item_list_item_at(items, i);
     
     if (NULL == item) {

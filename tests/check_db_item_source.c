@@ -41,6 +41,27 @@ START_TEST (test_fetch_all_items) {
   free_item_source(is);
 } END_TEST
 
+START_TEST (test_ordered_by_time) {
+  ItemSource *is = create_db_item_source(&dbconfig);
+  assert_true(is_alive(is));
+  
+  ItemList *item_list = is_fetch_all_items(is);
+  assert_not_null(item_list);
+  assert_equal(11, item_list_size(item_list));
+  
+  Item *item = item_list_item_at(item_list, 0);
+  assert_not_null(item);
+  assert_equal(916480, item_get_id(item));
+  
+  item = item_list_item_at(item_list, 10);
+  assert_not_null(item);
+  assert_equal(916479, item_get_id(item));
+  
+  free_item_list(item_list);
+  free_item_source(is);
+} END_TEST
+
+
 START_TEST (test_fetch_item) {
   ItemSource *is = create_db_item_source(&dbconfig);
   assert_true(is_alive(is));
@@ -83,6 +104,7 @@ db_item_source_suite(void) {
   tcase_add_test(tc_case, broken_config);
   tcase_add_test(tc_case, test_fetch_item);
   tcase_add_test(tc_case, test_fetch_all_items);
+  tcase_add_test(tc_case, test_ordered_by_time);
 // END_TESTS
 
   suite_add_tcase(s, tc_case);
