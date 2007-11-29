@@ -13,9 +13,16 @@
 #include <Judy.h>
 #endif
 
+#include <time.h>
+
 typedef struct ITEM {
+  /* The ID of the item */
   int id;
+  /* The number of tokens in the item */
   int total_tokens;
+  /* The timestamp the item was created or published */
+  time_t time;
+  /* The tokens of the item. This is a Judy array of token_id -> frequency. */
   Pvoid_t tokens;
 } Item, *PItem;
 

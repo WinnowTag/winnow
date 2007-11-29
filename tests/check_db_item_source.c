@@ -8,6 +8,7 @@
 
 #include <check.h>
 #include <stdlib.h>
+#include <time.h>
 #include "assertions.h"
 #include "../src/cls_config.h"
 #include "../src/db_item_source.h"
@@ -23,6 +24,53 @@ static void setup_config(void) {
 }
 
 static void teardown_config(void) { }
+
+START_TEST (test_loads_time) {
+  ItemSource *is = create_db_item_source(&dbconfig);
+  assert_true(is_alive(is));
+  
+  Item *item = is_fetch_item(is, 916479);
+  assert_not_null(item);
+  
+  struct tm etm;
+  etm.tm_year = 2007 - 1900;
+  etm.tm_mon = 9;
+  etm.tm_mday = 3;
+  etm.tm_hour = 4;
+  etm.tm_min = 53;
+  etm.tm_sec = 46;
+  time_t expected = timegm(&etm);
+  
+  assert_equal(expected, item_get_time(item));
+  
+  free_item(item);
+  free_item_source(is);
+} END_TEST
+
+START_TEST (test_loads_all_loads_time) {
+  ItemSource *is = create_db_item_source(&dbconfig);
+  assert_true(is_alive(is));
+  
+  ItemList *item_list = is_fetch_all_items(is);
+  assert_not_null(item_list);
+  
+  struct tm etm;
+  etm.tm_year = 2007 - 1900;
+  etm.tm_mon = 10;
+  etm.tm_mday = 29;
+  etm.tm_hour = 1;
+  etm.tm_min = 5;
+  etm.tm_sec = 51;
+  time_t expected = timegm(&etm);
+  
+  Item *item = item_list_item_at(item_list, 0);
+  assert_equal(916480, item_get_id(item));
+  time_t t = item_get_time(item);
+  assert_equal(expected, item_get_time(item));
+  
+  free_item_list(item_list);
+  free_item_source(is);
+} END_TEST
 
 START_TEST (test_fetch_all_items) {
   ItemSource *is = create_db_item_source(&dbconfig);
@@ -105,6 +153,9 @@ db_item_source_suite(void) {
   tcase_add_test(tc_case, test_fetch_item);
   tcase_add_test(tc_case, test_fetch_all_items);
   tcase_add_test(tc_case, test_ordered_by_time);
+  tcase_add_test(tc_case, test_loads_time);
+  tcase_add_test(tc_case, test_loads_all_loads_time);
+  
 // END_TESTS
 
   suite_add_tcase(s, tc_case);

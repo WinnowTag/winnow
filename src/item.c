@@ -33,6 +33,7 @@ Item * create_item(int id) {
     int i;
     item->id = id;
     item->total_tokens = 0;
+    item->time = 0;
     item->tokens = NULL;
   } else {
     fatal("Malloc Error allocating item %d", id);
@@ -66,6 +67,10 @@ Item * create_item_with_tokens(int id, int tokens[][2], int num_tokens) {
 
 int item_get_id(const Item * item) {
   return item->id;
+}
+
+time_t item_get_time(const Item * item) {
+  return item->time;
 }
 
 int item_get_num_tokens(const Item * item) {

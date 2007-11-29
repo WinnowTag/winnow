@@ -20,7 +20,9 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            tagging.h tagging.c       \
                            classification_engine.h   \
                            classification_engine.c   \
-                           httpd.h httpd.c   
+                           httpd.h httpd.c           \
+                           time_helper.h             \
+                           time_helper.c
                            
 bin_PROGRAMS = cls_bench classifier classifier.debug
 cls_bench_SOURCES = bench.c

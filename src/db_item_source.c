@@ -10,10 +10,13 @@
 #include <errmsg.h>
 #include <string.h>
 #include "db_item_source.h"
+#include "time_helper.h"
 #include "logging.h"
 
-#define FETCH_ITEM_SQL "select token_id, frequency from feed_item_tokens where feed_item_id = ?"
-#define FETCH_ALL_ITEMS_SQL "select feed_item_id, token_id, frequency from feed_item_tokens \
+#define FETCH_ITEM_SQL "select token_id, frequency, time from feed_item_tokens \
+                        join feed_items on feed_items.id = feed_item_tokens.feed_item_id \
+                        where feed_item_id = ?"
+#define FETCH_ALL_ITEMS_SQL "select feed_item_id, token_id, frequency, time from feed_item_tokens \
                               join feed_items on feed_items.id = feed_item_tokens.feed_item_id \
                               order by time desc, feed_item_id"
 
@@ -112,22 +115,30 @@ Item * fetch_item_func(const void *state_p, int item_id) {
     
     if (mysql_stmt_bind_param(stmt, bind)) goto fetch_item_query_error;      
     if (mysql_stmt_execute(stmt))          goto fetch_item_query_error;
+    
     int token_id;
     int frequency;
-    MYSQL_BIND results[2];
+    MYSQL_TIME time;
+    MYSQL_BIND results[3];
     memset(results, 0, sizeof(results));
     results[0].buffer_type = MYSQL_TYPE_LONG;
     results[0].buffer = (char *) &token_id;
     results[1].buffer_type = MYSQL_TYPE_LONG;
     results[1].buffer = (char *) &frequency;
+    results[2].buffer_type = MYSQL_TYPE_DATETIME;
+    results[2].buffer = (char *) &time;
     
     if (mysql_stmt_bind_result(stmt, results)) goto fetch_item_query_error;
     if (mysql_stmt_store_result(stmt))         goto fetch_item_query_error;
     
-    item = create_item(item_id);
-    if (NULL != item) {
-      while (!mysql_stmt_fetch(stmt)) {
+    if (!mysql_stmt_fetch(stmt)) {
+      item = create_item(item_id);
+      if (NULL != item) {
+        convert_mysql_time(&time, &(item->time));
         item_add_token(item, token_id, frequency);
+        while (!mysql_stmt_fetch(stmt)) {
+          item_add_token(item, token_id, frequency);
+        }
       }
     }
   }
@@ -158,17 +169,21 @@ ItemList * fetch_all_items_func(const void *state_p) {
   if (alive_func(state)) {
     Item *item = NULL;
     if (mysql_stmt_execute(stmt)) goto fetch_all_items_query_error;
+        
     int feed_item_id;
     int token_id;
     int frequency;
-    MYSQL_BIND results[3];
+    MYSQL_TIME time;
+    MYSQL_BIND results[4];
     memset(results, 0, sizeof(results));
     results[0].buffer_type = MYSQL_TYPE_LONG;
     results[1].buffer_type = MYSQL_TYPE_LONG;
     results[2].buffer_type = MYSQL_TYPE_LONG;
+    results[3].buffer_type = MYSQL_TYPE_DATETIME;
     results[0].buffer      = (char *) &feed_item_id;
     results[1].buffer      = (char *) &token_id;
     results[2].buffer      = (char *) &frequency;
+    results[3].buffer      = (char *) &time;
     
     if (mysql_stmt_bind_result(stmt, results)) goto fetch_all_items_query_error;
     if (mysql_stmt_store_result(stmt))         goto fetch_all_items_query_error;
@@ -176,6 +191,7 @@ ItemList * fetch_all_items_func(const void *state_p) {
     while (!mysql_stmt_fetch(stmt)) {
       if (NULL == item || item_get_id(item) != feed_item_id) {
         item = create_item(feed_item_id);
+        convert_mysql_time(&time, &(item->time));
         if (NULL == item) goto fetch_all_items_query_error;
         item_list_add_item(item_list, item);
       }
