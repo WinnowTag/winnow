@@ -82,6 +82,13 @@ static void setup_tagging_store() {
   if (mysql_stmt_prepare(tagging_count_stmt, COUNT_TAGGINGS, strlen(COUNT_TAGGINGS))) {
     fail("Failed preparing statement %s", mysql_stmt_error(tagging_count_stmt)); 
   } 
+  
+  // Reset tag table
+  if (mysql_query(mysql, "update tags set last_classified_at = NULL, bias = NULL")) fail(mysql_error(mysql));
+  if (mysql_query(mysql, "update tags set updated_on = '2007-11-1 00:00:00'")) fail(mysql_error(mysql));
+  if (mysql_query(mysql, "update tags set last_classified_at = '2007-10-31 00:00:00' where id = 38")) fail(mysql_error(mysql));
+  if (mysql_query(mysql, "update tags set last_classified_at = '2007-11-1 00:00:00' where id = 39")) fail(mysql_error(mysql));   
+  if (mysql_query(mysql, "update tags set bias = 1.2 where id = 38")) fail(mysql_error(mysql));
 }
 
 static void teardown_tagging_store() {

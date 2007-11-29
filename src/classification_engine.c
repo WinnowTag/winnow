@@ -115,6 +115,11 @@ struct CLASSIFICATION_ENGINE {
   pthread_t flusher;
 };
 
+typedef enum ITEM_SCOPE {
+  ITEM_SCOPE_ALL,
+  ITEM_SCOPE_NEW
+} ItemScope;
+
 struct CLASSIFICATION_JOB {
   const char * job_id;  
   int tag_id;
@@ -123,6 +128,7 @@ struct CLASSIFICATION_JOB {
   ClassificationJobType type;
   ClassificationJobState state;
   ClassificationJobError error;
+  ItemScope item_scope;
   time_t created_at;
   time_t started_at;
   time_t completed_at;
@@ -262,6 +268,20 @@ ClassificationJob * ce_add_classification_job_for_tag(ClassificationEngine * eng
       job = NULL;
     }
   }
+  return job;
+}
+
+ClassificationJob * ce_add_classify_new_items_job_for_tag(ClassificationEngine * engine, int tag_id) {
+  ClassificationJob *job = NULL;
+  if (engine) {
+    job = create_tag_classification_job(tag_id);
+    job->item_scope = ITEM_SCOPE_NEW;
+    if (add_classification_job(engine, job)) {
+      free_classification_job(job);
+      job = NULL;
+    }
+  }
+  
   return job;
 }
 
@@ -555,6 +575,29 @@ void *insertion_worker_func(void *engine_vp) {
   DB_THREAD_END;
 }
 
+static void create_classify_new_item_jobs_for_all_tags(ClassificationEngine *ce) {
+  if (ce) {
+    DBConfig dbConfig;
+    cfg_tag_db_config(ce->config, &dbConfig);
+    TagDB *tag_db = create_tag_db(&dbConfig);
+    if (tag_db) {
+      int i;
+      int size;
+      int *ids = tag_db_get_all_tag_ids(tag_db, &size);
+      
+      for (i = 0; i < size; i++) {
+        ce_add_classify_new_items_job_for_tag(ce, ids[i]);
+      }
+      
+      info("Created %i classify new items jobs", size);
+    } else {
+      error("Could not create tag_db in create_classify_new_item_jobs_for_all_tags");
+    }
+    
+    free_tag_db(tag_db);
+  }
+}
+
 void *flusher_func(void *engine_vp) {
   ClassificationEngine *engine = (ClassificationEngine*) engine_vp;
   
@@ -589,6 +632,7 @@ void *flusher_func(void *engine_vp) {
           info("Flusher thread woke up at %s", ctime(&woke_at));
           ce_suspend(engine);
           is_flush(engine->item_source);
+          create_classify_new_item_jobs_for_all_tags(engine);
           ce_resume(engine);
           time_t done_at = time(0);
           info("Flushing complete and classification resumed at %s", ctime(&done_at));
@@ -632,6 +676,7 @@ ClassificationJob * create_tag_classification_job(int tag_id) {
     job->state = CJOB_STATE_WAITING;
     job->error = CJOB_ERROR_NO_ERROR;
     job->type = CJOB_TYPE_TAG_JOB;
+    job->item_scope = ITEM_SCOPE_ALL;
     job->created_at = time(0);
   }
   
@@ -648,6 +693,7 @@ ClassificationJob * create_user_classification_job(int user_id) {
     job->state = CJOB_STATE_WAITING;
     job->error = CJOB_ERROR_NO_ERROR;
     job->type = CJOB_TYPE_USER_JOB;
+    job->item_scope = ITEM_SCOPE_ALL;
     job->created_at = time(0);
   }
   
@@ -769,15 +815,30 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist, const I
   job->progress = 20.0;
             
   job->state = CJOB_STATE_CLASSIFYING;  
-  for (i = 0; i < number_of_items; i++) {
+  for (i = 0; i < number_of_items; i++) {    
     Item *item = item_list_item_at(items, i);
     
     if (NULL == item) {
-      error("item at %i was NULL", i);
+      error("item at %i was NULL", i);    
     } else {
+      int complete = false; 
       int j;
       
       for (j = 0; j < taglist->size; j++) {
+        if (job->item_scope == ITEM_SCOPE_NEW && 
+            item_get_time(item) < tag_last_classified_at(taglist->tags[j])) {
+          // Only classifying new items and we have reached the point where
+          // the tag has already been applied to subsequent items, so if
+          // this is the only tag we bail out completely, if there are other
+          // tags just try the next one.
+          if (taglist->size > 1) {
+            continue;
+          } else {
+            complete = true;
+            break;
+          }
+        }
+          
         Tagging *tagging = classify(classifier[j], item);
         
         if (NULL != tagging) {
@@ -786,6 +847,10 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist, const I
         } else {
           error("Got NULL tagging");
         }
+      }
+      
+      if (complete) {
+        break;
       }
     }
 
