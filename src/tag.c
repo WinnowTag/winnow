@@ -345,6 +345,7 @@ int read_tagging_file(TagList *taglist, const char * user, const char * filename
 #define LOAD_EXAMPLES "select feed_item_id, strength from taggings where tag_id = ? and classifier_tagging = 0"
 #define LOAD_TAGS_FOR_USER "select id, name, bias, last_classified_at, updated_on from tags where user_id = ? and (last_classified_at is NULL or updated_on > last_classified_at)"
 #define UPDATE_LAST_CLASSIFIED_AT "update tags set last_classified_at = UTC_TIMESTAMP() where id = ?"
+#define GET_ALL_TAG_IDS "select id from tags order by id"
 
 struct TAG_DB {
   const DBConfig *config;
@@ -353,6 +354,7 @@ struct TAG_DB {
   MYSQL_STMT *load_examples_stmt;
   MYSQL_STMT *update_last_classified_at_stmt;
   MYSQL_STMT *find_tags_for_user_stmt;
+  MYSQL_STMT *get_all_tag_ids_stmt;
 };
 
 static int establish_connection(TagDB *tag_db);
@@ -650,6 +652,41 @@ int tag_db_update_last_classified_at(TagDB *tag_db, const Tag *tag) {
   return failed;
 }
 
+int * tag_db_get_all_tag_ids(TagDB *tag_db, int *size) {
+  int *ids = NULL;
+  
+  if (tag_db && tag_db_is_alive(tag_db)) {    
+    if (mysql_stmt_execute(tag_db->get_all_tag_ids_stmt)) goto error;
+    int id;
+    MYSQL_BIND result[1];
+    memset(result, 0, sizeof(result));
+    result[0].buffer_type = MYSQL_TYPE_LONG;
+    result[0].buffer = (char *) &id;
+    
+    if (mysql_stmt_bind_result(tag_db->get_all_tag_ids_stmt, result)) goto error;
+    if (mysql_stmt_store_result(tag_db->get_all_tag_ids_stmt))       goto error;
+    
+    int index = 0;
+    *size = (int) mysql_stmt_num_rows(tag_db->get_all_tag_ids_stmt);
+    ids = calloc(*size, sizeof(int));
+    if (NULL == ids) goto error;
+        
+    while (!mysql_stmt_fetch(tag_db->get_all_tag_ids_stmt)) {
+      ids[index++] = id;
+    }
+  }
+    
+exit:
+  if (tag_db) {
+    mysql_stmt_free_result(tag_db->get_all_tag_ids_stmt);
+  }
+  
+  return ids;
+error:
+  error("Error executing get_all_tag_ids statement: %s", mysql_stmt_error(tag_db->get_all_tag_ids_stmt));
+  goto exit;
+}
+
 /** Establishes the MySQL connection and prepares the statements needs to load a tag.
  *
  *  @returns true on successful connection establishment, false otherwise.
@@ -666,9 +703,13 @@ int establish_connection(TagDB *tag_db) {
     tag_db->load_examples_stmt = mysql_stmt_init(tag_db->mysql);
     tag_db->update_last_classified_at_stmt = mysql_stmt_init(tag_db->mysql);
     tag_db->find_tags_for_user_stmt = mysql_stmt_init(tag_db->mysql);
+    tag_db->get_all_tag_ids_stmt = mysql_stmt_init(tag_db->mysql);
 
-    if (NULL == tag_db->find_tag_stmt || NULL == tag_db->load_examples_stmt || 
-        NULL == tag_db->update_last_classified_at_stmt || NULL == tag_db->find_tags_for_user_stmt) {
+    if (NULL == tag_db->find_tag_stmt || 
+        NULL == tag_db->load_examples_stmt || 
+        NULL == tag_db->update_last_classified_at_stmt || 
+        NULL == tag_db->find_tags_for_user_stmt ||
+        NULL == tag_db->get_all_tag_ids_stmt) {
       error("Error creating prepared statement: %s", mysql_error(tag_db->mysql));
       success = false;
     } else if (mysql_stmt_prepare(tag_db->find_tag_stmt, FIND_TAG_STMT, strlen(FIND_TAG_STMT))) {
@@ -682,6 +723,9 @@ int establish_connection(TagDB *tag_db) {
       success = false;
     } else if (mysql_stmt_prepare(tag_db->find_tags_for_user_stmt, LOAD_TAGS_FOR_USER, strlen(LOAD_TAGS_FOR_USER))) {
       error("Error preparing hard coded statement: %s : %s", LOAD_TAGS_FOR_USER, mysql_error(tag_db->mysql));
+      success = false;
+    } else if (mysql_stmt_prepare(tag_db->get_all_tag_ids_stmt, GET_ALL_TAG_IDS, strlen(GET_ALL_TAG_IDS))) {
+      error("Error preparing hard coded statement: %s : %s", GET_ALL_TAG_IDS, mysql_error(tag_db->mysql));
       success = false;
     }
   }

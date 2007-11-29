@@ -230,6 +230,26 @@ START_TEST (test_load_bias_for_tag_list) {
   free_tag_db(tag_db);
 } END_TEST
 
+START_TEST (test_get_all_tag_ids) {
+  TagDB *tag_db = create_tag_db(&config);
+  assert_not_null(tag_db);
+  int size;
+  int *tag_ids = tag_db_get_all_tag_ids(tag_db, &size);
+  
+  assert_equal(8, size);
+  assert_equal(tag_ids[0], 38);
+  assert_equal(tag_ids[1], 39);
+  assert_equal(tag_ids[2], 40);
+  assert_equal(tag_ids[3], 41);
+  assert_equal(tag_ids[4], 44);
+  assert_equal(tag_ids[5], 45);
+  assert_equal(tag_ids[6], 47);
+  assert_equal(tag_ids[7], 48);
+  
+  free(tag_ids);
+  free_tag_db(tag_db);
+} END_TEST
+
 
 Suite *
 tag_db_suite(void) {
@@ -249,6 +269,7 @@ tag_db_suite(void) {
   tcase_add_test(tc_case, test_get_tags_for_user_loads_updated_at_time);
   tcase_add_test(tc_case, test_load_tag_by_id_loads_last_classified_time);
   tcase_add_test(tc_case, test_load_tag_by_id_loads_updated_at_time);
+  tcase_add_test(tc_case, test_get_all_tag_ids);
 // END_TESTS
 
   suite_add_tcase(s, tc_case);
