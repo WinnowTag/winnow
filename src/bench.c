@@ -107,7 +107,7 @@ void *do_classification(void *nothing) {
   float _precomputing = 0;
   float _classification = 0;
   
-  while (current_tag <= num_tags) {
+  while (current_tag < num_tags) {
     did_work = 1;
     pthread_mutex_lock(&mutex);
     const Tag *tag = tags->tags[current_tag];
