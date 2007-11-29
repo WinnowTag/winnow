@@ -1,0 +1,86 @@
+Copyright (c) 2007, The Kaphan Foundation.
+
+This file contains instructions for building and installing the Peerworks Classification Engine.
+
+For information on how to run and configure the classification engine see README.
+
+On OSX, these instructions assume you are using MacPorts.
+
+Getting the Classifier 
+====================================================
+
+The classifier is currently only available via Subversion from
+http://svn.winnow.peerworks.org/trunk/classifier_c
+
+
+Prerequisites
+====================================================
+
+The classification engine depends on:
+
+  * Judy 1.0.4
+  * libmicrohttpd 0.1.1 with fixes.
+  * mysqlclient 5.0.x
+  * check 0.9.5 (Required for running unit tests, available as a macport).
+  * libxml2 (Probably already installed, won't provide instructions)
+  * libconfig (Get it from http://www.hyperrealm.com/libconfig/. Just the standard C build.)
+
+=== Installing Judy  ===
+
+  1) Download Judy 1.0.4 from http://judy.sourceforge.net
+  2) Unzip Judy then open a terminal in the Judy directory.
+  3) Configure, build and install Judy using:
+     > ./configure
+     > make 
+     > sudo make install
+ 3a) OSX users will need to pass a parameter to Judy to use a lower 
+     optimization level due to a compiler optimization bug. Also, 
+     because of this bug, don't install the Judy port.  
+     
+     Instead of typing ./configure do:
+     > ./configure CFLAGS=-O
+     > make
+     > sudo make install
+          
+=== Installing libmicrohttpd ===
+
+The classifier requires a version of libmicrohttpd which has a specific bug fixed.
+This version is provided in the lib directory of the classifier code base. To 
+install libmicrohttpd, from the classifier directory perform the following:
+
+     > cd lib
+     > tar -zxvf libmicrohttpd-0.1.1.tar.gz
+     > cd libmicrohttpd-0.1.1
+     > ./configure
+     > make
+     > sudo make install
+     
+Once the bugfix has been applied to the original code the libmicrohttpd in
+the lib directoy will be removed and we can just use the original source.
+  
+=== Installing mysqlclient ===
+
+I won't cover the installation of mysqlclient here, suffice to say that if you have
+MySQL installed you probably have mysqlclient installed and the classifiers build
+scripts should do a pretty good job of finding it.
+
+Building and Installing the Classifier
+====================================================
+
+These instructions include steps for building the classifier's build system using the
+autoconf and automake scripts.  OSX also requires a few tweaks to get this to work,
+these will be included here. To build the classifier from a distribution package jump
+to step 3, if you are using the Subversion copy you will need to perform steps 1 and 2.
+
+  1) (OSX only) Install the MacPort version of autoconf, automake and pkg-config.
+                Set the LIBTOOLIZE to "glibtoolize".
+  2) From the classifier top level directory run:
+      > autoreconf --install
+     This will build the configure script and makefile templates for the build system.
+  3) Build and install the classifier:
+      > ./configure
+      > make
+      > sudo make install
+ 
+ See the README file for info on running the classifier.
+ 
