@@ -60,7 +60,8 @@ AC_CHECK_LIB(mysqlclient, mysql_real_connect,
   [AC_MSG_ERROR(Could not find mysqlclient with mysql_real_connect)])
 
 # Unit testing library
-PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
+# TODO: Remove dependency on PKG_CHECK_MODULES
+#PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
 
 # libcurl (required for testing)
 AC_CHECK_LIB(curl, curl_easy_init, [], [])
@@ -80,8 +81,6 @@ AC_CHECK_HEADERS([libxml/parser.h], [], [AC_MSG_ERROR(libxml/parser.h is missing
 MYSQL_INCLUDE=$($MYSQL_CONFIG --cflags)
 CPPFLAGS="$CPPFLAGS $MYSQL_INCLUDE"
 AC_CHECK_HEADERS([mysql.h], [], [AC_MSG_ERROR(mysql.h is missing)])
-
-AC_FUNC_MALLOC
 
 # Output Files
 AC_CONFIG_HEADERS([config.h])

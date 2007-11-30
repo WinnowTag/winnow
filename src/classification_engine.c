@@ -653,6 +653,7 @@ void *flusher_func(void *engine_vp) {
   job->error = err;              \
   error(msg, __VA_ARGS__);
 
+// TODO Make portable
 static const char * generate_job_id() {
   char *job_id = calloc(JOB_ID_SIZE, sizeof(char));
   if (NULL == job_id) {

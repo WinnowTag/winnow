@@ -1,7 +1,7 @@
 TESTS = check_all check_db check_http
 CLEANFILES = http_test.log http_test_data.log test.log
 
-check_PROGRAMS = check_all check_db check_http
+check_PROGRAMS = check_all check_db check_http check_all.debug
 
 check_http_SOURCE = check_http.c
 check_http_CFLAGS = @CHECK_CFLAGS@ -g -DDEBUG
@@ -50,7 +50,6 @@ check_db_CFLAGS = @CHECK_CFLAGS@
 check_db_LDADD = @CHECK_LIBS@  \
             $(top_builddir)/src/libclassifier.la
 
-bin_PROGRAMS = check_all.debug
 check_all_debug_SOURCES = $(check_all_SOURCES)
 check_all_debug_CFLAGS = @CHECK_CFLAGS@ -g -DDEBUG
 check_all_debug_LDADD = @CHECK_LIBS@ $(top_builddir)/src/libclassifier.la
