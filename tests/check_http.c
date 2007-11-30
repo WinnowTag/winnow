@@ -16,6 +16,7 @@
 #include "../src/httpd.h"
 #include "assertions.h"
 #include "../src/logging.h"
+#include "fixtures.h"
 
 #define PORT 8008
 
@@ -24,16 +25,23 @@ ClassificationEngine *ce;
 Httpd *httpd;
 static FILE *test_data;
 static FILE *devnull;
+static FILE *data;
+static FILE *headers;
 
 static void setup_httpd() {
+  test_data = fopen("http_test_data.log", "a");
+  headers = fopen("/tmp/headers.txt", "w");
+  data    = fopen("/tmp/test_data.xml", "w");
+  
+  setup_fixture_path();
   config = load_config("fixtures/real-db.conf");
   ce = create_classification_engine(config);  
   httpd = httpd_start(config, ce);
-  test_data = fopen("http_test_data.log", "a");
   devnull = fopen("/dev/null", "w");
 }
 
 static void teardown_httpd() {
+  teardown_fixture_path();
   httpd_stop(httpd);
   ce_stop(ce);
   free_classification_engine(ce);
@@ -102,8 +110,7 @@ START_TEST(test_post_to_create_job_without_xml_returns_415) {
 } END_TEST
 
 START_TEST(test_post_with_valid_tag_id_queues_job) {
-  FILE *headers = fopen("headers.txt", "w");
-  FILE *data    = fopen("test_data.xml", "w"); 
+  
   assert_equal(0, ce_num_jobs_in_system(ce));
   char *post_data = "<?xml version='1.0'?>\n<job><tag-id>48</tag-id></job>";
   assert_post("http://localhost:8008/classifier/jobs", post_data, 201, data, headers);
@@ -112,7 +119,7 @@ START_TEST(test_post_with_valid_tag_id_queues_job) {
   mark_point();
   
   assert_equal(1, ce_num_jobs_in_system(ce));
-  xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
+  xmlDocPtr doc = xmlReadFile("/tmp/test_data.xml", NULL, 0);
   fail_unless(doc != NULL, "Failed to parse xml");
   assert_xpath("/job/id/text()", doc);
   mark_point();
@@ -130,7 +137,7 @@ START_TEST(test_post_with_valid_tag_id_queues_job) {
   
   char line[1024];
   sprintf(line, "Location: /classifier/jobs/%s", id);
-  assert_file_contains_line("headers.txt", line);
+  assert_file_contains_line("/tmp/headers.txt", line);
 
   xmlXPathFreeObject(result);  
   xmlXPathFreeContext(context);
@@ -138,14 +145,13 @@ START_TEST(test_post_with_valid_tag_id_queues_job) {
 } END_TEST
 
 START_TEST(test_post_with_user_id_queues_job) {
-  FILE *data = fopen("test_data.xml", "w");
   char *post_data = "<?xml version='1.0'?>\n<job><user-id>2</user-id></job>";
   assert_post("http://localhost:8008/classifier/jobs", post_data, 201, data, devnull);
   fclose(data);
   mark_point();
   
   assert_equal(1, ce_num_jobs_in_system(ce));
-  xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
+  xmlDocPtr doc = xmlReadFile("/tmp/test_data.xml", NULL, 0);
   fail_unless(doc != NULL, "Failed to parse XML");
   assert_xpath("/job/id/text()", doc);
   assert_xpath("/job/user-id[text() = '2']", doc);
@@ -189,14 +195,13 @@ START_TEST(test_job_status) {
   char url[256];
   ClassificationJob *job = ce_add_classification_job_for_tag(ce, 39);
   sprintf(url, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
-  FILE *data = fopen("test_data.xml", "w");
   assert_get(url, 200, data);
   fclose(data);
   
   char idpath[1024];
   sprintf(idpath, "/job/id[text() = '%s']", cjob_id(job));
                 
-  xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
+  xmlDocPtr doc = xmlReadFile("/tmp/test_data.xml", NULL, 0);
   if (doc == NULL) fail("Failed to parse xml");
   
   assert_xpath(idpath, doc);
@@ -210,14 +215,13 @@ START_TEST(test_job_status_with_xml_suffix) {
   char url[256];
   ClassificationJob *job = ce_add_classification_job_for_tag(ce, 39);
   sprintf(url, "http://localhost:8008/classifier/jobs/%s.xml", cjob_id(job));
-  FILE *data = fopen("test_data.xml", "w");
   assert_get(url, 200, data);
   fclose(data);
   
   char idpath[1024];
   sprintf(idpath, "/job/id[text() = '%s']", cjob_id(job));
                 
-  xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
+  xmlDocPtr doc = xmlReadFile("/tmp/test_data.xml", NULL, 0);
   if (doc == NULL) fail("Failed to parse xml");
   
   assert_xpath(idpath, doc);
@@ -233,14 +237,13 @@ START_TEST(test_completed_job_status) {
   ce_start(ce);
   ce_stop(ce);
   sprintf(url, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
-  FILE *data = fopen("test_data.xml", "w");
   assert_get(url, 200, data);
   fclose(data);
   
   char idpath[1024];
   sprintf(idpath, "/job/id[text() = '%s']", cjob_id(job));
                 
-  xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
+  xmlDocPtr doc = xmlReadFile("/tmp/test_data.xml", NULL, 0);
   if (doc == NULL) fail("Failed to parse xml");
   
   assert_xpath(idpath, doc);
@@ -266,14 +269,13 @@ START_TEST(test_error_job_status) {
   ce_stop(ce);
   
   sprintf(url, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
-  FILE *data = fopen("test_data.xml", "w");
   assert_get(url, 200, data);
   fclose(data);
   
   char idpath[1024];
   sprintf(idpath, "/job/id[text() = '%s']", cjob_id(job));
                 
-  xmlDocPtr doc = xmlReadFile("test_data.xml", NULL, 0);
+  xmlDocPtr doc = xmlReadFile("/tmp/test_data.xml", NULL, 0);
   if (doc == NULL) fail("Failed to parse xml");
   
   assert_xpath(idpath, doc);

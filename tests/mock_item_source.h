@@ -10,9 +10,11 @@
 #endif
 #include "../src/item.h"
 #include "../src/item_source.h"
+#include "fixtures.h"
 
 #define MOCK_IS_SIZE 4 
 
+static char cwd[1024];
 static ItemSource *is;
 
 static Item *item_1;
@@ -41,6 +43,8 @@ static ItemList * fake_fetch_all(const void *ignore) {
 }
 
 static void setup_mock_item_source(void) {
+  setup_fixture_path();
+   
   int tokens_1[][2] = {1, 10, 2, 3};
   int tokens_2[][2] = {1, 5, 3, 4};
   int tokens_3[][2] = {1, 6, 2, 4};
@@ -63,6 +67,7 @@ static void setup_mock_item_source(void) {
 }
 
 static void teardown_mock_item_source(void) {
+  teardown_fixture_path();
   free_item_source(is);
   free_item_list(item_list);
   free_item(item_1);

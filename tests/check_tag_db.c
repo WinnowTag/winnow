@@ -11,6 +11,7 @@
 #include "../src/cls_config.h"
 #include "assertions.h"
 #include "mysql.h"
+#include "fixtures.h"
 
 Config *config;
 DBConfig dbconfig;
@@ -18,6 +19,7 @@ TagDB *tag_db;
 MYSQL *mysql;
 
 static void setup() {
+  setup_fixture_path();
   config = load_config("conf/test.conf");
   cfg_tag_db_config(config, &dbconfig);
   tag_db = create_tag_db(&dbconfig);
@@ -39,6 +41,7 @@ static void teardown() {
   free_tag_db(tag_db);
   mysql_close(mysql);
   mysql = NULL;
+  teardown_fixture_path();
 }
 
 static void assert_last_classified_updated(int tag_id) {

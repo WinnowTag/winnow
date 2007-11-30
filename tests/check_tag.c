@@ -9,6 +9,8 @@
 #include <check.h>
 #include "assertions.h"
 #include "../src/tag.h"
+#include "fixtures.h"
+
 
 START_TEST (loads_right_number_of_tags) {
   TagList *tags = load_tags_from_file("fixtures", "user");
@@ -75,6 +77,7 @@ Suite *
 tag_suite(void) {
   Suite *s = suite_create("Tag");  
   TCase *tc_tag = tcase_create("Tag");
+  tcase_add_checked_fixture (tc_tag, setup_fixture_path, teardown_fixture_path);
 
 // START_TESTS
   tcase_add_test(tc_tag, loads_right_number_of_tags);

@@ -11,6 +11,7 @@
 #include "../src/random_background.h"
 #include "../src/pool.h"
 #include "mock_item_source.h"
+#include "fixtures.h"
 
 START_TEST (load_random_background_from_file_test) {
   Pool *random = create_random_background_from_file(is, "fixtures/random_background.txt");

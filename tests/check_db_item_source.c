@@ -12,17 +12,20 @@
 #include "assertions.h"
 #include "../src/cls_config.h"
 #include "../src/db_item_source.h"
+#include "fixtures.h"
 
 Config *config;
 DBConfig dbconfig;
 
 static void setup_config(void) {
+  setup_fixture_path();
   config = load_config("conf/test.conf");
   cfg_item_db_config(config, &dbconfig);
 }
 
 static void teardown_config(void) { 
   free_config(config);
+  teardown_fixture_path();
 }
 
 START_TEST (test_loads_time) {

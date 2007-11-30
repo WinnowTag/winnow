@@ -12,6 +12,7 @@
 #include "../src/item_source.h"
 #include "../src/file_item_source.h"
 #include "assertions.h"
+#include "fixtures.h"
 
 #ifndef CORPUS
 #define CORPUS "fixtures"
@@ -152,6 +153,7 @@ item_suite(void) {
   Suite *s = suite_create("ItemLoader");
   
   TCase *tc_item_loader = tcase_create("Item Loader");
+  tcase_add_checked_fixture (tc_item_loader, setup_fixture_path, teardown_fixture_path);
   tcase_add_test(tc_item_loader, check_token_count);
   tcase_add_test(tc_item_loader, check_item_total_tokens);
   tcase_add_test(tc_item_loader, check_item_id);
@@ -165,6 +167,7 @@ item_suite(void) {
   suite_add_tcase(s, tc_item_loader);  
   
   TCase *tc_item_source = tcase_create("Item Source");
+  tcase_add_checked_fixture (tc_item_source, setup_fixture_path, teardown_fixture_path);
   tcase_add_test(tc_item_source, setup_item_source);
   suite_add_tcase(s, tc_item_source);
   

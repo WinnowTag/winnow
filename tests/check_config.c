@@ -10,6 +10,7 @@
 #include <string.h>
 #include "assertions.h"
 #include "../src/cls_config.h"
+#include "fixtures.h"
 
 START_TEST(test_http_config) {
   Config *config = load_config("fixtures/real-db.conf");
@@ -106,6 +107,7 @@ config_suite(void) {
   TCase *tc_case = tcase_create("Case");
 
 // START_TESTS
+  tcase_add_checked_fixture(tc_case, setup_fixture_path, teardown_fixture_path);
   tcase_add_test(tc_case, null_item_db_configuration);
   tcase_add_test(tc_case, item_db_configuration);
   tcase_add_test(tc_case, tag_db_configuration);

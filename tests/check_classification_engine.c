@@ -12,6 +12,7 @@
 #include "../src/classification_engine.h"
 #include "tagging_store_fixtures.h"
 #include "../src/logging.h"
+#include "fixtures.h"
 
 #define TAG_ID 48
 #define BOGUS_TAG_ID 11111
@@ -19,6 +20,16 @@
 /************************************************************************
  * End to End tests
  ************************************************************************/
+static void setup_end_to_end(void) {
+  setup_fixture_path();
+  setup_tagging_store();
+}
+
+static void teardown_end_to_end(void) {
+  setup_fixture_path();
+  setup_tagging_store();
+}
+
 START_TEST(inserts_taggings) {
   assert_tagging_count_is(0);
   Config *config = load_config("conf/test.conf");
@@ -116,11 +127,13 @@ Config *ce_config;
 ClassificationEngine *ce;
 
 static void setup_engine() {
+  setup_fixture_path();
   ce_config = load_config("conf/test.conf");
   ce = create_classification_engine(ce_config);
 }
 
 static void teardown_engine() {
+  teardown_fixture_path();
   free_classification_engine(ce);
   free_config(ce_config);
 }
@@ -246,6 +259,7 @@ Suite * classification_engine_suite(void) {
   TCase *tc_initialization_case = tcase_create("initialization");
 
   // START_TESTS
+  tcase_add_checked_fixture(tc_initialization_case, setup_fixture_path, teardown_fixture_path);
   tcase_add_test(tc_initialization_case, test_engine_initialization); 
   tcase_add_test(tc_initialization_case, test_engine_initialization_without_corpus_defined);
   tcase_add_test(tc_initialization_case, test_engine_initialization_with_non_existant_db);
@@ -265,7 +279,7 @@ Suite * classification_engine_suite(void) {
   // END_TESTS
 
   TCase *tc_end_to_end = tcase_create("end to end");
-  tcase_add_checked_fixture(tc_end_to_end, setup_tagging_store, teardown_tagging_store);
+  tcase_add_checked_fixture(tc_end_to_end, setup_end_to_end, teardown_end_to_end);
   tcase_add_test(tc_end_to_end, inserts_taggings);
   tcase_add_test(tc_end_to_end, inserts_taggings_for_all_users_tags);
   tcase_add_test(tc_end_to_end, cancelled_job_doesnt_insert_taggings_if_cancelled_before_processed);

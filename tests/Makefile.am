@@ -1,4 +1,6 @@
 TESTS = check_all check_db check_http
+CLEANFILES = http_test.log http_test_data.log test.log
+
 check_PROGRAMS = check_all check_db check_http
 
 check_http_SOURCE = check_http.c
@@ -16,10 +18,15 @@ check_all_SOURCES = check_all.c \
                 check_random_background.c $(top_builddir)/src/random_background.h \
                 check_clue.c $(top_builddir)/src/clue.h \
                 check_samples.c $(top_builddir)/src/samples.h \
-                check_queue.c $(top_builddir)/src/queue.h \
-                check_config.c $(top_builddir)/src/config.h \
+                check_queue.c $(top_builddir)/src/job_queue.h \
+                check_config.c $(top_builddir)/src/cls_config.h \
                 check_caching_item_source.c \
-                $(top_builddir)/src/tagging.h
+                $(top_builddir)/src/tagging.h \
+                assertions.h  \
+                mock_item_source.h \
+                tagging_store_fixtures.h \
+                fixtures.h
+                
                 
 check_all_CFLAGS = @CHECK_CFLAGS@ -g -DDEBUG
 check_all_LDADD = @CHECK_LIBS@  \
@@ -48,3 +55,5 @@ check_all_debug_SOURCES = $(check_all_SOURCES)
 check_all_debug_CFLAGS = @CHECK_CFLAGS@ -g -DDEBUG
 check_all_debug_LDADD = @CHECK_LIBS@ $(top_builddir)/src/libclassifier.la
 check_all_debug_LDFLAGS = -static
+
+dist_check_DATA = fixtures conf
