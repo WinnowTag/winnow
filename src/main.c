@@ -18,8 +18,8 @@
 #include "httpd.h"
 #include "misc.h"
 
-#define DEFAULT_CONFIG_FILE "config.conf"
-#define DEFAULT_LOG_FILE "classifier.log"
+#define DEFAULT_CONFIG_FILE "config/classifier.conf"
+#define DEFAULT_LOG_FILE "log/classifier.log"
 #define SHORT_OPTS "hvdc:l:"
 #define USAGE "Usage: classifier [-dvh] [-c CONFIGFILE] [-l LOGFILE]\n"
 

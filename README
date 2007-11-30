@@ -12,10 +12,10 @@ The classifier program supports these options:
 
  -c CONFIG_FILE 
      Defines the name of the configuration file to use. 
-     Defaults to config.conf in the current directory.
+     Defaults to config/classifier.conf in the current directory.
  -l LOG_FILE
      Defines where to write log messages to.
-     Defaults to classifier.log in the current directory.
+     Defaults to log/classifier.log in the current directory.
  -d
      Forces the classifier to run as a daemon.
      
