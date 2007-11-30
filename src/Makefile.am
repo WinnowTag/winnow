@@ -24,12 +24,22 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            time_helper.h             \
                            time_helper.c
                            
-bin_PROGRAMS = cls_bench classifier classifier.debug
-cls_bench_SOURCES = bench.c
-cls_bench_LDADD = libclassifier.la
+bin_PROGRAMS = classifier
 classifier_SOURCES = main.c
 classifier_LDADD = libclassifier.la
+
+
+cls_bench_SOURCES = bench.c
+cls_bench_LDADD = libclassifier.la
+
+if DEBUG
 classifier_debug_SOURCES = main.c
 classifier_debug_LDADD = libclassifier.la
 classifier_debug_CFLAGS = -g -DDEBUG
 classifier_debug_LDFLAGS = -static
+DBG = classifier.debug
+else !DEBUG
+DBG = 
+endif !DEBUG
+
+noinst_PROGRAMS = cls_bench $(DBG)

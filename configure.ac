@@ -29,6 +29,16 @@ if test "x$XML2_CONFIG" = "x"; then
   AC_MSG_ERROR([Could not find xml2-config. Please verify libxml2 is installed or pass in path to xml2-config using --with-xml2-config])
 fi
 
+### Check for debug build
+AC_ARG_ENABLE([debug],
+     [  --enable-debug    Turn on debugging],
+     [case "${enableval}" in
+       yes) debug=true ;;
+       no)  debug=false ;;
+       *) AC_MSG_ERROR([bad value ${enableval} for --enable-debug]) ;;
+     esac],[debug=false])
+AM_CONDITIONAL([DEBUG], [test x$debug = xtrue])
+
 ### Check libraries
 
 AC_CHECK_LIB([m], [fabs])
