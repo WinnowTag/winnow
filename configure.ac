@@ -55,7 +55,7 @@ AC_CHECK_LIB(xml2, xmlReadFile, [], [AC_MSG_ERROR(libxml2 is missing xmlReadFile
 ### Setup MySQL libraries
 MYSQL_LIBS=$($MYSQL_CONFIG --libs_r)
 LIBS="$LIBS $MYSQL_LIBS"
-AC_CHECK_LIB(mysqlclient, mysql_real_connect, 
+AC_CHECK_LIB(mysqlclient_r, mysql_real_connect, 
   [AC_DEFINE(HAVE_DATABASE_ACCESS,,[We have DB libraries])], 
   [AC_MSG_ERROR(Could not find mysqlclient with mysql_real_connect)])
 
