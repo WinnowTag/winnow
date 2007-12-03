@@ -1,5 +1,4 @@
 lib_LTLIBRARIES = libclassifier.la
-AUTOMAKE_OPTIONS = subdir-objects
 
 # Force path to be $(libdir) on all linkages.
 # This seems to fix a problem on Linux with:
@@ -50,7 +49,7 @@ cls_bench_LDADD = libclassifier.la
 
 if DEBUG
 classifier_debug_SOURCES = main.c
-classifier_debug_LDADD = libclassifier.la @LIBOBJS@
+classifier_debug_LDADD = libclassifier.la
 classifier_debug_CFLAGS = -g -DDEBUG
 classifier_debug_LDFLAGS = -static
 DBG = classifier.debug

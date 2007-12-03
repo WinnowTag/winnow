@@ -1,6 +1,6 @@
 AC_INIT([classifier], [1.0], [info@peerworks.org])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
-AC_CONFIG_LIBOBJ_DIR(lib)
+AC_CONFIG_LIBOBJ_DIR(src)
 
 ### Check for programs.
 AC_PROG_CC
