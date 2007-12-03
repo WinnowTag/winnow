@@ -30,6 +30,9 @@ if test "x$XML2_CONFIG" = "x"; then
   AC_MSG_ERROR([Could not find xml2-config. Please verify libxml2 is installed or pass in path to xml2-config using --with-xml2-config])
 fi
 
+### Check for pkg-config
+AC_CHECK_PROGS(PKG_CONFIG, [pkg-config])
+
 ### Check for debug build
 AC_ARG_ENABLE([debug],
      [  --enable-debug    Turn on debugging],
@@ -54,7 +57,7 @@ AC_CHECK_LIB(microhttpd, MHD_start_daemon, [], [AC_MSG_WARN(libmicrohttpd is mis
 
 ### Setup libxml2 libs
 XML2_LIBS=$($XML2_CONFIG --libs)
-LIBS="$LIBS $XML2_LIBS"
+LIBS="$XML2_LIBS $LIBS"
 AC_CHECK_LIB(xml2, xmlReadFile, [], [AC_MSG_ERROR(libxml2 is missing xmlReadFile)])
 
 ### Setup MySQL libraries
@@ -65,8 +68,9 @@ AC_CHECK_LIB(mysqlclient_r, mysql_real_connect,
   [AC_MSG_ERROR(Could not find mysqlclient with mysql_real_connect)])
 
 # Unit testing library
-# TODO: Remove dependency on PKG_CHECK_MODULES
-#PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
+if test "x$PKG_CONFIG" != "x"; then
+PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
+fi
 
 # libcurl (required for testing)
 AC_CHECK_LIB(curl, curl_easy_init, [], [])

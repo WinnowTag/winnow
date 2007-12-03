@@ -1,5 +1,18 @@
-AUTOMAKE_OPTIONS = subdir-objects
 lib_LTLIBRARIES = libclassifier.la
+AUTOMAKE_OPTIONS = subdir-objects
+
+# Force path to be $(libdir) on all linkages.
+# This seems to fix a problem on Linux with:
+#   - automake 1.9.5
+#   - autoconf 2.61
+#   - libtool  1.5.14
+# where the -rpth would get set to the mysql library
+# path and nothing in /usr/local/lib would get found.
+#
+# This might be fixed in later versions, I guess we will
+# see as we deploy to more sites.
+#
+LDFLAGS = -rpath $(libdir)
 
 libclassifier_la_SOURCES = classifier.c classifier.h \
                            item.c item.h             \
@@ -26,18 +39,18 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            time_helper.h             \
                            time_helper.c						 \
                            uuid.h
-                           
+libclassifier_la_LIBADD = @LTLIBOBJS@
+       
 bin_PROGRAMS = classifier
 classifier_SOURCES = main.c
-classifier_LDADD = libclassifier.la @LIBOBJS@
-
+classifier_LDADD = libclassifier.la
 
 cls_bench_SOURCES = bench.c
-cls_bench_LDADD = libclassifier.la
+cls_bench_LDADD = libclassifier.la 
 
 if DEBUG
 classifier_debug_SOURCES = main.c
-classifier_debug_LDADD = libclassifier.la
+classifier_debug_LDADD = libclassifier.la @LIBOBJS@
 classifier_debug_CFLAGS = -g -DDEBUG
 classifier_debug_LDFLAGS = -static
 DBG = classifier.debug
