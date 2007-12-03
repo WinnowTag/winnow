@@ -71,25 +71,11 @@ Item * create_item_from_file(const void * state, const int item_id) {
 int build_item_path(const char * corpus, int item_id, char * buffer, int length) {
   int return_code = 0;
     
-  if ((strlcpy(buffer, corpus, length) >= length)
-      || (strlcat(buffer, "/", length) >= length)) {
-    return_code = ERR;
-  } else {
-    int path_length;
-    int copied_chars;
-    
-    path_length = strlen(buffer);  
-    copied_chars = snprintf(&buffer[path_length], length - path_length, "%d.tokens", item_id);
-    
-    if (copied_chars >= length - path_length) {
-      return_code = ERR;
-    }
-  }
-
-  if (ERR == return_code) {    
+  if (length < snprintf(buffer, length, "%s/%d.tokens", corpus, item_id)) {
     error("item path too long: '%s'", buffer);
+    return_code = ERR;
   }
-  
+    
   return return_code;
 }
 

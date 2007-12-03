@@ -292,11 +292,7 @@ int tag_add_example(Tag *tag, int example, float strength) {
 
 int build_tagging_path(const char * corpus, const char * user, char * buffer, int length) {
   int return_code = 0;
-
-  if ((strlcpy(buffer, corpus, length) >= length)
-     || (strlcat(buffer, "/", length) >= length)
-     || (strlcat(buffer, user, length) >= length)
-     || (strlcat(buffer, "-taggings.csv", length) >= length)) {
+  if (length < snprintf(buffer, length, "%s/%s-taggings.csv", corpus, user)) {
     error("tagging path too long: %s", buffer);
     return_code = ERR;
   } 
