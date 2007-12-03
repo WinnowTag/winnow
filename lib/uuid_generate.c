@@ -25,5 +25,5 @@ void uuid_generate(uuid_t uuid) {
   short rand_high = (short) random >> 16;
   short rand_low  = (short) random;
   
-  snprintf(uuid, UUID_SIZE, "%8X-%4X-%4X-%4X-%12X", random, rand_high, rand_low, (short) pid, now);
+  snprintf(uuid, UUID_SIZE, "%08X-%04X-%04X-%04X-%012X", random, rand_high, rand_low, (short) pid, now);
 }
