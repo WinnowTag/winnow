@@ -286,7 +286,10 @@ static int start_job_handle(void * ce_vp, struct MHD_Connection * connection,
   
   return ret;
 }
-/* This is the base response handler. It just returns a 404. */
+/* This is the base response handler. It just returns a 404. 
+ * 
+ * TODO Regex matching of URLs would be much more robust
+ */
 static int process_request(void * ce_vp, struct MHD_Connection * connection,
                            const char * raw_url, const char * method, 
                            const char * version, const char * upload_data,
@@ -294,10 +297,14 @@ static int process_request(void * ce_vp, struct MHD_Connection * connection,
   int ret = 1;
   
   char url[1024];
-  strncpy(url, raw_url, sizeof(url));
-  
+  if (sizeof(url) < snprintf(url, sizeof(url), "%s", raw_url)) {
+    error("URL '%s' is too long", raw_url);
+    return MHD_NO;
+  }
+ 
+  /* strip any .xml extensions */
   char *ext;
-  if (ext = strcasestr(url, ".xml")) {
+  if (ext = strstr(url, ".xml")) {
     ext[0] = '\0';
   }  
  
