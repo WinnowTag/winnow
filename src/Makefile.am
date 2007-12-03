@@ -1,3 +1,4 @@
+AUTOMAKE_OPTIONS = subdir-objects
 lib_LTLIBRARIES = libclassifier.la
 
 libclassifier_la_SOURCES = classifier.c classifier.h \
@@ -23,11 +24,12 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            httpd.h httpd.c           \
                            misc.h                    \
                            time_helper.h             \
-                           time_helper.c
+                           time_helper.c						 \
+                           uuid.h
                            
 bin_PROGRAMS = classifier
 classifier_SOURCES = main.c
-classifier_LDADD = libclassifier.la
+classifier_LDADD = libclassifier.la @LIBOBJS@
 
 
 cls_bench_SOURCES = bench.c

@@ -1,5 +1,6 @@
 AC_INIT([classifier], [1.0], [info@peerworks.org])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
+AC_CONFIG_LIBOBJ_DIR(lib)
 
 ### Check for programs.
 AC_PROG_CC
@@ -38,6 +39,10 @@ AC_ARG_ENABLE([debug],
        *) AC_MSG_ERROR([bad value ${enableval} for --enable-debug]) ;;
      esac],[debug=false])
 AM_CONDITIONAL([DEBUG], [test x$debug = xtrue])
+
+### Check Functions
+AC_REPLACE_FUNCS(uuid_generate)
+AC_REPLACE_FUNCS(uuid_unparse)
 
 ### Check libraries
 
@@ -81,6 +86,9 @@ AC_CHECK_HEADERS([libxml/parser.h], [], [AC_MSG_ERROR(libxml/parser.h is missing
 MYSQL_INCLUDE=$($MYSQL_CONFIG --cflags)
 CPPFLAGS="$CPPFLAGS $MYSQL_INCLUDE"
 AC_CHECK_HEADERS([mysql.h], [], [AC_MSG_ERROR(mysql.h is missing)])
+
+### Check for types
+AC_CHECK_TYPES(uuid_t)
 
 # Output Files
 AC_CONFIG_HEADERS([config.h])

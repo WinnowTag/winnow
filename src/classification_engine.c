@@ -8,11 +8,11 @@
 
 #include <pthread.h>
 #include <stdlib.h>
-#include <uuid/uuid.h>
 #include <time.h>
 #include <Judy.h>
 #include <string.h>
 #include "classification_engine.h"
+#include "uuid.h"
 #include "classifier.h"
 #include "item_source.h"
 #include "tagging.h"
@@ -47,7 +47,7 @@
   if (pthread_cond_init(cond, NULL)) goto malloc_error;
 
 /* Size of a UUID string (36) + 1 for \0 */ 
-#define JOB_ID_SIZE 37
+#define JOB_ID_SIZE UUID_SIZE + 1
 
 struct CLASSIFICATION_ENGINE {
   /* Pointer to classification engine configuration */
