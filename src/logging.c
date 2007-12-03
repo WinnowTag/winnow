@@ -15,7 +15,7 @@
 
 #define PREFIX(type) type " (%s:%i): "
 
-FILE *log_file = stderr;
+static FILE *log_file;
 
 void initialize_logging(const char *filename) {
   log_file = fopen(filename, "a");
