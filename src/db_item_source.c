@@ -12,13 +12,14 @@
 #include "db_item_source.h"
 #include "time_helper.h"
 #include "logging.h"
+#include "misc.h"
 
 #define FETCH_ITEM_SQL "select token_id, frequency, time from feed_item_tokens \
                         join feed_items on feed_items.id = feed_item_tokens.feed_item_id \
                         where feed_item_id = ?"
-#define FETCH_ALL_ITEMS_SQL "select feed_item_id, token_id, frequency, time from feed_item_tokens \
-                              join feed_items on feed_items.id = feed_item_tokens.feed_item_id \
-                              order by time desc, feed_item_id"
+#define FETCH_ALL_ITEMS_SQL "select feed_items.id, token_id, frequency, time from feed_items \
+                        join feed_item_tokens on feed_items.id = feed_item_tokens.feed_item_id \
+                        order by time desc, feed_items.id"
 
 typedef struct DB_ITEMSOURCE {
   /* DB connection configuration */
@@ -31,9 +32,10 @@ typedef struct DB_ITEMSOURCE {
   MYSQL_STMT *fetch_all_items_stmt;
 } DBItemSource;
 
-static Item *     fetch_item_func     (const void *state, int item_id);
+static Item *     fetch_item_func      (const void *state, int item_id);
 static ItemList * fetch_all_items_func (const void *state);
-static int        alive_func          (const void *state);
+static int        alive_func           (const void *state);
+static int        establish_connection (DBItemSource *is);
 
 /** Creates an ItemSource for a MySQL database.
  *
@@ -61,32 +63,17 @@ ItemSource * create_db_item_source(DBConfig * config) {
     is->state = state;
     state->config = config;
     state->mysql = mysql_init(NULL);
+    state->fetch_all_items_stmt = NULL;
+    state->fetch_item_stmt = NULL;
     
-    if (!mysql_real_connect(state->mysql, config->host, config->user, 
-                            config->password, config->database, config->port, NULL, 0)) {
-      error("Failed to connect to item database: %s", mysql_error(state->mysql));
-      free(state);
-      free(is);
+    if (NULL == state->mysql) {
+      fatal("Could not allocate MYSQL");
+    } else if (!establish_connection(state)) {
+      free_db_item_source(state);
       is = NULL;
-    } else {
-      state->fetch_item_stmt = mysql_stmt_init(state->mysql);
-      if (NULL == state->fetch_item_stmt) {
-        fatal("Error creating prepared statement");
-      }
-      
-      if (mysql_stmt_prepare(state->fetch_item_stmt, FETCH_ITEM_SQL, strlen(FETCH_ITEM_SQL))) {
-        fatal("Error preparing hard coded statement: %s", FETCH_ITEM_SQL);
-      }
-      
-      state->fetch_all_items_stmt = mysql_stmt_init(state->mysql);
-      if (NULL == state->fetch_all_items_stmt) {
-        fatal("Error creating prepared statement");
-      }
-      
-      if (mysql_stmt_prepare(state->fetch_all_items_stmt, FETCH_ALL_ITEMS_SQL, strlen(FETCH_ALL_ITEMS_SQL))) {
-        fatal("Error preparing hard coded statement: %s", FETCH_ALL_ITEMS_SQL);
-      }
-    }    
+      error("Could not connect to Item database");      
+    }
+    
   } else {
     fatal("Could not allocate ItemSource");
   }
@@ -220,15 +207,22 @@ fetch_all_items_query_error:
 /** Checks whether the item source is alive.
  */
 int alive_func(const void *state) {
-  const DBItemSource *db_is = (DBItemSource*) state;
-  if (NULL == db_is) {
-    error("alive_func got null DBItemSource");
-    return 0;
-  } else if (db_is->mysql) {
-    return !mysql_ping(db_is->mysql);    
+  int alive = true;
+  DBItemSource *db_is = (DBItemSource*) state;
+  
+  if (NULL != db_is) {
+    if (mysql_ping(db_is->mysql)) {
+      info("MySQL server is down %s. Attempting reconnect.", mysql_error(db_is->mysql));
+      if (!establish_connection(db_is)) {
+        alive = false;
+        error("Could not reconnect: %s.", mysql_error(db_is->mysql));
+      }
+    }
   } else {
-    return 0;
+    alive = false;
   }
+  
+  return alive;
 }
 
 void free_db_item_source(void *state) {
@@ -248,4 +242,39 @@ void free_db_item_source(void *state) {
     
     free(db_is);
   }
+}
+
+int establish_connection(DBItemSource *state) {
+  int success = true;
+  
+  if (!state) {
+    success = false;
+    error("Got null DBItemSource");
+  } else {  
+    DBConfig *config = state->config;
+    if (!mysql_real_connect(state->mysql, config->host, config->user, 
+                              config->password, config->database, config->port, NULL, 0)) {
+      success = false;
+      error("Failed to connect to item database: %s", mysql_error(state->mysql));      
+    } else {
+      state->fetch_item_stmt = mysql_stmt_init(state->mysql);
+      state->fetch_all_items_stmt = mysql_stmt_init(state->mysql);
+
+      if (NULL == state->fetch_item_stmt || 
+          NULL == state->fetch_all_items_stmt) {
+        success = false;
+        error("Error creating prepared statement");
+      }
+      
+      if (mysql_stmt_prepare(state->fetch_item_stmt, FETCH_ITEM_SQL, strlen(FETCH_ITEM_SQL))) {
+        success = false;
+        error("Error preparing hard coded statement (%s): %s", mysql_error(state->mysql), FETCH_ITEM_SQL);
+      } else if (mysql_stmt_prepare(state->fetch_all_items_stmt, FETCH_ALL_ITEMS_SQL, strlen(FETCH_ALL_ITEMS_SQL))) {
+        success = false;
+        error("Error preparing hard coded statement (%s): %s", mysql_error(state->mysql), FETCH_ALL_ITEMS_SQL);
+      }
+    }
+  }
+  
+  return success;
 }
