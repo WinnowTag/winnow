@@ -10,6 +10,8 @@
 
 #include <config.h>
 
+#define MALLOC_ERR() {error("malloc error at %s:%i", __FILE__, __LINE__); goto malloc_error;} 
+
 #define fatal(fmt, ...) _fatal(__FILE__, __LINE__, fmt, ## __VA_ARGS__)
 #define error(fmt, ...) _error(__FILE__, __LINE__, fmt, ## __VA_ARGS__)
 #define info(fmt, ...)  _info (__FILE__, __LINE__, fmt, ## __VA_ARGS__)

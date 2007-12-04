@@ -653,7 +653,6 @@ void *flusher_func(void *engine_vp) {
   job->error = err;              \
   error(msg, __VA_ARGS__);
 
-// TODO Make portable
 static const char * generate_job_id() {
   char *job_id = calloc(JOB_ID_SIZE, sizeof(char));
   if (NULL == job_id) {
@@ -785,7 +784,6 @@ int cjob_duration(const ClassificationJob *job) {
 
 /** Do the actual classification.
  * 
- *  TODO Check malloc'ing eventually
  */
 static int cjob_classify(ClassificationJob *job, const TagList *taglist, const ItemSource *item_source, 
                           const Pool *random_background, Queue *tagging_queue) {
@@ -797,24 +795,36 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist, const I
   int i;
   int failed = false;
   ItemList *items = is_fetch_all_items(item_source);
+  if (!items) MALLOC_ERR();
   int number_of_items = item_list_size(items);
   const float progress_increment = 80.0 / number_of_items;
 
+  /* Start by training up all the classifiers for the tags */
   TrainedClassifier **tc = calloc(taglist->size, sizeof(TrainedClassifier*));
-  if (!tc) goto malloc_error;
+  if (!tc) MALLOC_ERR();
   for (i = 0; i < taglist->size; i++) {
-    tc[i] = train(taglist->tags[i], item_source);      
+    tc[i] = train(taglist->tags[i], item_source);
+    if (!tc[i]) MALLOC_ERR();
   }
   job->progress = 10.0;
       
+  /* Now precompute all the classifiers */
   job->state = CJOB_STATE_CALCULATING;
   Classifier **classifier = calloc(taglist->size, sizeof(Classifier*));
-  if (!classifier) goto malloc_error;
+  if (!classifier) MALLOC_ERR();
   for (i = 0; i < taglist->size; i++) {
     classifier[i] = precompute(tc[i], random_background);
+    if (!classifier[i]) MALLOC_ERR();
+    
+    /*  Once we have the precomputed classifier
+     *  we can discard the trained classifier.
+     */
+    tc_free(tc[i]);
+    tc[i] = NULL;
   }
   job->progress = 20.0;
             
+  /* Now do the actual classification of each item for each classifier */
   job->state = CJOB_STATE_CLASSIFYING;  
   for (i = 0; i < number_of_items; i++) {    
     Item *item = item_list_item_at(items, i);
@@ -841,13 +851,10 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist, const I
         }
           
         Tagging *tagging = classify(classifier[j], item);
-        
-        if (NULL != tagging) {
-          TaggingInsertionJob *tagging_job = create_tagging_insertion_job(tagging);
-          q_enqueue(tagging_queue, tagging_job);
-        } else {
-          error("Got NULL tagging");
-        }
+        if (!tagging) MALLOC_ERR();
+        TaggingInsertionJob *tagging_job = create_tagging_insertion_job(tagging);
+        if (!tagging_job) MALLOC_ERR();
+        q_enqueue(tagging_queue, tagging_job);        
       }
       
       if (complete) {
@@ -859,7 +866,6 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist, const I
   }
   
 exit:
-
   for (i = 0; i < taglist->size; i++) {
     if (tc && tc[i]) {
       tc_free(tc[i]);      
@@ -883,7 +889,7 @@ exit:
 malloc_error:
   job->error = CJOB_STATE_ERROR;
   job->error = CJOB_ERROR_UNKNOWN_ERROR;
-  fatal("Malloc error in classification processing");
+  fatal("Malloc error in classification processing, probably out of memory??");
   failed = true;
   goto exit;
 }
