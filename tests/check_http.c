@@ -250,6 +250,7 @@ START_TEST(test_completed_job_status) {
   assert_xpath("/job/progress[text() = '100.0']", doc);
   assert_xpath("/job/status[text() = 'Complete']", doc);
   assert_xpath("/job/duration/text()", doc);
+  assert_xpath("/job/duration[@type = 'float']", doc);
   
   xmlFree(doc);
 } END_TEST

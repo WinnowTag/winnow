@@ -9,6 +9,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/time.h>
 #include <Judy.h>
 #include <string.h>
 #include "classification_engine.h"
@@ -38,22 +39,32 @@
 
 #define INIT_MUTEX(mutex) \
   mutex = calloc(1, sizeof(pthread_mutex_t)); \
-  if (!mutex) goto malloc_error;              \
-  if (pthread_mutex_init(mutex, NULL)) goto malloc_error;
+  if (!mutex) MALLOC_ERR();              \
+  if (pthread_mutex_init(mutex, NULL)) MALLOC_ERR();
 
 #define INIT_COND(cond) \
   cond = calloc(1, sizeof(pthread_cond_t)); \
-  if (!cond) goto malloc_error;             \
-  if (pthread_cond_init(cond, NULL)) goto malloc_error;
+  if (!cond) MALLOC_ERR();             \
+  if (pthread_cond_init(cond, NULL)) MALLOC_ERR();
 
 /* Size of a UUID string (36) + 1 for \0 */ 
 #define JOB_ID_SIZE UUID_SIZE + 1
+#define NOW(tv) gettimeofday(&(tv), NULL);
+
+typedef struct PROCESS_TIMINGS {
+  PerformanceStats *stats;  
+  pthread_mutex_t *classification_timing_mutex;
+  pthread_mutex_t *insertion_timing_mutex;
+} ProcessTimings;
 
 struct CLASSIFICATION_ENGINE {
   /* Pointer to classification engine configuration */
   const Config *config;
   
   EngineConfig engine_config;
+  
+  /* Records the classifiers performance statistics */
+  ProcessTimings *timings;
   
   /* Pointer to item source for classification.
    * 
@@ -129,16 +140,26 @@ struct CLASSIFICATION_JOB {
   ClassificationJobState state;
   ClassificationJobError error;
   ItemScope item_scope;
-  time_t created_at;
-  time_t started_at;
-  time_t completed_at;
+  int tags_classified;
+  int items_classified;
+  /* Timestamps for process timing */
+  struct timeval created_at;
+  struct timeval started_at;
+  struct timeval trained_at;
+  struct timeval computed_at;
+  struct timeval completed_at;
 };
 
 typedef struct TAGGING_INSERTION_JOB {
   const char * job_id;
   Tagging *tagging;
+  struct timeval created_at;
+  struct timeval started_at;
+  struct timeval completed_at;
 } TaggingInsertionJob;
 
+static void ce_record_classification_job_timings(ClassificationEngine *ce, const ClassificationJob *job);
+static void ce_record_insertion_job_timings(ClassificationEngine *ce, const TaggingInsertionJob *job);
 static ClassificationJob * create_tag_classification_job(int tag_id);
 static ClassificationJob * create_user_classification_job(int tag_id);
 static void free_classification_job(ClassificationJob *job);
@@ -148,6 +169,7 @@ static void *flusher_func(void *engine_vp);
 static TaggingInsertionJob * create_tagging_insertion_job(Tagging *tagging);
 static void free_tagging_insertion_job(TaggingInsertionJob *job);
 static void cjob_process(ClassificationJob *job, const ItemSource *is, TagDB *tagdb, const Pool *background, Queue *insertion_queue);
+static float tdiff(struct timeval from, struct timeval to);
 
 /* Creates but doesn't start a classification engine.
  * 
@@ -166,6 +188,12 @@ ClassificationEngine * create_classification_engine(const Config *config) {
     engine->classification_job_queue = NULL;
     engine->num_threads_suspended = 0;
     
+    engine->timings = calloc(1, sizeof(ProcessTimings));
+    if (!(engine->timings)) MALLOC_ERR();
+    engine->timings->stats = calloc(1, sizeof(PerformanceStats));
+    if (!(engine->timings->stats)) MALLOC_ERR();
+    INIT_MUTEX(engine->timings->classification_timing_mutex);
+    INIT_MUTEX(engine->timings->insertion_timing_mutex);
     
     INIT_MUTEX(engine->classification_suspension_mutex);
     INIT_MUTEX(engine->suspension_notification_mutex);
@@ -467,6 +495,46 @@ int ce_kill(ClassificationEngine * engine) {
   return ce_stop(engine);;
 }
 
+/** Get the performance stats for the engine.
+ * 
+ *  This copies the performance stats into stats so that
+ *  it can be used without worrying about locking or the
+ *  data changing underneath you.
+ */
+void ce_performance_stats(const ClassificationEngine *engine, PerformanceStats *stats) {
+  if (engine && engine->timings) {
+    pthread_mutex_lock(engine->timings->classification_timing_mutex);    
+    pthread_mutex_lock(engine->timings->insertion_timing_mutex);    
+    memcpy(stats, engine->timings->stats, sizeof(PerformanceStats));
+    pthread_mutex_unlock(engine->timings->insertion_timing_mutex);
+    pthread_mutex_unlock(engine->timings->classification_timing_mutex);
+  }
+}
+
+static void ce_record_classification_job_timings(ClassificationEngine *ce, const ClassificationJob *job) {
+  if (ce && job && job->state == CJOB_STATE_COMPLETE) {
+    pthread_mutex_lock(ce->timings->classification_timing_mutex);
+    ce->timings->stats->classification_jobs_processed++;
+    ce->timings->stats->classification_wait_time += tdiff(job->created_at, job->started_at);
+    ce->timings->stats->training_time += tdiff(job->started_at, job->trained_at);
+    ce->timings->stats->calculating_time += tdiff(job->trained_at, job->computed_at);
+    ce->timings->stats->classifying_time += tdiff(job->computed_at, job->completed_at);
+    ce->timings->stats->tags_classified += job->tags_classified;
+    ce->timings->stats->items_classified += job->items_classified;
+    pthread_mutex_unlock(ce->timings->classification_timing_mutex);
+  }
+}
+
+static void ce_record_insertion_job_timings(ClassificationEngine *ce, const TaggingInsertionJob *job) {
+  if (ce && job) {
+    pthread_mutex_lock(ce->timings->insertion_timing_mutex);
+    ce->timings->stats->insertion_jobs_processed++;
+    ce->timings->stats->insertion_wait_time += tdiff(job->created_at, job->started_at);
+    ce->timings->stats->insertion_time += tdiff(job->started_at, job->completed_at);
+    pthread_mutex_unlock(ce->timings->insertion_timing_mutex);
+  }
+}
+
 /********************************************************************************
  * Worker thread functions.
  ********************************************************************************/
@@ -541,6 +609,7 @@ void *classification_worker_func(void *engine_vp) {
        * the item source is flushed we get a new copy on the next job.
        */
       cjob_process(job, ce->item_source, tag_db, ce->random_background, ce->tagging_store_queue);
+      ce_record_classification_job_timings(ce, job);
     }    
   }
 
@@ -565,7 +634,10 @@ void *insertion_worker_func(void *engine_vp) {
     TaggingInsertionJob *job = q_dequeue_or_wait(ce->tagging_store_queue);
     
     if (job) {
+      NOW(job->started_at);
       tagging_store_store(store, job->tagging);
+      NOW(job->completed_at);
+      ce_record_insertion_job_timings(ce, job);
       free_tagging_insertion_job(job);
     }
   }
@@ -677,7 +749,9 @@ ClassificationJob * create_tag_classification_job(int tag_id) {
     job->error = CJOB_ERROR_NO_ERROR;
     job->type = CJOB_TYPE_TAG_JOB;
     job->item_scope = ITEM_SCOPE_ALL;
-    job->created_at = time(0);
+    NOW(job->created_at);
+    job->tags_classified = 0;
+    job->items_classified = 0;
   }
   
   return job;
@@ -694,7 +768,9 @@ ClassificationJob * create_user_classification_job(int user_id) {
     job->error = CJOB_ERROR_NO_ERROR;
     job->type = CJOB_TYPE_USER_JOB;
     job->item_scope = ITEM_SCOPE_ALL;
-    job->created_at = time(0);
+    NOW(job->created_at);
+    job->tags_classified = 0;
+    job->items_classified = 0;
   }
   
   return job;
@@ -767,16 +843,15 @@ void cjob_cancel(ClassificationJob *job) {
   job->state = CJOB_STATE_CANCELLED;
 }
 
-int cjob_duration(const ClassificationJob *job) {
-  int duration;
+float cjob_duration(const ClassificationJob *job) {
+  float duration;
   
   if (CJOB_STATE_COMPLETE == job->state) {
-    duration =  job->completed_at - job->started_at;
-  } else if (CJOB_STATE_WAITING == job->state) {
-    duration = 0;
+    duration =  tdiff(job->created_at, job->completed_at);
   } else {
-    time_t now = time(0);
-    duration = now - job->started_at;
+    struct timeval now;
+    NOW(now);
+    duration = tdiff(job->started_at, now);
   }
   
   return duration;
@@ -807,6 +882,7 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist, const I
     if (!tc[i]) MALLOC_ERR();
   }
   job->progress = 10.0;
+  NOW(job->trained_at);
       
   /* Now precompute all the classifiers */
   job->state = CJOB_STATE_CALCULATING;
@@ -823,6 +899,7 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist, const I
     tc[i] = NULL;
   }
   job->progress = 20.0;
+  NOW(job->computed_at);
             
   /* Now do the actual classification of each item for each classifier */
   job->state = CJOB_STATE_CLASSIFYING;  
@@ -849,7 +926,8 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist, const I
             break;
           }
         }
-          
+         
+        job->items_classified++;
         Tagging *tagging = classify(classifier[j], item);
         if (!tagging) MALLOC_ERR();
         TaggingInsertionJob *tagging_job = create_tagging_insertion_job(tagging);
@@ -900,7 +978,7 @@ static void cjob_process(ClassificationJob *job, const ItemSource *item_source, 
   /* If the job is cancelled bail out before doing anything */
   if (job->state == CJOB_STATE_CANCELLED) return;
   
-  job->started_at = time(0);
+  NOW(job->started_at);
   job->state = CJOB_STATE_TRAINING;  
   TagList *taglist = NULL;
   
@@ -927,7 +1005,9 @@ static void cjob_process(ClassificationJob *job, const ItemSource *item_source, 
   }
     
   if (taglist) {
+    job->tags_classified = taglist->size;
     job->progress = 5.0;
+    
     if (!cjob_classify(job, taglist, item_source, random_background, tagging_queue)) {
       int i;
       for (i = 0; i < taglist->size; i++) {
@@ -940,7 +1020,7 @@ static void cjob_process(ClassificationJob *job, const ItemSource *item_source, 
     free_taglist(taglist);      
   }
   
-  job->completed_at = time(0);
+  NOW(job->completed_at);
 }
 
 /********************************************************************************
@@ -961,4 +1041,14 @@ void free_tagging_insertion_job(TaggingInsertionJob *job) {
     free(job->tagging);
     free(job);
   }
+}
+
+/**********************************************************************************
+ * Helpers
+ */
+
+static float tdiff(struct timeval from, struct timeval to) {
+  double from_d = from.tv_sec + (from.tv_usec / 1000000.0);
+  double to_d = to.tv_sec + (to.tv_usec / 1000000.0);
+  return to_d - from_d;  
 }

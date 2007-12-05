@@ -12,7 +12,7 @@
 #endif
 
 #ifndef assert_true
-#define assert_true(o) fail_unless(o == true, "expected to be true")
+#define assert_true(o) fail_unless(o, "expected to be true")
 #endif
 
 #ifndef assert_null

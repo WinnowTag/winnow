@@ -37,6 +37,20 @@ typedef enum CLASSIFICATION_JOB_TYPE {
   CJOB_TYPE_USER_JOB
 } ClassificationJobType;
 
+typedef struct PERFORMANCE_STATS {  
+  int   classification_jobs_processed;
+  float classification_wait_time;
+  float training_time;
+  float calculating_time;
+  float classifying_time;
+  float tags_classified;
+  float items_classified;
+  
+  int   insertion_jobs_processed;
+  float insertion_wait_time;
+  float insertion_time;
+} PerformanceStats;
+
 extern ClassificationEngine * create_classification_engine(const Config * config);
 extern void                   free_classification_engine(ClassificationEngine * engine);
 extern int                    ce_is_running(const ClassificationEngine *engine);
@@ -46,6 +60,7 @@ extern int                    ce_suspend(ClassificationEngine *engine);
 extern int                    ce_resume(ClassificationEngine *engine);
 extern int                    ce_kill(ClassificationEngine *engine);
 extern void                   ce_run(ClassificationEngine *engine);
+extern void                   ce_performance_stats(const ClassificationEngine *engine, PerformanceStats *stats);
 
 /* Job tracking and management */
 extern int                    ce_num_jobs_in_system(const ClassificationEngine *engine);
@@ -66,4 +81,5 @@ extern const char *           cjob_state_msg(const ClassificationJob *job);
 extern ClassificationJobError cjob_error(const ClassificationJob *job);
 extern const char *           cjob_error_msg(const ClassificationJob *job);
 extern void                   cjob_cancel(ClassificationJob *job);
+extern float                  cjob_duration(const ClassificationJob *job);
 #endif /*CLASSIFICATION_ENGINE_H_*/

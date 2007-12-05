@@ -124,7 +124,7 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
   xmlChar duration_buffer[16];
   xmlStrPrintf(duration_buffer, 16, BAD_CAST "%d", cjob_duration(job));
   xmlNodePtr duration = xmlNewChild(root, NULL, BAD_CAST "duration", duration_buffer);
-  xmlAttrPtr duration_type = xmlNewProp(duration, BAD_CAST "type", BAD_CAST "integer");
+  xmlAttrPtr duration_type = xmlNewProp(duration, BAD_CAST "type", BAD_CAST "float");
   
   xmlChar progress_buffer[16];
   xmlStrPrintf(progress_buffer, 16, BAD_CAST "%.1f", cjob_progress(job));  
