@@ -12,6 +12,7 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <signal.h>
+#include <errno.h>
 #include "logging.h"
 #include "cls_config.h"
 #include "classification_engine.h"
@@ -20,8 +21,10 @@
 
 #define DEFAULT_CONFIG_FILE "config/classifier.conf"
 #define DEFAULT_LOG_FILE "log/classifier.log"
+#define DEFAULT_PID_FILE "log/classifier.pid"
+#define PID_VAL 512
 #define SHORT_OPTS "hvdc:l:"
-#define USAGE "Usage: classifier [-dvh] [-c CONFIGFILE] [-l LOGFILE]\n"
+#define USAGE "Usage: classifier [-dvh] [-c CONFIGFILE] [-l LOGFILE] [--pid PIDFILE]\n"
 
 static Config *config;
 static ClassificationEngine *engine;
@@ -61,6 +64,7 @@ int main(int argc, char **argv) {
   int daemonize = false;
   char *config_file = DEFAULT_CONFIG_FILE;
   char *log_file = DEFAULT_LOG_FILE;
+  char *pid_file = DEFAULT_PID_FILE;
   char real_config_file[MAXPATHLEN];
   char real_log_file[MAXPATHLEN];
   
@@ -71,7 +75,8 @@ int main(int argc, char **argv) {
       {"help", no_argument, 0, 'h'},
       {"config-file", required_argument, 0, 'c'},
       {"log-file", required_argument, 0, 'l'},
-      {0, 0, 0, }
+      {"pid", required_argument, 0, PID_VAL},
+      {0, 0, 0, 0}
   };
   
   while (-1 != (opt = getopt_long(argc, argv, SHORT_OPTS, long_options, &longindex))) {
@@ -85,6 +90,9 @@ int main(int argc, char **argv) {
       break;
       case 'l':
         log_file = optarg;
+      break;
+      case PID_VAL:
+        pid_file = optarg;
       break;
       case 'd':
         daemonize = true;
@@ -100,12 +108,12 @@ int main(int argc, char **argv) {
   }
   
   if (NULL == realpath(config_file, real_config_file)) {
-    fprintf(stderr, "Could not find %s\n", real_config_file);
+    fprintf(stderr, "Could not find %s: %s\n", real_config_file, strerror(errno));
     exit(EXIT_FAILURE);
   }
   
   if (NULL == realpath(log_file, real_log_file)) {
-    fprintf(stderr, "Could not find %s\n", real_log_file);
+    fprintf(stderr, "Could not find %s: %s\n", real_log_file, strerror(errno));
     exit(EXIT_FAILURE);
   }
   
@@ -115,6 +123,15 @@ int main(int argc, char **argv) {
     if (pid < 0) {
       exit(EXIT_FAILURE);
     } else if (pid > 0) {
+      if (pid_file) {
+        FILE *pidout = fopen(pid_file, "w");
+        if (pidout) {
+          fprintf(pidout, "%i", pid);
+          fclose(pidout);
+        } else {
+          fprintf(stderr, "Could not open pid file %s: %s", pid_file, strerror(errno));
+        }
+      }
       // exit the foreground process
       exit(EXIT_SUCCESS);
     }
@@ -123,10 +140,12 @@ int main(int argc, char **argv) {
     
     sid = setsid();
     if (sid < 0) {
+      fprintf(stderr, "setsid failed: %s", strerror(errno));
       exit(EXIT_FAILURE);
     }
     
     if (chdir("/") < 0) {
+      fprintf(stderr, "chdir(\"/\") failed: %s", strerror(errno));
       exit(EXIT_FAILURE);
     }
   }
