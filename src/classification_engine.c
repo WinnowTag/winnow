@@ -1038,6 +1038,7 @@ TaggingInsertionJob * create_tagging_insertion_job(Tagging *tagging) {
 
 void free_tagging_insertion_job(TaggingInsertionJob *job) {
   if (job) {
+    free(job->job_id);
     free(job->tagging);
     free(job);
   }
