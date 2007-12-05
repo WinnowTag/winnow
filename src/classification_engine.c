@@ -208,7 +208,7 @@ ClassificationEngine * create_classification_engine(const Config *config) {
       if (NULL == is) goto item_source_error; 
       engine->item_source = create_caching_item_source(is);        
       if (NULL == engine->item_source) goto item_source_error;
-      engine->random_background = create_random_background_from_db(is, &item_store_config);
+      engine->random_background = create_random_background_from_db(engine->item_source, &item_store_config);
     }
 #endif
     
