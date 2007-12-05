@@ -1030,6 +1030,7 @@ TaggingInsertionJob * create_tagging_insertion_job(Tagging *tagging) {
   TaggingInsertionJob *job = malloc(sizeof(TaggingInsertionJob));
   if (job) {
     job->job_id = generate_job_id();
+    NOW(job->created_at);
     job->tagging = tagging;
   }
   
@@ -1038,7 +1039,7 @@ TaggingInsertionJob * create_tagging_insertion_job(Tagging *tagging) {
 
 void free_tagging_insertion_job(TaggingInsertionJob *job) {
   if (job) {
-    free(job->job_id);
+    free((char *) job->job_id);
     free(job->tagging);
     free(job);
   }

@@ -173,7 +173,6 @@ ItemList * fetch_all_items_func(const void *state_p) {
     results[3].buffer      = (char *) &time;
     
     if (mysql_stmt_bind_result(stmt, results)) goto fetch_all_items_query_error;
-    if (mysql_stmt_store_result(stmt))         goto fetch_all_items_query_error;
     
     while (!mysql_stmt_fetch(stmt)) {
       if (NULL == item || item_get_id(item) != feed_item_id) {
