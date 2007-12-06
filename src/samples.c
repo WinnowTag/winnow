@@ -18,7 +18,7 @@ Samples * load_samples(const ItemSource *is, const char *filename) {
       Word_t item_id;
       Word_t rc_word;
       
-      while (EOF != fscanf(file, "%d\n", &item_id)) {
+      while (EOF != fscanf(file, "%d\n", (int*) &item_id)) {
         J1S(rc_word, item_list, item_id);
       }
       

@@ -28,9 +28,7 @@ Item * create_item(int id) {
   Item *item;
   
   item = malloc(sizeof(Item));
-  if (NULL != item) {      
-    int error = 0;
-    int i;
+  if (NULL != item) {
     item->id = id;
     item->total_tokens = 0;
     item->time = 0;

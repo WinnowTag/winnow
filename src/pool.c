@@ -63,11 +63,12 @@ int pool_add_items(Pool *pool, const int items[], int size, const ItemSource *is
     if (NULL != item) {
       pool_add_item(pool, item);
     } else {
+      success = false;
       error("Missing item when adding to pool %d", items[i]);
     }
   }
   
-  return true;
+  return success;
 }
 
 int pool_num_tokens(const Pool *pool) {

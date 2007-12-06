@@ -309,7 +309,6 @@ int read_tagging_file(TagList *taglist, const char * user, const char * filename
     error("Could not open file '%s':%s", filename, strerror(errno));
     failure = true;    
   } else {
-    int scan_result;
     char tag_name[256];
     int item_id;
     float strength;

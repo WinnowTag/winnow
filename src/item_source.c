@@ -201,7 +201,6 @@ Item * item_list_item_at(const ItemList *item_list, int index) {
   
   if (item_list) {
     PWord_t item_pointer;
-    Word_t item_index;
     JLG(item_pointer, item_list->ordered_items, index);
     if (item_pointer) {
       item = (Item*) (*item_pointer);

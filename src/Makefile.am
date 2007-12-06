@@ -12,6 +12,7 @@ lib_LTLIBRARIES = libclassifier.la
 # see as we deploy to more sites.
 #
 LDFLAGS = -rpath $(libdir)
+CFLAGS = -Wall
 
 libclassifier_la_SOURCES = classifier.c classifier.h \
                            item.c item.h             \

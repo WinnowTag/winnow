@@ -592,9 +592,7 @@ void *classification_worker_func(void *engine_vp) {
   DB_THREAD_INIT;
   /* Grab references to shared resources */
   ClassificationEngine *ce = (ClassificationEngine*) engine_vp;
-  Queue *job_queue         = ce->classification_job_queue;
-  Queue *tagging_queue     = ce->tagging_store_queue;
-  
+  Queue *job_queue         = ce->classification_job_queue;  
   
   /* Create thread specific resources */
   DBConfig tag_db_config;
@@ -643,6 +641,7 @@ void *classification_worker_func(void *engine_vp) {
   free_tag_db(tag_db);
   
   DB_THREAD_END;
+  return EXIT_SUCCESS;
 }
 
 void *insertion_worker_func(void *engine_vp) {
@@ -671,6 +670,7 @@ void *insertion_worker_func(void *engine_vp) {
   info("insertion worker function ending");
   free_tagging_store(store);
   DB_THREAD_END;
+  return EXIT_SUCCESS;
 }
 
 static void create_classify_new_item_jobs_for_all_tags(ClassificationEngine *ce) {
@@ -741,6 +741,8 @@ void *flusher_func(void *engine_vp) {
       }
     }    
   }
+  
+  return EXIT_SUCCESS;
 }
 
 /********************************************************************************

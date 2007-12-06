@@ -148,4 +148,6 @@ void *do_classification(void *nothing) {
       classification += _classification;    
     pthread_mutex_unlock(&mutex);
   }
+  
+  return 0;
 }

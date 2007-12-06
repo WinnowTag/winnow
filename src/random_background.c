@@ -7,6 +7,7 @@
 
 #include <mysql.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "random_background.h"
 #include "misc.h"
@@ -61,9 +62,9 @@ Pool * create_random_background_from_db (const ItemSource *is, const DBConfig *d
   result = mysql_use_result(mysql);
   if (NULL == result) goto query_error;
   
-  while (row = mysql_fetch_row(result)) {
+  while ((row = mysql_fetch_row(result))) {
     Item *item;
-    if (item = is_fetch_item(is, (int) strtol(row[0], NULL, 10))) {
+    if ((item = is_fetch_item(is, (int) strtol(row[0], NULL, 10)))) {
       pool_add_item(pool, item);
     } else {
       error("Missing random background item %s", row[0]);

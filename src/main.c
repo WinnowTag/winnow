@@ -13,6 +13,10 @@
 #include <stdio.h>
 #include <signal.h>
 #include <errno.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include "logging.h"
 #include "cls_config.h"
 #include "classification_engine.h"

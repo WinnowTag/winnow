@@ -9,6 +9,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/time.h>
 #include <errno.h>
 #include "job_queue.h"
 #include "logging.h"

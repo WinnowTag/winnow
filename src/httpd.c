@@ -99,7 +99,7 @@ static xmlNodePtr add_element(xmlNodePtr parent, const char * name, const char *
   va_end(argp);
   
   xmlNodePtr node = xmlNewChild(parent, NULL, BAD_CAST name, BAD_CAST buffer);
-  xmlAttrPtr type_attr = xmlNewProp(node, BAD_CAST "type", BAD_CAST type);
+  xmlNewProp(node, BAD_CAST "type", BAD_CAST type);
   
   return node;
 }
@@ -117,7 +117,7 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
   xmlNodePtr root = xmlNewNode(NULL, BAD_CAST "job");
   xmlDocSetRootElement(doc, root);
   
-  xmlNodePtr id = xmlNewChild(root, NULL, BAD_CAST "id", BAD_CAST cjob_id(job));
+  xmlNewChild(root, NULL, BAD_CAST "id", BAD_CAST cjob_id(job));
   
   switch (cjob_type(job)) {
     case CJOB_TYPE_TAG_JOB:
@@ -131,12 +131,12 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
   }
   
   if (CJOB_STATE_ERROR == cjob_state(job)) {
-    xmlNodePtr error_msg = xmlNewChild(root, NULL, BAD_CAST "error-message", BAD_CAST cjob_error_msg(job));
+    xmlNewChild(root, NULL, BAD_CAST "error-message", BAD_CAST cjob_error_msg(job));
   }
   
   add_element(root, "duration", "float", "%.2f", cjob_duration(job));
   add_element(root, "progress", "float", "%.1f", cjob_progress(job));  
-  xmlNodePtr status = xmlNewChild(root, NULL, BAD_CAST "status", BAD_CAST cjob_state_msg(job));
+  xmlNewChild(root, NULL, BAD_CAST "status", BAD_CAST cjob_state_msg(job));
   
   xmlDocDumpFormatMemory(doc, &buffer, &buffersize, 1);
   xmlFreeDoc(doc);
@@ -358,7 +358,7 @@ static int process_request(void * ce_vp, struct MHD_Connection * connection,
  
   /* strip any .xml extensions */
   char *ext;
-  if (ext = strstr(url, ".xml")) {
+  if ((ext = strstr(url, ".xml"))) {
     ext[0] = '\0';
   }  
  

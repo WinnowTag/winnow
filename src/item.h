@@ -36,6 +36,7 @@ extern Item * create_item_with_tokens (int id, int tokens[][2], int num_tokens);
 extern int    item_get_id             (const Item *item);
 extern int    item_get_total_tokens   (const Item *item);
 extern int    item_get_num_tokens     (const Item *item);
+extern time_t item_get_time           (const Item *item);
 extern int    item_get_token          (const Item *item, int token_id, Token_p token);
 extern int    item_next_token         (const Item *item, Token_p token);
 extern void   free_item               (Item *item);

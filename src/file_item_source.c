@@ -47,7 +47,6 @@ Item * create_item_from_file(const void * state, const int item_id) {
   char * corpus = (char * ) state;
   Item *item;  
   char itempath[MAXPATHLEN];
-  int itempath_length;
   
   if (build_item_path(corpus, item_id, itempath, 24)) {    
     return NULL;

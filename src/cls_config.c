@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <libconfig.h>
 #include <errno.h>
+#include <string.h>
 #include "cls_config.h"
 #include "misc.h"
 #include "logging.h"
@@ -58,6 +59,7 @@ Config * load_config(const char * config_file) {
 malloc_err:
   free_config(config);
   fatal("Malloc error occurred loading config file: %s", config_file);
+  return NULL;
 }
 
 /** Free the configuration object.
@@ -88,6 +90,7 @@ int cfg_engine_config(const Config * config, EngineConfig * econfig) {
 
 int cfg_httpd_config(const Config * config, HttpdConfig * httpd) {
   httpd->port = config_lookup_int(config->config, "httpd.port");
+  return 0;
 }
 
 /** Gets the item DB configuration.
@@ -118,19 +121,19 @@ static int load_db_config(const Config *config, DBConfig *db_config, const char 
   if (NULL != db_setting) {
     success = true;
     config_setting_t *setting;
-    if (setting = config_setting_get_member(db_setting, "host")) {
+    if ((setting = config_setting_get_member(db_setting, "host"))) {
       db_config->host = config_setting_get_string(setting);
     }
-    if (setting = config_setting_get_member(db_setting, "user")) {
+    if ((setting = config_setting_get_member(db_setting, "user"))) {
       db_config->user = config_setting_get_string(setting);
     }
-    if (setting = config_setting_get_member(db_setting, "password")) {
+    if ((setting = config_setting_get_member(db_setting, "password"))) {
       db_config->password = config_setting_get_string(setting);
     }
-    if (setting = config_setting_get_member(db_setting, "database")) {
+    if ((setting = config_setting_get_member(db_setting, "database"))) {
       db_config->database = config_setting_get_string(setting);
     }
-    if (setting = config_setting_get_member(db_setting, "port")) {
+    if ((setting = config_setting_get_member(db_setting, "port"))) {
       db_config->port = config_setting_get_int(setting);
     }    
   } else {
