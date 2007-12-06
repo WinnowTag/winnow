@@ -7,6 +7,7 @@
  */
 #ifndef FIXTURES_H_
 #define FIXTURES_H_
+#include <stdlib.h>
 
 static char cwd[1024];
 
