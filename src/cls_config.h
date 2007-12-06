@@ -21,6 +21,7 @@ typedef struct DB_CONFIG {
 typedef struct ENGINE_CONFIG {
   int num_workers;
   float insertion_threshold;
+  const char *performance_log;
 } EngineConfig;
 
 typedef struct HTTP_CONFIG {

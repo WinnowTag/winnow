@@ -68,6 +68,7 @@ int cfg_engine_config(const Config * config, EngineConfig * econfig) {
   if (econfig->num_workers == 0) {
     econfig->num_workers = 1;
   }
+  econfig->performance_log = config_lookup_string(config->config, "engine.performance_log");
   
   return true;
 }

@@ -66,6 +66,9 @@ struct CLASSIFICATION_ENGINE {
   /* Records the classifiers performance statistics */
   ProcessTimings *timings;
   
+  /* Performance log file */
+  FILE *performance_log;
+  
   /* Pointer to item source for classification.
    * 
    * The ItemSource can be shared by all threads.
@@ -195,6 +198,15 @@ ClassificationEngine * create_classification_engine(const Config *config) {
     INIT_MUTEX(engine->timings->classification_timing_mutex);
     INIT_MUTEX(engine->timings->insertion_timing_mutex);
     
+    if (engine->engine_config.performance_log) {
+      const char *performance_log = engine->engine_config.performance_log;
+      engine->performance_log = fopen(performance_log, "a");
+      if (NULL == engine->performance_log) {
+        fprintf(stderr, "Error opening %s: %s", performance_log, strerror(errno));
+        error("Error opening %s: %s", performance_log, strerror(errno));
+      }
+    }
+    
     INIT_MUTEX(engine->classification_suspension_mutex);
     INIT_MUTEX(engine->suspension_notification_mutex);
     INIT_COND(engine->classification_suspension_cond);
@@ -244,6 +256,10 @@ void free_classification_engine(ClassificationEngine *engine) {
     if (engine->item_source) {
       free_item_source(engine->item_source);
       engine->item_source = NULL;
+    }
+    
+    if (engine->performance_log) {
+      fclose(engine->performance_log);
     }
     
     // Free all the jobs in the system
@@ -503,8 +519,8 @@ int ce_kill(ClassificationEngine * engine) {
  */
 void ce_performance_stats(const ClassificationEngine *engine, PerformanceStats *stats) {
   if (engine && engine->timings) {
-    pthread_mutex_lock(engine->timings->classification_timing_mutex);    
-    pthread_mutex_lock(engine->timings->insertion_timing_mutex);    
+    pthread_mutex_lock(engine->timings->classification_timing_mutex);
+    pthread_mutex_lock(engine->timings->insertion_timing_mutex);
     memcpy(stats, engine->timings->stats, sizeof(PerformanceStats));
     pthread_mutex_unlock(engine->timings->insertion_timing_mutex);
     pthread_mutex_unlock(engine->timings->classification_timing_mutex);
@@ -513,12 +529,22 @@ void ce_performance_stats(const ClassificationEngine *engine, PerformanceStats *
 
 static void ce_record_classification_job_timings(ClassificationEngine *ce, const ClassificationJob *job) {
   if (ce && job && job->state == CJOB_STATE_COMPLETE) {
-    pthread_mutex_lock(ce->timings->classification_timing_mutex);
+    float wait_time = tdiff(job->created_at, job->started_at);
+    float train_time = tdiff(job->started_at, job->trained_at);
+    float calc_time = tdiff(job->trained_at, job->computed_at);
+    float clas_time = tdiff(job->computed_at, job->completed_at);
+
+    pthread_mutex_lock(ce->timings->classification_timing_mutex);    
+    if (ce->performance_log) {
+      fprintf(ce->performance_log, "%i,%i,%.5f,%.5f,%.5f,%.5f\n", 
+                job->tags_classified, job->items_classified,
+                wait_time, train_time, calc_time, clas_time);
+    }
     ce->timings->stats->classification_jobs_processed++;
-    ce->timings->stats->classification_wait_time += tdiff(job->created_at, job->started_at);
-    ce->timings->stats->training_time += tdiff(job->started_at, job->trained_at);
-    ce->timings->stats->calculating_time += tdiff(job->trained_at, job->computed_at);
-    ce->timings->stats->classifying_time += tdiff(job->computed_at, job->completed_at);
+    ce->timings->stats->classification_wait_time += wait_time;
+    ce->timings->stats->training_time += train_time;
+    ce->timings->stats->calculating_time += calc_time;
+    ce->timings->stats->classifying_time += clas_time;
     ce->timings->stats->tags_classified += job->tags_classified;
     ce->timings->stats->items_classified += job->items_classified;
     pthread_mutex_unlock(ce->timings->classification_timing_mutex);
