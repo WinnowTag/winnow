@@ -19,7 +19,7 @@ Prerequisites
 The classification engine depends on:
 
   * Judy 1.0.4
-  * libmicrohttpd 0.1.1 with fixes.
+  * libmicrohttpd >= 0.1.2 (http://gnunet.org/libmicrohttpd/)
   * mysqlclient 5.0.x
   * check 0.9.5 (Required for running unit tests, available as a macport).
   * libxml2 (Probably already installed, won't provide instructions)
@@ -41,28 +41,14 @@ The classification engine depends on:
      > ./configure CFLAGS=-O
      > make
      > sudo make install
-          
-=== Installing libmicrohttpd ===
-
-The classifier requires a version of libmicrohttpd which has a specific bug fixed.
-This version is provided in the lib directory of the classifier code base. To 
-install libmicrohttpd, from the classifier directory perform the following:
-
-     > cd lib
-     > tar -zxvf libmicrohttpd-0.1.1.tar.gz
-     > cd libmicrohttpd-0.1.1
-     > ./configure
-     > make
-     > sudo make install
-     
-Once the bugfix has been applied to the original code the libmicrohttpd in
-the lib directoy will be removed and we can just use the original source.
   
 === Installing mysqlclient ===
 
 I won't cover the installation of mysqlclient here, suffice to say that if you have
 MySQL installed you probably have mysqlclient installed and the classifiers build
 scripts should do a pretty good job of finding it.
+
+You do need to make sure that the thread safe mysqlclient_r library is available.
 
 Building and Installing the Classifier
 ====================================================
