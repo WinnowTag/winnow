@@ -32,8 +32,10 @@ void _fatal(const char *file, int line, const char *fmt, ...) {
 	fprintf(log_file, PREFIX("FATAL"), file, line);
 	va_start(argp, fmt);
 	vfprintf(log_file, fmt, argp);
+	vfprintf(stderr, fmt, argp);
 	va_end(argp);
 	fprintf(log_file, "\n");
+  fprintf(stderr, "\n");
   exit(1);
 }
 

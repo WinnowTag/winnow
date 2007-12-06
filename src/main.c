@@ -117,6 +117,11 @@ int main(int argc, char **argv) {
     exit(EXIT_FAILURE);
   }
   
+  /* Load config before we daemonize to allow use to pick
+   * up and relative paths defined in the config file.
+   */
+  config = load_config(real_config_file);
+    
   if (daemonize) {
     pid = fork();
     
@@ -158,7 +163,6 @@ int main(int argc, char **argv) {
     signal(SIGTERM, SIG_IGN);
     
   initialize_logging(real_log_file);
-  config = load_config(real_config_file);
   engine = create_classification_engine(config);
   httpd = httpd_start(config, engine);  
   ce_run(engine);

@@ -8,6 +8,7 @@
 
 #include <stdlib.h>
 #include <libconfig.h>
+#include <errno.h>
 #include "cls_config.h"
 #include "misc.h"
 #include "logging.h"
@@ -39,6 +40,18 @@ Config * load_config(const char * config_file) {
                                                    config_error_line(config->config));
     free_config(config);
     config = NULL;
+  } else {
+    /* Absolutize file names in case we go into daemon mode */
+    const char *perf_log = config_lookup_string(config->config, "engine.performance_log");
+    if (perf_log) {
+      char buf[PATH_MAX];
+      if (NULL == realpath(perf_log, buf)) {
+        error("Could not absolutize %s: %s", perf_log, strerror(errno));
+      } else {
+        config_setting_t *setting = config_lookup(config->config, "engine.performance_log");
+        config_setting_set_string(setting, buf);
+      }
+    }
   }
   
   return config;
