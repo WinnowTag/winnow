@@ -59,6 +59,12 @@ int is_alive(const ItemSource *is) {
   return is->alive_func(is->state); 
 }
 
+void is_close(const ItemSource *is) {
+  if (is && is->close_func) {
+    is->close_func(is->state);
+  }
+}
+
 /** Free's an ItemSource
  */
 void free_item_source(ItemSource *is) {

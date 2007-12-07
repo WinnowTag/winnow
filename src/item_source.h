@@ -29,6 +29,7 @@ typedef struct ITEMSOURCE {
   int   (*flush_func)(const void*);
   int   (*alive_func)(const void*);
   void  (*free_func)(void*);
+  void  (*close_func)(void*);
   void* state;
 } ItemSource;
 
@@ -38,6 +39,7 @@ extern ItemList *   is_fetch_all_items      (const ItemSource *is);
 extern int          is_flush                (const ItemSource *is);
 extern void         free_item_source        (ItemSource *is);
 extern int          is_alive                (const ItemSource *is);
+extern void         is_close                (const ItemSource *is);
 
 /**** ItemList ****/
 extern ItemList  *  create_item_list        ();

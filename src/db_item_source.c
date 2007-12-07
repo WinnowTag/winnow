@@ -35,6 +35,7 @@ typedef struct DB_ITEMSOURCE {
 static Item *     fetch_item_func      (const void *state, int item_id);
 static ItemList * fetch_all_items_func (const void *state);
 static int        alive_func           (const void *state);
+static void       close_func           (void *state);
 static int        establish_connection (DBItemSource *is);
 
 /** Creates an ItemSource for a MySQL database.
@@ -53,6 +54,7 @@ ItemSource * create_db_item_source(DBConfig * config) {
     is->fetch_func = fetch_item_func;
     is->alive_func = alive_func;
     is->free_func  = free_db_item_source;
+    is->close_func = close_func;
     
     DBItemSource *state = malloc(sizeof(DBItemSource));
     if (NULL == state) {
@@ -62,13 +64,11 @@ ItemSource * create_db_item_source(DBConfig * config) {
     
     is->state = state;
     state->config = config;
-    state->mysql = mysql_init(NULL);
+    state->mysql = NULL;
     state->fetch_all_items_stmt = NULL;
     state->fetch_item_stmt = NULL;
     
-    if (NULL == state->mysql) {
-      fatal("Could not allocate MYSQL");
-    } else if (!establish_connection(state)) {
+    if (!establish_connection(state)) {
       free_db_item_source(state);
       is = NULL;
       error("Could not connect to Item database");      
@@ -210,10 +210,12 @@ int alive_func(const void *state) {
   DBItemSource *db_is = (DBItemSource*) state;
   
   if (NULL != db_is) {
-    if (mysql_ping(db_is->mysql)) {
+    if (!db_is->mysql) {
+      alive = establish_connection(db_is);
+    } else if (mysql_ping(db_is->mysql)) {
       info("MySQL server is down %s. Attempting reconnect.", mysql_error(db_is->mysql));
-      if (!establish_connection(db_is)) {
-        alive = false;
+      alive = establish_connection(db_is);
+      if (!alive) {
         error("Could not reconnect: %s.", mysql_error(db_is->mysql));
       }
     }
@@ -224,9 +226,10 @@ int alive_func(const void *state) {
   return alive;
 }
 
-void free_db_item_source(void *state) {
-  DBItemSource *db_is = (DBItemSource*) state;
-  if (NULL != db_is) {
+void close_func(void *state) {
+  DBItemSource *db_is = state;
+  
+  if (db_is) {
     if (db_is->fetch_item_stmt) {
       mysql_stmt_close(db_is->fetch_item_stmt);
     }
@@ -239,6 +242,16 @@ void free_db_item_source(void *state) {
       mysql_close(db_is->mysql);
     }
     
+    db_is->fetch_all_items_stmt = NULL;
+    db_is->fetch_item_stmt = NULL;
+    db_is->mysql = NULL;
+  }
+}
+
+void free_db_item_source(void *state) {
+  DBItemSource *db_is = (DBItemSource*) state;
+  if (NULL != db_is) {
+    close_func(state);    
     free(db_is);
   }
 }
@@ -251,7 +264,10 @@ int establish_connection(DBItemSource *state) {
     error("Got null DBItemSource");
   } else {  
     DBConfig *config = state->config;
-    if (!mysql_real_connect(state->mysql, config->host, config->user, 
+    state->mysql = mysql_init(NULL);
+    if (NULL == state->mysql) {
+      fatal("Could not allocate MYSQL");        
+    } else if (!mysql_real_connect(state->mysql, config->host, config->user, 
                               config->password, config->database, config->port, NULL, 0)) {
       success = false;
       error("Failed to connect to item database: %s", mysql_error(state->mysql));      
