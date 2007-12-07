@@ -11,10 +11,15 @@
 
 int create_file(const char * filename) {
   int failed = 0;
-  FILE *file = fopen(filename, "w");
+  FILE *file = fopen(filename, "r");
   if (NULL == file) {
-    failed = 1;
-  } else {
+    file = fopen(filename, "w");
+    if (NULL == file) {
+      failed = 1;
+    }
+  }
+  
+  if (file) {
     fclose(file);
   }
   
