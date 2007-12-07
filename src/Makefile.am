@@ -49,13 +49,9 @@ cls_bench_SOURCES = bench.c
 cls_bench_LDADD = libclassifier.la 
 
 if DEBUG
-classifier_debug_SOURCES = main.c
-classifier_debug_LDADD = libclassifier.la
-classifier_debug_CFLAGS = -g -DDEBUG
-classifier_debug_LDFLAGS = -static
-DBG = classifier.debug
-else !DEBUG
-DBG = 
-endif !DEBUG
+classifier_CFLAGS = -g -DDEBUG
+classifier_LDFLAGS = -static
+libclassifier_la_CFLAGS = -g -DDEBUG
+endif
 
-noinst_PROGRAMS = cls_bench $(DBG)
+noinst_PROGRAMS = cls_bench

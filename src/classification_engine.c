@@ -617,6 +617,7 @@ void *classification_worker_func(void *engine_vp) {
         // Been woken up to exit - not to continue
         if (ce->is_classification_suspended) {
           pthread_mutex_unlock(ce->classification_suspension_mutex);
+          info("classification worker resumed to exit");
           break;
         }
       }
@@ -713,11 +714,11 @@ void *flusher_func(void *engine_vp) {
         localtime_r(&now, &now_tm);
         
         // If we are past 0200 move to the next day
-        if (now_tm.tm_hour >= 2) {
+        if (now_tm.tm_hour >= 3) {
           now_tm.tm_mday++;
         }
         
-        now_tm.tm_hour = 2;
+        now_tm.tm_hour = 3;
         now_tm.tm_min = 0;
         now_tm.tm_sec = 0;
         struct timespec wake_at;
@@ -734,6 +735,7 @@ void *flusher_func(void *engine_vp) {
           ce_resume(engine);
           time_t done_at = time(0);
           info("Flushing complete and classification resumed at %s", ctime(&done_at));
+          return EXIT_SUCCESS;
         } else {
           // woke up for some other reasons
         }

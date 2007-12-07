@@ -23,7 +23,7 @@
 
 typedef struct DB_ITEMSOURCE {
   /* DB connection configuration */
-  DBConfig *config;
+  DBConfig config;
   /* MySQL connection */
   MYSQL *mysql;
   /* Statement used for selecting a specific item */
@@ -63,7 +63,7 @@ ItemSource * create_db_item_source(DBConfig * config) {
     }
     
     is->state = state;
-    state->config = config;
+    memcpy(&(state->config), config, sizeof(DBConfig));
     state->mysql = NULL;
     state->fetch_all_items_stmt = NULL;
     state->fetch_item_stmt = NULL;
@@ -131,7 +131,9 @@ Item * fetch_item_func(const void *state_p, int item_id) {
   }
  
 exit:
-  mysql_stmt_free_result(stmt);
+  if (stmt) {
+    mysql_stmt_free_result(stmt);
+  }
   return item;
   
 fetch_item_query_error:
@@ -151,9 +153,10 @@ fetch_item_query_error:
 ItemList * fetch_all_items_func(const void *state_p) {
   DBItemSource *state = (DBItemSource*) state_p;
   ItemList *item_list = create_item_list();
-  MYSQL_STMT *stmt = state->fetch_all_items_stmt;
+  MYSQL_STMT *stmt = NULL;
   
   if (alive_func(state)) {
+    stmt = state->fetch_all_items_stmt;
     Item *item = NULL;
     if (mysql_stmt_execute(stmt)) goto fetch_all_items_query_error;
         
@@ -187,7 +190,9 @@ ItemList * fetch_all_items_func(const void *state_p) {
   }
   
 exit:
-  mysql_stmt_free_result(stmt);
+  if (stmt) {
+    mysql_stmt_free_result(stmt);
+  }
   return item_list;
   
 fetch_all_items_query_error:
@@ -230,6 +235,7 @@ void close_func(void *state) {
   DBItemSource *db_is = state;
   
   if (db_is) {
+    info("Closing ItemSource DB connection");
     if (db_is->fetch_item_stmt) {
       mysql_stmt_close(db_is->fetch_item_stmt);
     }
@@ -263,7 +269,7 @@ int establish_connection(DBItemSource *state) {
     success = false;
     error("Got null DBItemSource");
   } else {  
-    DBConfig *config = state->config;
+    DBConfig *config = &(state->config);
     state->mysql = mysql_init(NULL);
     if (NULL == state->mysql) {
       fatal("Could not allocate MYSQL");        

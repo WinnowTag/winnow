@@ -1,11 +1,11 @@
 TESTS = check_all check_db check_http
 CLEANFILES = http_test.log http_test_data.log test.log
 
-check_PROGRAMS = check_all check_db check_http check_all.debug
+LDFLAGS = -static
+CFLAGS = -g -DDEBUG
+check_PROGRAMS = check_all check_db check_http 
 
 check_http_SOURCE = check_http.c
-check_http_CFLAGS = @CHECK_CFLAGS@ -g -DDEBUG
-check_http_LDFLAGS = -static
 check_http_LDADD  = @CHECK_LIBS@ $(top_builddir)/src/libclassifier.la
 
 check_all_SOURCES = check_all.c \
@@ -28,10 +28,9 @@ check_all_SOURCES = check_all.c \
                 fixtures.h
                 
                 
-check_all_CFLAGS = @CHECK_CFLAGS@ -g -DDEBUG
+check_all_CFLAGS = @CHECK_CFLAGS@
 check_all_LDADD = @CHECK_LIBS@  \
               $(top_builddir)/src/libclassifier.la
-check_all_LDFLAGS = -static
               
 check_db_SOURCES = check_db.c                    \
             check_db_item_source.c               \
@@ -48,11 +47,7 @@ check_db_SOURCES = check_db.c                    \
               
 check_db_CFLAGS = @CHECK_CFLAGS@
 check_db_LDADD = @CHECK_LIBS@  \
-            $(top_builddir)/src/libclassifier.la
+            $(top_builddir)/src/libclassifier.la 
 
-check_all_debug_SOURCES = $(check_all_SOURCES)
-check_all_debug_CFLAGS = @CHECK_CFLAGS@ -g -DDEBUG
-check_all_debug_LDADD = @CHECK_LIBS@ $(top_builddir)/src/libclassifier.la
-check_all_debug_LDFLAGS = -static
 
 dist_check_DATA = fixtures conf

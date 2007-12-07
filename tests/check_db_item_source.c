@@ -9,6 +9,7 @@
 #include <check.h>
 #include <stdlib.h>
 #include <time.h>
+#include <string.h>
 #include "assertions.h"
 #include "../src/cls_config.h"
 #include "../src/db_item_source.h"
@@ -154,6 +155,18 @@ START_TEST (can_close_and_reopen) {
   free_item_source(is);
 } END_TEST
 
+START_TEST (can_close_and_reopen_after_config_has_been_hosed) {
+  ItemSource *is = create_db_item_source(&dbconfig);
+  assert_not_null(is);
+  assert_true(is_alive(is));
+  is_close(is);
+  memset(&dbconfig, 0, sizeof(dbconfig));
+  ItemList *items = is_fetch_all_items(is);
+  assert_not_null(items);
+  free_item_source(is);
+} END_TEST
+
+
 Suite *
 db_item_source_suite(void) {
   Suite *s = suite_create("Db_item_source");  
@@ -168,6 +181,7 @@ db_item_source_suite(void) {
   tcase_add_test(tc_case, test_loads_time);
   tcase_add_test(tc_case, test_loads_all_loads_time);
   tcase_add_test(tc_case, can_close_and_reopen);
+  tcase_add_test(tc_case, can_close_and_reopen_after_config_has_been_hosed);
 // END_TESTS
 
   suite_add_tcase(s, tc_case);
