@@ -15,7 +15,13 @@
 
 #define PREFIX(type) type " (%s:%i): "
 
-static FILE *log_file;
+static FILE *log_file = NULL;
+
+static inline void ensure_logfile(void) {
+  if (!log_file) {
+    log_file = stderr;
+  }
+}
 
 void initialize_logging(const char *filename) {
   log_file = fopen(filename, "a");
@@ -28,6 +34,7 @@ void close_log() {
 }
 
 void _fatal(const char *file, int line, const char *fmt, ...) {
+  ensure_logfile();
   va_list argp;
 	fprintf(log_file, PREFIX("FATAL"), file, line);
 	va_start(argp, fmt);
@@ -40,6 +47,7 @@ void _fatal(const char *file, int line, const char *fmt, ...) {
 }
 
 void _error(const char *file, int line, const char *fmt, ...) {
+  ensure_logfile();
 	va_list argp;
 	fprintf(log_file, PREFIX("ERROR"), file, line);
 	va_start(argp, fmt);
@@ -50,6 +58,7 @@ void _error(const char *file, int line, const char *fmt, ...) {
 }
 
 void _info(const char *file, int line, const char *fmt, ...) {
+  ensure_logfile();
 	va_list argp;
 	fprintf(log_file, PREFIX("INFO "), file, line);
 	va_start(argp, fmt);
@@ -60,6 +69,7 @@ void _info(const char *file, int line, const char *fmt, ...) {
 }
 
 void _debug(const char *file, int line, const char *fmt, ...) {
+  ensure_logfile();
 	va_list argp;
 	fprintf(log_file, PREFIX("DEBUG"), file, line);
 	va_start(argp, fmt);
@@ -70,6 +80,7 @@ void _debug(const char *file, int line, const char *fmt, ...) {
 }
 
 void _trace(const char *file, int line, const char *fmt, ...) {
+  ensure_logfile();
   va_list argp;
   fprintf(log_file, PREFIX("TRACE"), file, line);
   va_start(argp, fmt);

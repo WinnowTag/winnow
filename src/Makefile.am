@@ -38,7 +38,9 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            misc.h                    \
                            time_helper.h             \
                            time_helper.c						 \
+                           create_file.c             \
                            uuid.h
+                           
 libclassifier_la_LIBADD = @LTLIBOBJS@
        
 bin_PROGRAMS = classifier

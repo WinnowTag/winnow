@@ -45,12 +45,16 @@ Config * load_config(const char * config_file) {
     /* Absolutize file names in case we go into daemon mode */
     const char *perf_log = config_lookup_string(config->config, "engine.performance_log");
     if (perf_log) {
-      char buf[PATH_MAX];
-      if (NULL == realpath(perf_log, buf)) {
-        error("Could not absolutize %s: %s", perf_log, strerror(errno));
+      if (create_file(perf_log)) {
+        fatal("Could not open %s: %s", perf_log, strerror(errno));
       } else {
-        config_setting_t *setting = config_lookup(config->config, "engine.performance_log");
-        config_setting_set_string(setting, buf);
+        char buf[PATH_MAX];
+        if (NULL == realpath(perf_log, buf)) {
+          fatal("Could not absolutize %s: %s", perf_log, strerror(errno));
+        } else {
+          config_setting_t *setting = config_lookup(config->config, "engine.performance_log");
+          config_setting_set_string(setting, buf);
+        }
       }
     }
   }

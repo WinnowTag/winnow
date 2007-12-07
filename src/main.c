@@ -111,6 +111,11 @@ int main(int argc, char **argv) {
     }
   }
   
+  if (create_file(log_file)) {
+    fprintf(stderr, "Could not create %s: %s\n", log_file, strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+  
   if (NULL == realpath(config_file, real_config_file)) {
     fprintf(stderr, "Could not find %s: %s\n", real_config_file, strerror(errno));
     exit(EXIT_FAILURE);

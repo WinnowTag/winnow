@@ -32,4 +32,7 @@
 #ifndef ERR
 #define ERR 1
 #endif
+
+extern int create_file(const char *filename);
+
 #endif
