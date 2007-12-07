@@ -735,7 +735,6 @@ void *flusher_func(void *engine_vp) {
           ce_resume(engine);
           time_t done_at = time(0);
           info("Flushing complete and classification resumed at %s", ctime(&done_at));
-          return EXIT_SUCCESS;
         } else {
           // woke up for some other reasons
         }
