@@ -39,16 +39,19 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            time_helper.h             \
                            time_helper.c						 \
                            create_file.c             \
-                           uuid.h
+                           uuid.h \
+                           svnversion.h
                            
 libclassifier_la_LIBADD = @LTLIBOBJS@
        
+BUILT_SOURCES=svnversion.h
+CLEANFILES=svnversion.h
 bin_PROGRAMS = classifier
-classifier_SOURCES = main.c
+classifier_SOURCES = svnversion.h main.c 
 classifier_LDADD = libclassifier.la
 
 cls_bench_SOURCES = bench.c
-cls_bench_LDADD = libclassifier.la 
+cls_bench_LDADD = libclassifier.la
 
 if DEBUG
 classifier_CFLAGS = -g -DDEBUG
@@ -57,3 +60,8 @@ libclassifier_la_CFLAGS = -g -DDEBUG
 endif
 
 noinst_PROGRAMS = cls_bench
+
+svnversion.h:
+	echo "const char *svn_version = \"`svnversion`\";" > svnversion.h
+
+
