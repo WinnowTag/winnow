@@ -7,6 +7,7 @@
  */
 
 #include <check.h>
+#include <string.h>
 #include "../src/tag.h"
 #include "../src/cls_config.h"
 #include "assertions.h"
@@ -252,6 +253,47 @@ START_TEST (test_get_all_tag_ids) {
   free_tag_db(tag_db);
 } END_TEST
 
+START_TEST (close_and_reopen) {
+  TagDB *tag_db = create_tag_db(&dbconfig);
+  assert_not_null(tag_db);
+  assert_true(tag_db_is_alive(tag_db));
+  tag_db_close(tag_db);
+  assert_true(tag_db_is_alive(tag_db));
+  free_tag_db(tag_db);
+} END_TEST
+
+START_TEST (fetch_items_after_close_causes_reopen) {
+  TagDB *tag_db = create_tag_db(&dbconfig);
+  assert_not_null(tag_db);
+  tag_db_close(tag_db);
+  TagList *tag_list = tag_db_load_tags_to_classify_for_user(tag_db, 2);
+  assert_not_null(tag_list);
+  assert_equal(6, tag_list->size);
+  free_taglist(tag_list);
+  free_tag_db(tag_db);
+} END_TEST
+
+START_TEST (close_and_reopen_after_hosing_config) {
+  TagDB *tag_db = create_tag_db(&dbconfig);
+  assert_not_null(tag_db);
+  assert_true(tag_db_is_alive(tag_db));
+  tag_db_close(tag_db);
+  memset(&dbconfig, 0, sizeof(DBConfig));
+  assert_true(tag_db_is_alive(tag_db));
+  free_tag_db(tag_db);
+} END_TEST
+
+START_TEST (fetch_items_after_close_config_hose_causes_reopen) {
+  TagDB *tag_db = create_tag_db(&dbconfig);
+  assert_not_null(tag_db);
+  tag_db_close(tag_db);
+  memset(&dbconfig, 0, sizeof(DBConfig));
+  TagList *tag_list = tag_db_load_tags_to_classify_for_user(tag_db, 2);
+  assert_not_null(tag_list);
+  assert_equal(6, tag_list->size);
+  free_taglist(tag_list);
+  free_tag_db(tag_db);
+} END_TEST
 
 Suite *
 tag_db_suite(void) {
@@ -272,6 +314,10 @@ tag_db_suite(void) {
   tcase_add_test(tc_case, test_load_tag_by_id_loads_last_classified_time);
   tcase_add_test(tc_case, test_load_tag_by_id_loads_updated_at_time);
   tcase_add_test(tc_case, test_get_all_tag_ids);
+  tcase_add_test(tc_case, close_and_reopen);
+  tcase_add_test(tc_case, fetch_items_after_close_causes_reopen);
+  tcase_add_test(tc_case, close_and_reopen_after_hosing_config);
+  tcase_add_test(tc_case, fetch_items_after_close_config_hose_causes_reopen);
 // END_TESTS
 
   suite_add_tcase(s, tc_case);

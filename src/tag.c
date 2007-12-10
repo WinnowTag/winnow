@@ -343,7 +343,7 @@ int read_tagging_file(TagList *taglist, const char * user, const char * filename
 #define GET_ALL_TAG_IDS "select id from tags order by id"
 
 struct TAG_DB {
-  const DBConfig *config;
+  DBConfig config;
   MYSQL *mysql;
   MYSQL_STMT *find_tag_stmt;
   MYSQL_STMT *load_examples_stmt;
@@ -362,14 +362,10 @@ TagDB * create_tag_db(DBConfig * config) {
       config->host, config->user, config->password, config->database);
   TagDB *tag_db = malloc(sizeof(TagDB));
   if (NULL != tag_db) {
-    tag_db->config = config;
-    tag_db->mysql = mysql_init(NULL);
+    memset(tag_db, 0, sizeof(TagDB));
+    memcpy(&(tag_db->config), config, sizeof(DBConfig));
     
-    if (NULL == tag_db->mysql) {
-      free_tag_db(tag_db);
-      tag_db = NULL;
-      fatal("Error malloc'ing MYSQL for Tag DB");
-    } else if (!establish_connection(tag_db)) {
+    if (!establish_connection(tag_db)) {
       free_tag_db(tag_db);
       tag_db = NULL;
       fatal("Error establishing connection on Tag DB creation");
@@ -383,12 +379,27 @@ TagDB * create_tag_db(DBConfig * config) {
 
 void free_tag_db(TagDB *tag_db) {
   if (tag_db) {
+    tag_db_close(tag_db);
+    free(tag_db);
+  }
+}
+
+/** Close but not deallocate the TagDB.
+ * 
+ */
+void tag_db_close(TagDB *tag_db) {
+  if (tag_db) {
     if (tag_db->find_tag_stmt) mysql_stmt_close(tag_db->find_tag_stmt);
     if (tag_db->load_examples_stmt) mysql_stmt_close(tag_db->load_examples_stmt);
     if (tag_db->update_last_classified_at_stmt) mysql_stmt_close(tag_db->update_last_classified_at_stmt);
     if (tag_db->find_tags_for_user_stmt) mysql_stmt_close(tag_db->find_tags_for_user_stmt);
     if (tag_db->mysql) mysql_close(tag_db->mysql);
-    free(tag_db);
+    
+    tag_db->mysql = NULL;
+    tag_db->find_tags_for_user_stmt = NULL;
+    tag_db->find_tag_stmt = NULL;
+    tag_db->update_last_classified_at_stmt = NULL;
+    tag_db->load_examples_stmt = NULL;
   }
 }
 
@@ -400,7 +411,9 @@ int tag_db_is_alive(TagDB *tag_db) {
   int alive = true; 
 
   if (NULL != tag_db) {
-    if (mysql_ping(tag_db->mysql)) {
+    if (!tag_db->mysql) {
+      alive = establish_connection(tag_db);
+    } else if (mysql_ping(tag_db->mysql)) {
       error("MySQL server is down %s. Attempting reconnect.", mysql_error(tag_db->mysql));
       if (!establish_connection(tag_db)) {
         error("Could not reconnect: %s. TagDB will be disabled.", mysql_error(tag_db->mysql));
@@ -459,7 +472,7 @@ TagList * tag_db_load_tags_to_classify_for_user(TagDB *tag_db, int user_id) {
   if (NULL == tag_db) return NULL;
   TagList *taglist = create_tag_list();
   
-  if (taglist) {
+  if (taglist && tag_db_is_alive(tag_db)) {
     MYSQL_BIND param[1];
     memset(param, 0, sizeof(param));
     param[0].buffer_type = MYSQL_TYPE_LONG;
@@ -688,8 +701,12 @@ error:
  */ 
 int establish_connection(TagDB *tag_db) {
   int success = true;
-  const DBConfig *config = tag_db->config;
-  if (!mysql_real_connect(tag_db->mysql, config->host, config->user, 
+  const DBConfig *config = &(tag_db->config);
+  tag_db->mysql = mysql_init(NULL);
+      
+  if (NULL == tag_db->mysql) {
+    fatal("Error malloc'ing MYSQL for Tag DB");
+  } else if (!mysql_real_connect(tag_db->mysql, config->host, config->user, 
                    config->password, config->database, config->port, NULL, 0)) {
     error("Failed to connect to tag database : %s", mysql_error(tag_db->mysql));
     success = false;

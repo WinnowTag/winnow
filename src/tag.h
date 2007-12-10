@@ -55,11 +55,12 @@ extern time_t       tag_last_classified_at      (const Tag *tag);
 extern time_t       tag_updated_at      (const Tag *tag);
 
 // TagDB functions
-extern TagDB   * create_tag_db          (DBConfig *db_config);
-extern TagList * tag_db_load_tags_to_classify_for_user(TagDB *tag_db, int user_id);
-extern Tag     * tag_db_load_tag_by_id  (TagDB *tag_db, int id);
-extern int     * tag_db_get_all_tag_ids (TagDB *tag_db, int *size);
-extern int       tag_db_update_last_classified_at(TagDB *tag_db, const Tag *tag);
-extern void      free_tag_db            (TagDB *tag_db);
+extern TagDB   * create_tag_db                          (DBConfig *db_config);
+extern TagList * tag_db_load_tags_to_classify_for_user  (TagDB *tag_db, int user_id);
+extern Tag     * tag_db_load_tag_by_id                  (TagDB *tag_db, int id);
+extern int     * tag_db_get_all_tag_ids                 (TagDB *tag_db, int *size);
+extern int       tag_db_update_last_classified_at       (TagDB *tag_db, const Tag *tag);
+extern void      tag_db_close                           (TagDB *tag_db);
+extern void      free_tag_db                            (TagDB *tag_db);
 
 #endif
