@@ -69,6 +69,7 @@ extern ClassificationJob    * ce_add_classification_job_for_tag(ClassificationEn
 extern ClassificationJob    * ce_add_classify_new_items_job_for_tag(ClassificationEngine *engine, int tag_id);
 extern ClassificationJob    * ce_add_classification_job_for_user(ClassificationEngine *engine, int user_id);
 extern ClassificationJob    * ce_fetch_classification_job(const ClassificationEngine *engine, const char * job_id);
+extern int                    ce_remove_classification_job(ClassificationEngine *engine, const ClassificationJob *job);
 
 /** Functions for Classification Jobs */
 extern const char *           cjob_id(const ClassificationJob * job);

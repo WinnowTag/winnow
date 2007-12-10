@@ -7,6 +7,7 @@
  */
 
 #include <check.h>
+#include <string.h>
 #include "assertions.h"
 #include "../src/cls_config.h"
 #include "../src/classification_engine.h"
@@ -169,6 +170,9 @@ START_TEST(retrieve_job_via_id) {
 
 START_TEST(cancelling_a_job_removes_it_from_the_system_once_a_worker_gets_to_it) {
   ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
+  char job_id[64];
+  strncpy(job_id, cjob_id(job), 64);
+    
   assert_equal(1, ce_num_waiting_jobs(ce));
   cjob_cancel(job);
   assert_equal(1, ce_num_waiting_jobs(ce));
@@ -176,6 +180,9 @@ START_TEST(cancelling_a_job_removes_it_from_the_system_once_a_worker_gets_to_it)
   ce_stop(ce);
   assert_equal(0, ce_num_waiting_jobs(ce));
   assert_equal(0, ce_num_jobs_in_system(ce));
+
+  ClassificationJob *j2 = ce_fetch_classification_job(ce, job_id);
+  assert_null(j2);
 } END_TEST
 
 START_TEST(cancelling_a_job_sets_its_state_to_cancelled) {
@@ -236,6 +243,27 @@ START_TEST (performance_stats_calculated_from_job_stats) {
   assert_true(stats.training_time > 0);
   assert_true(stats.calculating_time > 0);
   assert_true(stats.classifying_time > 0);
+} END_TEST
+
+START_TEST (remove_classification_job_removes_the_job_from_the_engines_job_index_if_job_is_complete) {
+  ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
+  
+  ce_start(ce);
+  ce_stop(ce);
+  assert_equal(CJOB_STATE_COMPLETE, cjob_state(job));
+  int res = ce_remove_classification_job(ce, job);
+  assert_true(res);
+  ClassificationJob *j2 = ce_fetch_classification_job(ce, cjob_id(job));
+  assert_null(j2);
+} END_TEST
+
+START_TEST (remove_classification_job_wont_removes_the_job_from_the_engines_job_index_if_job_is_not_complete) {
+  ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
+  
+  int res = ce_remove_classification_job(ce, job);
+  assert_false(res);
+  ClassificationJob *j2 = ce_fetch_classification_job(ce, cjob_id(job));
+  assert_not_null(j2);
 } END_TEST
 
 /************************************************************************
@@ -308,6 +336,8 @@ Suite * classification_engine_suite(void) {
   tcase_add_test(tc_jt_case, resuming_suspended_engine_processes_jobs);
   tcase_add_test(tc_jt_case, initial_performance_statistics_are_zeros);
   tcase_add_test(tc_jt_case, performance_stats_calculated_from_job_stats);
+  tcase_add_test(tc_jt_case, remove_classification_job_removes_the_job_from_the_engines_job_index_if_job_is_complete);
+  tcase_add_test(tc_jt_case, remove_classification_job_wont_removes_the_job_from_the_engines_job_index_if_job_is_not_complete);
   // END_TESTS
 
   TCase *tc_end_to_end = tcase_create("end to end");

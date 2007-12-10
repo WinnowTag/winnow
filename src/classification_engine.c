@@ -358,6 +358,14 @@ ClassificationJob * ce_fetch_classification_job(const ClassificationEngine * eng
   return job;
 }
 
+int ce_remove_classification_job(ClassificationEngine * engine, const ClassificationJob *job) {
+  int removed = false;
+  if (engine && job && cjob_state(job) == CJOB_STATE_COMPLETE) {
+    JSLD(removed, engine->classification_jobs, (uint8_t*) job->job_id);
+  }
+  return removed;
+}
+
 /* Returns the number of jobs in the system.
  * 
  * This includes the number of jobs in the classification queue
@@ -365,7 +373,7 @@ ClassificationJob * ce_fetch_classification_job(const ClassificationEngine * eng
  * of completed jobs.
  */
 int ce_num_jobs_in_system(const ClassificationEngine * engine) {
-  int jobs = 0;
+  int jobs = 0;  
   jobs += ce_num_waiting_jobs(engine);
   return jobs;
 }
@@ -628,13 +636,21 @@ void *classification_worker_func(void *engine_vp) {
     trace("Returned from queue, thread %i", pthread_self());
     
     if (job) {
-      info("Got job off queue: %s", cjob_id(job));
-
-      /* Get the reference to the item source here so we get it fresh for each job. This means that if
-       * the item source is flushed we get a new copy on the next job.
-       */
-      cjob_process(job, ce->item_source, tag_db, ce->random_background, ce->tagging_store_queue);
-      ce_record_classification_job_timings(ce, job);
+      debug("Got job off queue: %s", cjob_id(job));
+      
+      /* Only proceed if the job is not cancelled */
+      if (CJOB_STATE_CANCELLED == cjob_state(job)) {
+        /* If it is cancelled we remove and free the job ourselves */
+        job->state = CJOB_STATE_COMPLETE;
+        ce_remove_classification_job(ce, job);
+        free_classification_job(job);
+      } else {
+        /* Get the reference to the item source here so we get it fresh for each job. This means that if
+         * the item source is flushed we get a new copy on the next job.
+         */
+        cjob_process(job, ce->item_source, tag_db, ce->random_background, ce->tagging_store_queue);
+        ce_record_classification_job_timings(ce, job);
+      }      
     }    
   }
 
