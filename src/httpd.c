@@ -29,11 +29,12 @@
 #define LOG_RESPONSE(url, code) \
   debug("%s resulted in %i", url, code);
 
+// TODO: Change to 204 when Rails bug #10445 is fixed and released
 #define SEND_204(returncode) \
    LOG_RESPONSE(url, MHD_HTTP_NO_CONTENT); \
    struct MHD_Response *response = MHD_create_response_from_data(0, "", MHD_NO, MHD_NO); \
    MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);        \
-   returncode = MHD_queue_response(connection, MHD_HTTP_NO_CONTENT, response);           \
+   returncode = MHD_queue_response(connection, MHD_HTTP_OK, response);           \
    MHD_destroy_response(response);
 
 #define SEND_404(returncode) \
