@@ -174,7 +174,7 @@ START_TEST(deleting_job_sets_it_cancelled) {
   ClassificationJob *job = ce_add_classification_job_for_tag(ce, 48);
   char url[256];
   snprintf(url, 256, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
-  assert_delete(url, 204, devnull);
+  assert_delete(url, 200, devnull);
   assert_equal(CJOB_STATE_CANCELLED, cjob_state(job));
 } END_TEST
 
@@ -189,7 +189,7 @@ START_TEST (deleting_a_completed_job_removes_it_from_the_engine) {
   
   assert_not_null(ce_fetch_classification_job(ce, id));
   assert_get(url, 200, devnull);
-  assert_delete(url, 204, devnull);
+  assert_delete(url, 200, devnull);
   assert_get(url, 404, devnull);
   assert_null(ce_fetch_classification_job(ce, id));
 } END_TEST
