@@ -24,7 +24,9 @@ typedef struct TAGGING {
 
 /** Functions for Tagging stores */
 extern TaggingStore * create_db_tagging_store (const DBConfig *config, float insertion_threshold);
-extern int            tagging_store_store     (TaggingStore *store, const Tagging *tagging);  
+extern int            tagging_store_store     (TaggingStore *store, const Tagging *tagging);
+extern void           tagging_store_close     (TaggingStore *store);
+extern int            tagging_store_is_alive  (TaggingStore *store);
 extern void           free_tagging_store      (TaggingStore *store);
 
 /*** Macros for taggings ***/

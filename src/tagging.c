@@ -18,7 +18,7 @@
                            VALUES (?, ?, ?, ?, 1, UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE          \
                            strength = VALUES(strength), created_on = VALUES(created_on)"
 struct TAGGING_STORE {
-  const DBConfig *config;
+  DBConfig config;
   MYSQL *mysql;
   MYSQL_STMT *insertion_stmt;
   float insertion_threshold;
@@ -29,15 +29,10 @@ static int establish_connection(TaggingStore *store);
 TaggingStore * create_db_tagging_store(const DBConfig *config, float insertion_threshold) {
   TaggingStore *store = malloc(sizeof(TaggingStore));
   if (NULL != store) {
-    store->config = config;
+    memcpy(&(store->config), config, sizeof(DBConfig));
     store->insertion_threshold = insertion_threshold;
-    store->mysql = mysql_init(NULL);
     
-    if (NULL == store->mysql) {
-      free_tagging_store(store);
-      store = NULL;
-      fatal("Error malloc'ing MYSQL for tagging store");
-    } else if (!establish_connection(store)) {
+    if (!establish_connection(store)) {
       free_tagging_store(store);
       store = NULL;
       fatal("Error creating tagging store");
@@ -49,15 +44,44 @@ TaggingStore * create_db_tagging_store(const DBConfig *config, float insertion_t
 
 void free_tagging_store(TaggingStore *store) {
   if (store) {
-    if (store->insertion_stmt) mysql_stmt_close(store->insertion_stmt);
-    if (store->mysql) mysql_close(store->mysql);
+    tagging_store_close(store);
     free(store);
   }
 }
 
+void tagging_store_close(TaggingStore *store) {
+  if (store) {
+    if (store->insertion_stmt) mysql_stmt_close(store->insertion_stmt);
+    if (store->mysql) mysql_close(store->mysql);
+    
+    store->insertion_stmt = NULL;
+    store->mysql = NULL;
+  }
+}
+
+int tagging_store_is_alive(TaggingStore *store) {
+  int alive = false;
+  
+  if (store) {
+    if (!store->mysql) {
+      alive = establish_connection(store);
+    } else if (mysql_ping(store->mysql)) {
+      error("TaggingStore connection is down: %s", mysql_error(store->mysql));
+      alive = establish_connection(store);
+      if (!alive) {
+        fatal("Could not reconnect to mysql: %s", mysql_error(store->mysql));
+      }
+    } else {
+      alive = true;
+    }
+  }
+  
+  return alive;
+}
+
 int tagging_store_store(TaggingStore *store, const Tagging *tagging) {
   int success = true;
-  if (store && tagging && tagging->strength >= store->insertion_threshold) {
+  if (tagging_store_is_alive(store) && tagging && tagging->strength >= store->insertion_threshold) {
     MYSQL_BIND params[4];
     memset(params, 0, sizeof(params));
     params[0].buffer_type = MYSQL_TYPE_LONG;
@@ -83,9 +107,13 @@ int tagging_store_store(TaggingStore *store, const Tagging *tagging) {
 
 static int establish_connection(TaggingStore *store) {
   int success = true;
-  const DBConfig *config = store->config;
+  const DBConfig *config = &(store->config);
   
-  if (!mysql_real_connect(store->mysql, config->host, config->user, config->password, config->database, config->port, NULL, 0)) {
+  store->mysql = mysql_init(NULL);
+      
+  if (NULL == store->mysql) {
+    success = false;
+  } else if (!mysql_real_connect(store->mysql, config->host, config->user, config->password, config->database, config->port, NULL, 0)) {
     error("Error connecting to MySQL tagging store: %s", mysql_error(store->mysql));
     success = false;
   } else {

@@ -55,6 +55,33 @@ START_TEST(test_insert_duplicate_updates_strength) {
   assert_tagging_stored(&tagging2);
 } END_TEST
 
+START_TEST (reopen_after_close) {
+  TaggingStore *tagging_store = create_db_tagging_store(&config, 0.9);
+  assert_not_null(tagging_store);
+  assert_true(tagging_store_is_alive(tagging_store));
+  tagging_store_close(tagging_store);
+  memset(&config, 0, sizeof(DBConfig));
+  assert_true(tagging_store_is_alive(tagging_store));
+} END_TEST
+
+START_TEST (store_after_close) {
+  TaggingStore *tagging_store = create_db_tagging_store(&config, 0.9);
+  assert_not_null(tagging_store);
+  assert_true(tagging_store_is_alive(tagging_store));
+  tagging_store_close(tagging_store);
+  memset(&config, 0, sizeof(DBConfig));
+  
+  Tagging tagging;
+  tagging.user_id = 23;
+  tagging.tag_id = 45;
+  tagging.item_id = 56;
+  tagging.strength = 0.99;
+  
+  tagging_store_store(tagging_store, &tagging);
+  assert_tagging_stored(&tagging);
+  free_tagging_store(tagging_store);
+} END_TEST
+
 Suite * tagging_store_suite(void) {
   Suite *s = suite_create("tagging_store");
   TCase *tc_case = tcase_create("case");
@@ -63,6 +90,8 @@ Suite * tagging_store_suite(void) {
   tcase_add_test(tc_case, test_insert_tagging);
   tcase_add_test(tc_case, test_dont_insert_tagging_below_threshold);
   tcase_add_test(tc_case, test_insert_duplicate_updates_strength);
+  tcase_add_test(tc_case, reopen_after_close);
+  tcase_add_test(tc_case, store_after_close);
   // END_TESTS
 
   suite_add_tcase(s, tc_case);
