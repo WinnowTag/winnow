@@ -259,7 +259,12 @@ static int job_handler(void * ce_vp, struct MHD_Connection * connection,
     SEND_XML_DATA(ret, MHD_HTTP_OK, (char*) xml, NULL);
     xmlFree(xml);
   } else if (!strcmp("DELETE", method)) {
-    cjob_cancel(job);
+    if (CJOB_STATE_COMPLETE == cjob_state(job)) {
+      ce_remove_classification_job(ce, job);
+      free_classification_job(job);
+    } else {
+      cjob_cancel(job);
+    }
     SEND_204(ret);
   } else {
     SEND_405(ret, "GET, DELETE");

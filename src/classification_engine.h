@@ -83,4 +83,5 @@ extern ClassificationJobError cjob_error(const ClassificationJob *job);
 extern const char *           cjob_error_msg(const ClassificationJob *job);
 extern void                   cjob_cancel(ClassificationJob *job);
 extern float                  cjob_duration(const ClassificationJob *job);
+extern void                   free_classification_job(ClassificationJob *job);
 #endif /*CLASSIFICATION_ENGINE_H_*/

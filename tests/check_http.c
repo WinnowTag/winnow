@@ -157,20 +157,17 @@ START_TEST(test_post_with_user_id_queues_job) {
   assert_xpath("/job/user-id[text() = '2']", doc);
   
   xmlFree(doc);
-}
-END_TEST
+} END_TEST
 
 
 START_TEST(delete_without_job_id_is_405) {
   /* This is 405 since it goes to the start job handler */
   assert_delete("http://localhost:8008/classifier/jobs/", 405, devnull);
-}
-END_TEST
+} END_TEST
 
 START_TEST(delete_with_missing_job_id_is_404) {
   assert_delete("http://localhost:8008/classifier/jobs/missing", 404, devnull);
-}
-END_TEST
+} END_TEST
 
 
 START_TEST(deleting_job_sets_it_cancelled) {
@@ -179,9 +176,23 @@ START_TEST(deleting_job_sets_it_cancelled) {
   snprintf(url, 256, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
   assert_delete(url, 204, devnull);
   assert_equal(CJOB_STATE_CANCELLED, cjob_state(job));
-}
-END_TEST
+} END_TEST
 
+START_TEST (deleting_a_completed_job_removes_it_from_the_engine) {
+  ClassificationJob *job = ce_add_classification_job_for_tag(ce, 48);
+  char id[64];
+  strncpy(id, cjob_id(job), 64);
+  char url[256];
+  snprintf(url, 256, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
+  ce_start(ce);
+  ce_stop(ce);
+  
+  assert_not_null(ce_fetch_classification_job(ce, id));
+  assert_get(url, 200, devnull);
+  assert_delete(url, 204, devnull);
+  assert_get(url, 404, devnull);
+  assert_null(ce_fetch_classification_job(ce, id));
+} END_TEST
 
 // Expected xml should look like this:
 //
@@ -343,6 +354,7 @@ Suite * http_suite(void) {
   tcase_add_test(tc_case, delete_without_job_id_is_405);
   tcase_add_test(tc_case, delete_with_missing_job_id_is_404);
   tcase_add_test(tc_case, retrieve_initial_stats);
+  tcase_add_test(tc_case, deleting_a_completed_job_removes_it_from_the_engine);
   // END_TESTS
 #endif
   suite_add_tcase(s, tc_case);

@@ -165,7 +165,6 @@ static void ce_record_classification_job_timings(ClassificationEngine *ce, const
 static void ce_record_insertion_job_timings(ClassificationEngine *ce, const TaggingInsertionJob *job);
 static ClassificationJob * create_tag_classification_job(int tag_id);
 static ClassificationJob * create_user_classification_job(int tag_id);
-static void free_classification_job(ClassificationJob *job);
 static void *classification_worker_func(void *engine_vp);
 static void *insertion_worker_func(void *engine_vp);
 static void *flusher_func(void *engine_vp);
