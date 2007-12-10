@@ -7,6 +7,7 @@
  */
 
 #include <config.h>
+#include <string.h>
 #include "../src/uuid.h"
 
 #ifdef HAVE_UUID_T

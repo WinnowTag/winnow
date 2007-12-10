@@ -11,6 +11,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <string.h>
+#include <stdio.h>
 
 #ifdef HAVE_UUID_T
 #error "Don't know how to replace uuid_generate when uuid_t is defined"
