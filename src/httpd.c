@@ -14,6 +14,7 @@
 #include "cls_config.h"
 #include "logging.h"
 #include "misc.h"
+#include "svnversion.h"
 
 #define CONTENT_TYPE "application/xml"
 #define NOT_FOUND "<?xml version='1.0' ?>\n<errors><error>Resource not found.</error></errors>\n"
@@ -187,6 +188,23 @@ static xmlChar * xml_for_stats(const PerformanceStats * stats) {
   xmlDocDumpFormatMemory(doc, &buffer, &buffersize, 1);
   xmlFreeDoc(doc);
     
+  return buffer;
+}
+
+static xmlChar * xml_for_about(const ClassificationEngine *ce) {
+  xmlChar *buffer = NULL;
+  int buffersize;
+  
+  xmlDocPtr doc = xmlNewDoc(BAD_CAST "1.0");
+  xmlNodePtr root = xmlNewNode(NULL, BAD_CAST "classifier");
+  xmlDocSetRootElement(doc, root);
+  
+  add_element(root, "version", "string", "%s", PACKAGE_VERSION);
+  add_element(root, "svnversion", "string", "%s", svn_version);
+  
+  xmlDocDumpFormatMemory(doc, &buffer, &buffersize, 1);
+  xmlFreeDoc(doc);
+  
   return buffer;
 }
 
@@ -377,6 +395,10 @@ static int process_request(void * ce_vp, struct MHD_Connection * connection,
   } else if (url == strstr(url, "/classifier/jobs/")) {
     info("%s %s size(%i) job", method, url, *upload_data_size);
     ret = job_handler(ce_vp, connection, url, method, version);
+  } else if (!strcmp(url, "/classifier")) {
+    xmlChar *xml = xml_for_about((ClassificationEngine*) ce_vp);
+    SEND_XML_DATA(ret, MHD_HTTP_OK, (char *) xml, NULL);
+    xmlFree(xml);
   } else {
     info("%s %s size(%i) 404", method, url, *upload_data_size);
     SEND_404(ret);

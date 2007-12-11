@@ -62,6 +62,6 @@ endif
 noinst_PROGRAMS = cls_bench
 
 svnversion.h:
-	echo "const char *svn_version = \"`svnversion`\";" > svnversion.h
+	echo "static const char *svn_version = \"`svnversion`\";" > svnversion.h
 
 
