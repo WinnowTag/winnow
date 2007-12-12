@@ -99,6 +99,7 @@ struct CLASSIFICATION_ENGINE {
   /* Store of all the current classification jobs in the system, keyed by job id.
    */
   Pvoid_t classification_jobs;
+  pthread_mutex_t *classification_jobs_mutex;
   
   /* Flag for whether the engine is running */
   int is_running;
@@ -209,6 +210,7 @@ ClassificationEngine * create_classification_engine(const Config *config) {
     
     INIT_MUTEX(engine->classification_suspension_mutex);
     INIT_MUTEX(engine->suspension_notification_mutex);
+    INIT_MUTEX(engine->classification_jobs_mutex);
     INIT_COND(engine->classification_suspension_cond);
     INIT_COND(engine->suspension_notification_cond);    
     
@@ -275,7 +277,9 @@ void free_classification_engine(ClassificationEngine *engine) {
     JSLFA(bytes, engine->classification_jobs);
     
     pthread_cond_destroy(engine->classification_suspension_cond);
+    pthread_cond_destroy(engine->suspension_notification_cond);
     pthread_mutex_destroy(engine->classification_suspension_mutex);
+    pthread_mutex_destroy(engine->suspension_notification_mutex);
     
     free_pool(engine->random_background);
     free_queue(engine->classification_job_queue);
@@ -284,18 +288,27 @@ void free_classification_engine(ClassificationEngine *engine) {
   }
 }
 
+/************************************************************************************
+ * Functions for adding, fetching and removing classification jobs.
+ */
+
 static int add_classification_job(ClassificationEngine *engine, ClassificationJob *job) {
-  int failure = false;
+  int failure = true;
   PWord_t job_pointer;
   
+  pthread_mutex_lock(engine->classification_jobs_mutex);
   JSLI(job_pointer, engine->classification_jobs, (uint8_t*) cjob_id(job));
-  if (NULL == job_pointer) {
-    failure = true;
-    fatal("Error malloc'ing Judy array entry for classification job");
-  } else {
+  if (NULL != job_pointer) {
     *job_pointer = (Word_t) job;
-    q_enqueue(engine->classification_job_queue, job);    
-  }   
+    failure = false;
+  }
+  pthread_mutex_unlock(engine->classification_jobs_mutex);
+  
+  if (failure) {
+    fatal("Error malloc'ing Judy array entry for classification job");
+  } 
+  
+  q_enqueue(engine->classification_job_queue, job);
   
   return failure;
 }
@@ -350,11 +363,13 @@ ClassificationJob * ce_fetch_classification_job(const ClassificationEngine * eng
   ClassificationJob *job = NULL;
   
   if (engine) {
+    pthread_mutex_lock(engine->classification_jobs_mutex);
     PWord_t job_pointer;
     JSLG(job_pointer, engine->classification_jobs, (uint8_t*) job_id)
     if (NULL != job_pointer) {
       job = (ClassificationJob*)(*job_pointer);
     }
+    pthread_mutex_unlock(engine->classification_jobs_mutex);
   }
   
   return job;
@@ -363,7 +378,9 @@ ClassificationJob * ce_fetch_classification_job(const ClassificationEngine * eng
 int ce_remove_classification_job(ClassificationEngine * engine, const ClassificationJob *job) {
   int removed = false;
   if (engine && job && cjob_state(job) == CJOB_STATE_COMPLETE) {
+    pthread_mutex_lock(engine->classification_jobs_mutex);
     JSLD(removed, engine->classification_jobs, (uint8_t*) job->job_id);
+    pthread_mutex_unlock(engine->classification_jobs_mutex);
   }
   return removed;
 }
@@ -549,6 +566,7 @@ static void ce_record_classification_job_timings(ClassificationEngine *ce, const
       fprintf(ce->performance_log, "%i,%i,%.5f,%.5f,%.5f,%.5f\n", 
                 job->tags_classified, job->items_classified,
                 wait_time, train_time, calc_time, clas_time);
+      fflush(ce->performance_log);
     }
     ce->timings->stats->classification_jobs_processed++;
     ce->timings->stats->classification_wait_time += wait_time;
@@ -638,7 +656,7 @@ void *classification_worker_func(void *engine_vp) {
     trace("Returned from queue, thread %i", pthread_self());
     
     if (job) {
-      debug("Got job off queue: %s", cjob_id(job));
+      debug("%i got job off queue: %s", pthread_self(), cjob_id(job));
       
       /* Only proceed if the job is not cancelled */
       if (CJOB_STATE_CANCELLED == cjob_state(job)) {
@@ -765,6 +783,7 @@ void *flusher_func(void *engine_vp) {
           time_t done_at = time(0);
           ctime_r(&done_at, timebuffer);
           info("Flushing complete and classification resumed at %s", timebuffer);
+          break;
         } else {
           // woke up for some other reasons
         }
