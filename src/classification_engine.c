@@ -142,6 +142,7 @@ struct CLASSIFICATION_JOB {
   ClassificationJobType type;
   ClassificationJobState state;
   ClassificationJobError error;
+  int auto_cleanup;
   ItemScope item_scope;
   int tags_classified;
   int items_classified;
@@ -319,6 +320,8 @@ ClassificationJob * ce_add_classify_new_items_job_for_tag(ClassificationEngine *
   if (engine) {
     job = create_tag_classification_job(tag_id);
     job->item_scope = ITEM_SCOPE_NEW;
+    job->auto_cleanup = true;
+    
     if (add_classification_job(engine, job)) {
       free_classification_job(job);
       job = NULL;
@@ -649,6 +652,11 @@ void *classification_worker_func(void *engine_vp) {
          */
         cjob_process(job, ce->item_source, tag_db, ce->random_background, ce->tagging_store_queue);
         ce_record_classification_job_timings(ce, job);
+        
+        if (job->auto_cleanup) {
+          ce_remove_classification_job(ce, job);
+          free_classification_job(job);
+        }
       }      
     }    
   }
@@ -703,6 +711,7 @@ static void create_classify_new_item_jobs_for_all_tags(ClassificationEngine *ce)
         ce_add_classify_new_items_job_for_tag(ce, ids[i]);
       }
       
+      free(ids);
       info("Created %i classify new items jobs", size);
     } else {
       error("Could not create tag_db in create_classify_new_item_jobs_for_all_tags");
@@ -713,6 +722,7 @@ static void create_classify_new_item_jobs_for_all_tags(ClassificationEngine *ce)
 }
 
 void *flusher_func(void *engine_vp) {
+  DB_THREAD_INIT;
   ClassificationEngine *engine = (ClassificationEngine*) engine_vp;
   
   if (engine) {
@@ -724,6 +734,7 @@ void *flusher_func(void *engine_vp) {
     } else {
       while (engine->is_running) {        
         // This will run at 0200 everyday
+        char timebuffer[26];
         time_t now = time(0);
         struct tm now_tm;
         localtime_r(&now, &now_tm);
@@ -743,13 +754,17 @@ void *flusher_func(void *engine_vp) {
         pthread_mutex_lock(&flush_wait_mutex);
         if (ETIMEDOUT == pthread_cond_timedwait(&flush_wait_cond, &flush_wait_mutex, &wake_at)) {
           time_t woke_at = time(0);
-          info("Flusher thread woke up at %s", ctime(&woke_at));
+          ctime_r(&woke_at, timebuffer);
+          info("Flusher thread woke up at %s", timebuffer);
+          
           ce_suspend(engine);
           is_flush(engine->item_source);
           create_classify_new_item_jobs_for_all_tags(engine);
           ce_resume(engine);
+          
           time_t done_at = time(0);
-          info("Flushing complete and classification resumed at %s", ctime(&done_at));
+          ctime_r(&done_at, timebuffer);
+          info("Flushing complete and classification resumed at %s", timebuffer);
         } else {
           // woke up for some other reasons
         }
@@ -758,6 +773,7 @@ void *flusher_func(void *engine_vp) {
     }    
   }
   
+  DB_THREAD_END;
   return EXIT_SUCCESS;
 }
 
@@ -796,6 +812,7 @@ ClassificationJob * create_tag_classification_job(int tag_id) {
     NOW(job->created_at);
     job->tags_classified = 0;
     job->items_classified = 0;
+    job->auto_cleanup = false;
   }
   
   return job;
@@ -815,6 +832,7 @@ ClassificationJob * create_user_classification_job(int user_id) {
     NOW(job->created_at);
     job->tags_classified = 0;
     job->items_classified = 0;
+    job->auto_cleanup = false;
   }
   
   return job;
@@ -1018,7 +1036,6 @@ malloc_error:
 
 static void cjob_process(ClassificationJob *job, const ItemSource *item_source, TagDB *tag_db, 
                   const Pool *random_background, Queue *tagging_queue) {
-  debug("cjob_process: %s", job->job_id);
   /* If the job is cancelled bail out before doing anything */
   if (job->state == CJOB_STATE_CANCELLED) return;
   

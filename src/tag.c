@@ -393,6 +393,7 @@ void tag_db_close(TagDB *tag_db) {
     if (tag_db->load_examples_stmt) mysql_stmt_close(tag_db->load_examples_stmt);
     if (tag_db->update_last_classified_at_stmt) mysql_stmt_close(tag_db->update_last_classified_at_stmt);
     if (tag_db->find_tags_for_user_stmt) mysql_stmt_close(tag_db->find_tags_for_user_stmt);
+    if (tag_db->get_all_tag_ids_stmt) mysql_stmt_close(tag_db->get_all_tag_ids_stmt);
     if (tag_db->mysql) mysql_close(tag_db->mysql);
     
     tag_db->mysql = NULL;

@@ -106,8 +106,10 @@ ItemSource * create_caching_item_source(ItemSource * is) {
     time_t start = time(0);
     state->items = is_fetch_all_items(is);
     state->loaded_at = time(0);
+    char time_buffer[26];
+    ctime_r(&(state->loaded_at), time_buffer);
     info("Loaded %i items into cache in %i secs at %s", item_list_size(state->items), 
-        state->loaded_at - start, ctime(&(state->loaded_at)));
+        state->loaded_at - start, time_buffer);
     is_close(is);
     
     cis->fetch_func = cis_fetch_item;
@@ -147,7 +149,9 @@ int cis_flush(const void *state_vp) {
     state->items = is_fetch_all_items(state->is);
     is_close(state->is);
     state->loaded_at = time(0);
-    info("Flushed cached items at %s. Loaded %i items.", ctime(&(state->loaded_at)), item_list_size(state->items));
+    char time_buffer[26];
+    ctime_r(&(state->loaded_at), time_buffer);
+    info("Flushed cached items at %s. Loaded %i items.", time_buffer, item_list_size(state->items));
     return 0;
   }
   
