@@ -123,7 +123,10 @@ int item_next_token(const Item * item, Token_p token) {
 void free_item(Item *item) {
   if (NULL != item) {
     int freed_bytes;
-    JLFA(freed_bytes, item->tokens);
+    if (item->tokens) {
+      JLFA(freed_bytes, item->tokens);
+      item->tokens = NULL;
+    }
     free(item);    
   }
 }

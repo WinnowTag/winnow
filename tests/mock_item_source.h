@@ -70,8 +70,4 @@ static void teardown_mock_item_source(void) {
   teardown_fixture_path();
   free_item_source(is);
   free_item_list(item_list);
-  free_item(item_1);
-  free_item(item_2);
-  free_item(item_3);
-  free_item(item_4);
 }

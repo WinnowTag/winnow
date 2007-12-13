@@ -245,5 +245,20 @@ void item_list_add_item(ItemList *item_list, const Item *item) {
 }
 
 void free_item_list(ItemList *item_list) {
-  
+  if (item_list) {
+    Word_t bytes_freed;
+    int i;
+    
+    for (i = 0; i < item_list->size; i++) {
+      Item *item = item_list_item_at(item_list, i);
+      if (item) {
+        free_item(item);
+      }
+    }
+    
+    JLFA(bytes_freed, item_list->ordered_items);
+    JLFA(bytes_freed, item_list->items);
+    
+    free(item_list);
+  }
 }
