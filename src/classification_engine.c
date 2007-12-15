@@ -783,7 +783,6 @@ void *flusher_func(void *engine_vp) {
           time_t done_at = time(0);
           ctime_r(&done_at, timebuffer);
           info("Flushing complete and classification resumed at %s", timebuffer);
-          break;
         } else {
           // woke up for some other reasons
         }
