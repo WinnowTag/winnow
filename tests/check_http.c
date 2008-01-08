@@ -297,37 +297,6 @@ START_TEST(test_error_job_status) {
   xmlFree(doc);
 } END_TEST
 
-START_TEST (retrieve_initial_stats) {
-  assert_get("http://localhost:8008/classifier/statistics", 200, data);
-  fclose(data);
-  
-  xmlDocPtr doc = xmlReadFile("/tmp/test_data.xml", NULL, 0);
-  fail_if(doc == NULL, "failed to parse xml");
-  
-  assert_xpath("/statistics/classification-jobs-processed[text() = '0']", doc);
-  assert_xpath("/statistics/classification-wait-time[text() = '0.00']", doc);
-  assert_xpath("/statistics/training-time[text() = '0.00']", doc);
-  assert_xpath("/statistics/calculating-time[text() = '0.00']", doc);
-  assert_xpath("/statistics/classifying-time[text() = '0.00']", doc);
-  assert_xpath("/statistics/tags-classified[text() = '0']", doc);
-  assert_xpath("/statistics/items-classified[text() = '0']", doc);
-  assert_xpath("/statistics/insertion-jobs-processed[text() = '0']", doc);
-  assert_xpath("/statistics/insertion-wait-time[text() = '0.00']", doc);
-  assert_xpath("/statistics/insertion-time[text() = '0.00']", doc);
-  
-  assert_xpath("/statistics/classification-jobs-processed[@type = 'integer']", doc);
-  assert_xpath("/statistics/classification-wait-time[@type = 'float']", doc);
-  assert_xpath("/statistics/training-time[@type = 'float']", doc);
-  assert_xpath("/statistics/calculating-time[@type = 'float']", doc);
-  assert_xpath("/statistics/classifying-time[@type = 'float']", doc);
-  assert_xpath("/statistics/tags-classified[@type = 'integer']", doc);
-  assert_xpath("/statistics/items-classified[@type = 'integer']", doc);
-  assert_xpath("/statistics/insertion-jobs-processed[@type = 'integer']", doc);
-  assert_xpath("/statistics/insertion-wait-time[@type = 'float']", doc);
-  assert_xpath("/statistics/insertion-time[@type = 'float']", doc);
-  xmlFree(doc);
-} END_TEST
-
 #endif
 
 Suite * http_suite(void) {
@@ -353,7 +322,6 @@ Suite * http_suite(void) {
   tcase_add_test(tc_case, deleting_job_sets_it_cancelled);
   tcase_add_test(tc_case, delete_without_job_id_is_405);
   tcase_add_test(tc_case, delete_with_missing_job_id_is_404);
-  tcase_add_test(tc_case, retrieve_initial_stats);
   tcase_add_test(tc_case, deleting_a_completed_job_removes_it_from_the_engine);
   // END_TESTS
 #endif

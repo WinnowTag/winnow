@@ -215,36 +215,6 @@ START_TEST(resuming_suspended_engine_processes_jobs) {
   assert_equal(0, ce_num_waiting_jobs(ce));
 } END_TEST
 
-START_TEST (initial_performance_statistics_are_zeros) {
-  PerformanceStats stats;
-  ce_performance_stats(ce, &stats);
-  assert_equal(0, stats.classification_jobs_processed);
-  assert_equal(0, stats.classification_wait_time);
-  assert_equal(0, stats.training_time);
-  assert_equal(0, stats.calculating_time);
-  assert_equal(0, stats.classifying_time);
-  assert_equal(0, stats.tags_classified);
-  assert_equal(0, stats.items_classified);
-  assert_equal(0, stats.insertion_jobs_processed);
-  assert_equal(0, stats.insertion_time);
-} END_TEST
-
-START_TEST (performance_stats_calculated_from_job_stats) {
-  ce_add_classification_job_for_tag(ce, TAG_ID);
-  ce_start(ce);
-  ce_stop(ce);
-  PerformanceStats stats;
-  ce_performance_stats(ce, &stats);
-  assert_equal(1, stats.classification_jobs_processed);
-  assert_equal(11, stats.insertion_jobs_processed);
-  assert_equal(1, stats.tags_classified);
-  assert_equal(11, stats.items_classified);
-  assert_true(stats.classification_wait_time > 0);
-  assert_true(stats.training_time > 0);
-  assert_true(stats.calculating_time > 0);
-  assert_true(stats.classifying_time > 0);
-} END_TEST
-
 START_TEST (remove_classification_job_removes_the_job_from_the_engines_job_index_if_job_is_complete) {
   ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
   
@@ -334,8 +304,6 @@ Suite * classification_engine_suite(void) {
   tcase_add_test(tc_jt_case, add_user_job_to_queue);
   tcase_add_test(tc_jt_case, suspended_classification_engine_processes_no_jobs);
   tcase_add_test(tc_jt_case, resuming_suspended_engine_processes_jobs);
-  tcase_add_test(tc_jt_case, initial_performance_statistics_are_zeros);
-  tcase_add_test(tc_jt_case, performance_stats_calculated_from_job_stats);
   tcase_add_test(tc_jt_case, remove_classification_job_removes_the_job_from_the_engines_job_index_if_job_is_complete);
   tcase_add_test(tc_jt_case, remove_classification_job_wont_removes_the_job_from_the_engines_job_index_if_job_is_not_complete);
   // END_TESTS

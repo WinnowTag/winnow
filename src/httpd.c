@@ -164,33 +164,6 @@ static const char * extract_job_id(const char * url) {
   return job_id;
 }
 
-
-
-static xmlChar * xml_for_stats(const PerformanceStats * stats) {
-  xmlChar *buffer = NULL;
-  int buffersize;
-  
-  xmlDocPtr doc = xmlNewDoc(BAD_CAST "1.0");
-  xmlNodePtr root = xmlNewNode(NULL, BAD_CAST "statistics");
-  xmlDocSetRootElement(doc, root);
-  
-  add_element(root, "classification-jobs-processed", "integer", "%i", stats->classification_jobs_processed);
-  add_element(root, "classification-wait-time", "float", "%.2f", stats->classification_wait_time);
-  add_element(root, "training-time", "float", "%.2f", stats->training_time);
-  add_element(root, "calculating-time", "float", "%.2f", stats->calculating_time);
-  add_element(root, "classifying-time", "float", "%.2f", stats->classifying_time);
-  add_element(root, "tags-classified", "integer", "%i", stats->tags_classified);
-  add_element(root, "items-classified", "integer", "%i", stats->items_classified);
-  add_element(root, "insertion-jobs-processed", "integer", "%i", stats->insertion_jobs_processed);
-  add_element(root, "insertion-wait-time", "float", "%.2f", stats->insertion_wait_time);
-  add_element(root, "insertion-time", "float", "%.2f", stats->insertion_time);
-      
-  xmlDocDumpFormatMemory(doc, &buffer, &buffersize, 1);
-  xmlFreeDoc(doc);
-    
-  return buffer;
-}
-
 static xmlChar * xml_for_about(const ClassificationEngine *ce) {
   xmlChar *buffer = NULL;
   int buffersize;
@@ -343,27 +316,6 @@ static int start_job_handle(void * ce_vp, struct MHD_Connection * connection,
   return ret;
 }
 
-static int get_statistics(void * ce_vp, struct MHD_Connection * connection,
-                          const char * url, const char * method,
-                          const char * version, const char * upload_data,
-                          unsigned int * upload_data_size, void **memo) {
-  int ret = MHD_YES;
-  
-  if (strcmp(method, MHD_HTTP_METHOD_GET)) {
-    SEND_405(ret, "GET");
-  } else {
-    ClassificationEngine *ce = (ClassificationEngine*) ce_vp;
-    PerformanceStats stats;
-    memset(&stats, 0, sizeof(stats));
-    ce_performance_stats(ce, &stats);
-    xmlChar *xml = xml_for_stats(&stats);
-    SEND_XML_DATA(ret, MHD_HTTP_OK, (char *) xml, NULL);
-    xmlFree(xml);
-  }
-  
-  return ret;
-}
-
 /* This is the base response handler. It just returns a 404. 
  * 
  * TODO Regex matching of URLs would be much more robust
@@ -386,9 +338,7 @@ static int process_request(void * ce_vp, struct MHD_Connection * connection,
     ext[0] = '\0';
   }  
  
-  if (!strcmp(url, "/classifier/statistics")) {
-    ret = get_statistics(ce_vp, connection, url, method, version, upload_data, upload_data_size, memo);
-  } else if (0 == strcmp(url, "/classifier/jobs/") || 
+  if (0 == strcmp(url, "/classifier/jobs/") || 
       0 == strcmp(url, "/classifier/jobs")) {
     info("%s %s size(%i) start_job\n", method, url, *upload_data_size);
     ret = start_job_handle(ce_vp, connection, url, method, version, upload_data, upload_data_size, memo);
