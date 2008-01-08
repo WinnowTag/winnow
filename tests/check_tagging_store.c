@@ -27,6 +27,38 @@ START_TEST(test_insert_tagging) {
   assert_tagging_stored(&tagging);
 } END_TEST
 
+START_TEST(test_insert_multiple_taggings) {
+  TaggingStore *tagging_store = create_db_tagging_store(&config, 0.9);
+  assert_not_null(tagging_store);
+  
+  Tagging tagging1, tagging2, tagging3;
+  
+  tagging1.user_id = 23;
+  tagging1.tag_id = 45;
+  tagging1.item_id = 56;
+  tagging1.strength = 0.9;
+  
+  tagging2.user_id = 23;
+  tagging2.tag_id = 46;
+  tagging2.item_id = 57;
+  tagging2.strength = 0.9;
+  
+  tagging3.user_id = 23;
+  tagging3.tag_id = 46;
+  tagging3.item_id = 58;
+  tagging3.strength = 0.89;
+
+  const Tagging *taggings[3];
+  taggings[0] = &tagging1;
+  taggings[1] = &tagging2;
+  taggings[2] = &tagging3;
+  
+  tagging_store_store_taggings(tagging_store, taggings, 3);
+  assert_tagging_stored(&tagging1);
+  assert_tagging_stored(&tagging2);
+  assert_tagging_not_stored(&tagging3);  
+} END_TEST
+
 START_TEST(test_dont_insert_tagging_below_threshold) {
   TaggingStore *tagging_store = create_db_tagging_store(&config, 0.9);
   assert_not_null(tagging_store);
@@ -37,6 +69,29 @@ START_TEST(test_dont_insert_tagging_below_threshold) {
   tagging.strength = 0.89;
   tagging_store_store(tagging_store, &tagging);
   assert_tagging_not_stored(&tagging);
+} END_TEST
+
+START_TEST (test_remove_tagging_below_threshold) {
+  TaggingStore *tagging_store = create_db_tagging_store(&config, 0.9);
+  assert_not_null(tagging_store);
+  Tagging tagging1;
+  tagging1.user_id = 23;
+  tagging1.tag_id = 45;
+  tagging1.item_id = 57;
+  tagging1.strength = 0.99;
+  
+  Tagging tagging2;
+  tagging2.user_id = 23;
+  tagging2.tag_id = 45;
+  tagging2.item_id = 57;
+  tagging2.strength = 0.85;
+  
+  tagging_store_store(tagging_store, &tagging1);
+  assert_tagging_stored(&tagging1);
+  
+  tagging_store_store(tagging_store, &tagging2);
+  assert_tagging_not_stored(&tagging1);
+  assert_tagging_not_stored(&tagging2);
 } END_TEST
 
 START_TEST(test_insert_duplicate_updates_strength) {
@@ -88,7 +143,9 @@ Suite * tagging_store_suite(void) {
   tcase_add_checked_fixture (tc_case, setup_tagging_store, teardown_tagging_store);
   // START_TESTS
   tcase_add_test(tc_case, test_insert_tagging);
+  tcase_add_test(tc_case, test_insert_multiple_taggings);
   tcase_add_test(tc_case, test_dont_insert_tagging_below_threshold);
+  tcase_add_test(tc_case, test_remove_tagging_below_threshold);
   tcase_add_test(tc_case, test_insert_duplicate_updates_strength);
   tcase_add_test(tc_case, reopen_after_close);
   tcase_add_test(tc_case, store_after_close);

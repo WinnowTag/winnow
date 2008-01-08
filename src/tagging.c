@@ -17,10 +17,13 @@
                           (feed_item_id, tag_id, user_id, strength, classifier_tagging, created_on) \
                            VALUES (?, ?, ?, ?, 1, UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE          \
                            strength = VALUES(strength), created_on = VALUES(created_on)"
+#define DEL_TAGGING_STMT "delete from taggings where feed_item_id = ? and tag_id = ? and user_id = ?\
+                          and classifier_tagging = 1"
 struct TAGGING_STORE {
   DBConfig config;
   MYSQL *mysql;
   MYSQL_STMT *insertion_stmt;
+  MYSQL_STMT *delete_stmt;
   float insertion_threshold;
 };
 
@@ -79,9 +82,43 @@ int tagging_store_is_alive(TaggingStore *store) {
   return alive;
 }
 
+int tagging_store_store_taggings (TaggingStore *store, const Tagging **taggings, int size) {
+  int success = true;
+  
+  if (tagging_store_is_alive(store) && taggings) {
+    if (mysql_autocommit(store->mysql, 0)) {
+      error("Could not set autocommit = 0: %s", mysql_error(store->mysql));
+      success = false;
+    } else {
+      int i;
+      
+      for (i = 0; i < size; i++) {
+        success = tagging_store_store(store, taggings[i]);
+        
+        if (!success) {
+          mysql_rollback(store->mysql);
+          break;
+        }
+      }
+      
+      if (success && mysql_commit(store->mysql)) {
+          error("Error committing tagging transaction: %s", mysql_error(store->mysql));
+          success = false;
+      }
+        
+      mysql_autocommit(store->mysql, 1);      
+    }    
+  }
+  
+  return success;
+}
+
 int tagging_store_store(TaggingStore *store, const Tagging *tagging) {
   int success = true;
-  if (tagging_store_is_alive(store) && tagging && tagging->strength >= store->insertion_threshold) {
+  if (tagging_store_is_alive(store) && tagging) {
+    MYSQL_STMT *stmt = tagging->strength >= store->insertion_threshold ?
+                        store->insertion_stmt :
+                        store->delete_stmt;
     MYSQL_BIND params[4];
     memset(params, 0, sizeof(params));
     params[0].buffer_type = MYSQL_TYPE_LONG;
@@ -92,12 +129,12 @@ int tagging_store_store(TaggingStore *store, const Tagging *tagging) {
     params[1].buffer = (char *) &(tagging->tag_id);
     params[2].buffer = (char *) &(tagging->user_id);
     params[3].buffer = (char *) &(tagging->strength);
-    
-    if (mysql_stmt_bind_param(store->insertion_stmt, params)) {
-      error("Error binding variables for insertion statement: %s", mysql_stmt_error(store->insertion_stmt));
+   
+    if (mysql_stmt_bind_param(stmt, params)) {
+      error("Error binding variables for insertion statement: %s", mysql_stmt_error(stmt));
       success = false;
-    } else if (mysql_stmt_execute(store->insertion_stmt)) {
-      error("Error executing tagging insertion statement: %s", mysql_stmt_error(store->insertion_stmt));
+    } else if (mysql_stmt_execute(stmt)) {
+      error("Error executing tagging insertion statement: %s", mysql_stmt_error(stmt));
       success = false;
     }
   }
@@ -118,12 +155,14 @@ static int establish_connection(TaggingStore *store) {
     success = false;
   } else {
     store->insertion_stmt = mysql_stmt_init(store->mysql);
+    store->delete_stmt = mysql_stmt_init(store->mysql);
     
-    if (NULL == store->insertion_stmt) {
-      error("Error mallocing Prepared Statement: %s", mysql_error(store->mysql));
+    if (NULL == store->insertion_stmt || NULL == store->delete_stmt) {
+      fatal("Error mallocing Prepared Statement: %s", mysql_error(store->mysql));
       success = false;
-    } else if (mysql_stmt_prepare(store->insertion_stmt, INS_TAGGING_STMT, strlen(INS_TAGGING_STMT))) {
-      error("Error preparing hard coded statement: %s", mysql_error(store->mysql));
+    } else if (mysql_stmt_prepare(store->insertion_stmt, INS_TAGGING_STMT, strlen(INS_TAGGING_STMT)) ||
+               mysql_stmt_prepare(store->delete_stmt, DEL_TAGGING_STMT, strlen(DEL_TAGGING_STMT))) {
+      fatal("Error preparing hard coded statement: %s", mysql_error(store->mysql));
       success = false;
     }
   }
