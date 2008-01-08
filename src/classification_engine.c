@@ -140,6 +140,8 @@ struct CLASSIFICATION_JOB {
   ItemScope item_scope;
   int tags_classified;
   int items_classified;
+  Tagging **taggings;
+  int num_taggings;
   /* Timestamps for process timing */
   struct timeval created_at;
   struct timeval started_at;
@@ -148,24 +150,14 @@ struct CLASSIFICATION_JOB {
   struct timeval completed_at;
 };
 
-typedef struct TAGGING_INSERTION_JOB {
-  const char * job_id;
-  Tagging *tagging;
-  struct timeval created_at;
-  struct timeval started_at;
-  struct timeval completed_at;
-} TaggingInsertionJob;
-
 static void ce_record_classification_job_timings(ClassificationEngine *ce, const ClassificationJob *job);
-static void ce_record_insertion_job_timings(ClassificationEngine *ce, const TaggingInsertionJob *job);
 static ClassificationJob * create_tag_classification_job(int tag_id);
 static ClassificationJob * create_user_classification_job(int tag_id);
 static void *classification_worker_func(void *engine_vp);
 static void *insertion_worker_func(void *engine_vp);
 static void *flusher_func(void *engine_vp);
-static TaggingInsertionJob * create_tagging_insertion_job(Tagging *tagging);
-static void free_tagging_insertion_job(TaggingInsertionJob *job);
-static void cjob_process(ClassificationJob *job, const ItemSource *is, TagDB *tagdb, const Pool *background, Queue *insertion_queue);
+static void cjob_process(ClassificationJob *job, const ItemSource *is, TagDB *tagdb, const Pool *background);
+static void cjob_free_taggings(ClassificationJob *job);
 static float tdiff(struct timeval from, struct timeval to);
 
 /* Creates but doesn't start a classification engine.
@@ -568,6 +560,16 @@ static void ce_record_classification_job_timings(ClassificationEngine *ce, const
   pthread_mutex_unlock(ce->suspension_notification_mutex);  \
   debug("Classification resumed in %i", pthread_self());
 
+#define NEXT_IF_CANCELLED(ce, job) \
+  if (CJOB_STATE_CANCELLED == cjob_state(job)) { \
+    /* If it is cancelled we remove              \
+     * and free the job ourselves */             \
+    job->state = CJOB_STATE_COMPLETE;            \
+    ce_remove_classification_job(ce, job);       \
+    free_classification_job(job);                \
+    continue;                                    \
+  }
+
 /* This is the function for classificaiton work threads.
  * 
  * Each worker shares the ItemSource, Random Background and Queues of
@@ -619,23 +621,16 @@ void *classification_worker_func(void *engine_vp) {
       debug("%i got job off queue: %s", pthread_self(), cjob_id(job));
       
       /* Only proceed if the job is not cancelled */
-      if (CJOB_STATE_CANCELLED == cjob_state(job)) {
-        /* If it is cancelled we remove and free the job ourselves */
-        job->state = CJOB_STATE_COMPLETE;
-        ce_remove_classification_job(ce, job);
-        free_classification_job(job);
-      } else {
-        /* Get the reference to the item source here so we get it fresh for each job. This means that if
-         * the item source is flushed we get a new copy on the next job.
-         */
-        cjob_process(job, ce->item_source, tag_db, ce->random_background, ce->tagging_store_queue);
-        ce_record_classification_job_timings(ce, job);
-        
-        if (job->auto_cleanup) {
-          ce_remove_classification_job(ce, job);
-          free_classification_job(job);
-        }
-      }      
+      NEXT_IF_CANCELLED(ce, job);
+      /* Get the reference to the item source here so we get it fresh for each job. This means that if
+       * the item source is flushed we get a new copy on the next job.
+       */
+      cjob_process(job, ce->item_source, tag_db, ce->random_background);
+      ce_record_classification_job_timings(ce, job);
+      
+      if (CJOB_STATE_ERROR != job->state) {
+        q_enqueue(ce->tagging_store_queue, job);
+      }     
     }    
   }
 
@@ -655,16 +650,28 @@ void *insertion_worker_func(void *engine_vp) {
   
   DBConfig tagging_store_config;
   cfg_tagging_store_db_config(ce->config, &tagging_store_config);
-  TaggingStore *store = create_db_tagging_store(&tagging_store_config, econfig.insertion_threshold);  
-    
+  TaggingStore *store = create_db_tagging_store(&tagging_store_config, econfig.insertion_threshold);
+      
   while(!q_empty(ce->tagging_store_queue) || ce->is_inserting) {
-    TaggingInsertionJob *job = q_dequeue_or_wait(ce->tagging_store_queue);
+    ClassificationJob *job = q_dequeue_or_wait(ce->tagging_store_queue);
     
-    if (job) {
+    if (job && job->taggings) {
+      /* Only proceed if the job is not cancelled */
+      NEXT_IF_CANCELLED(ce, job);
+      
       NOW(job->started_at);
-      tagging_store_store(store, job->tagging);
-      NOW(job->completed_at);
-      free_tagging_insertion_job(job);
+      tagging_store_store_taggings(store, job->taggings, job->num_taggings);
+      job->state = CJOB_STATE_COMPLETE;
+      job->progress = 100;
+      NOW(job->completed_at);       
+      
+      if (job->auto_cleanup) {
+        ce_remove_classification_job(ce, job);
+        free_classification_job(job);
+      } else {
+        // clean up taggings, since they are no longer needed      
+        cjob_free_taggings(job);
+      }
     }
   }
   
@@ -790,6 +797,8 @@ ClassificationJob * create_tag_classification_job(int tag_id) {
     job->tags_classified = 0;
     job->items_classified = 0;
     job->auto_cleanup = false;
+    job->taggings = NULL;
+    job->num_taggings = 0;
   }
   
   return job;
@@ -810,6 +819,8 @@ ClassificationJob * create_user_classification_job(int user_id) {
     job->tags_classified = 0;
     job->items_classified = 0;
     job->auto_cleanup = false;
+    job->taggings = NULL;
+    job->num_taggings = 0;
   }
   
   return job;
@@ -817,9 +828,20 @@ ClassificationJob * create_user_classification_job(int user_id) {
 
 void free_classification_job(ClassificationJob * job) {
   if (job) {
+    int i;
+    
+    if (job->taggings) {
+      for (i = 0; i < job->num_taggings; i++) {
+        free(job->taggings[i]);
+      }
+    
+      free(job->taggings);
+    }
+    
     if (job->job_id) {
       free((char *)job->job_id);
     }
+        
     free(job);
   }
 }
@@ -853,6 +875,7 @@ static const char * state_msgs[] = {
     "Training",
     "Calculating",
     "Classifying",
+    "Inserting",
     "Complete",
     "Cancelled",
     "Error"
@@ -878,6 +901,19 @@ const char * cjob_error_msg(const ClassificationJob *job) {
   return error_msgs[job->error];
 }
 
+void cjob_free_taggings(ClassificationJob *job) {
+  if (job) {
+    int i;
+    for (i = 0; i < job->num_taggings; i++) {
+      free(job->taggings[i]);
+    }
+    
+    free(job->taggings);
+    job->taggings = NULL;
+    job->num_taggings = 0;
+  }
+}
+
 void cjob_cancel(ClassificationJob *job) {
   job->state = CJOB_STATE_CANCELLED;
 }
@@ -899,8 +935,8 @@ float cjob_duration(const ClassificationJob *job) {
 /** Do the actual classification.
  * 
  */
-static int cjob_classify(ClassificationJob *job, const TagList *taglist, const ItemSource *item_source, 
-                          const Pool *random_background, Queue *tagging_queue) {
+static int cjob_classify(ClassificationJob *job, const TagList *taglist, 
+                         const ItemSource *item_source, const Pool *random_background) {
   
   if (taglist->size < 1) {
     return 1;
@@ -911,8 +947,12 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist, const I
   ItemList *items = is_fetch_all_items(item_source);
   if (!items) MALLOC_ERR();
   int number_of_items = item_list_size(items);
-  const float progress_increment = 80.0 / number_of_items;
+  const float progress_increment = 75.0 / number_of_items;
 
+  // allocate enough space for a tagging for each item in each tag
+  job->taggings = calloc(taglist->size * number_of_items, sizeof(Tagging*));
+  if (!job->taggings) MALLOC_ERR();
+  
   /* Start by training up all the classifiers for the tags */
   TrainedClassifier **tc = calloc(taglist->size, sizeof(TrainedClassifier*));
   if (!tc) MALLOC_ERR();
@@ -969,9 +1009,8 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist, const I
         job->items_classified++;
         Tagging *tagging = classify(classifier[j], item);
         if (!tagging) MALLOC_ERR();
-        TaggingInsertionJob *tagging_job = create_tagging_insertion_job(tagging);
-        if (!tagging_job) MALLOC_ERR();
-        q_enqueue(tagging_queue, tagging_job);        
+        
+        job->taggings[job->num_taggings++] = tagging;        
       }
       
       if (complete) {
@@ -1011,8 +1050,8 @@ malloc_error:
   goto exit;
 }
 
-static void cjob_process(ClassificationJob *job, const ItemSource *item_source, TagDB *tag_db, 
-                  const Pool *random_background, Queue *tagging_queue) {
+static void cjob_process(ClassificationJob *job, const ItemSource *item_source, 
+                         TagDB *tag_db, const Pool *random_background) {
   /* If the job is cancelled bail out before doing anything */
   if (job->state == CJOB_STATE_CANCELLED) return;
   
@@ -1046,41 +1085,18 @@ static void cjob_process(ClassificationJob *job, const ItemSource *item_source, 
     job->tags_classified = taglist->size;
     job->progress = 5.0;
     
-    if (!cjob_classify(job, taglist, item_source, random_background, tagging_queue)) {
+    if (!cjob_classify(job, taglist, item_source, random_background)) {
       int i;
       for (i = 0; i < taglist->size; i++) {
         tag_db_update_last_classified_at(tag_db, taglist->tags[i]);        
       }
-      
-      job->progress = 100.0;
-      job->state = CJOB_STATE_COMPLETE;
+      job->progress = 95.0;
+      job->state = CJOB_STATE_INSERTING;
     }
     free_taglist(taglist);      
   }
   
   NOW(job->completed_at);
-}
-
-/********************************************************************************
- * Tagging insertion Job functions
- ********************************************************************************/
-TaggingInsertionJob * create_tagging_insertion_job(Tagging *tagging) {
-  TaggingInsertionJob *job = malloc(sizeof(TaggingInsertionJob));
-  if (job) {
-    job->job_id = generate_job_id();
-    NOW(job->created_at);
-    job->tagging = tagging;
-  }
-  
-  return job;
-}
-
-void free_tagging_insertion_job(TaggingInsertionJob *job) {
-  if (job) {
-    free((char *) job->job_id);
-    free(job->tagging);
-    free(job);
-  }
 }
 
 /**********************************************************************************

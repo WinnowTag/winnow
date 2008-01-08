@@ -48,7 +48,7 @@ START_TEST(test_insert_multiple_taggings) {
   tagging3.item_id = 58;
   tagging3.strength = 0.89;
 
-  const Tagging *taggings[3];
+  Tagging *taggings[3];
   taggings[0] = &tagging1;
   taggings[1] = &tagging2;
   taggings[2] = &tagging3;

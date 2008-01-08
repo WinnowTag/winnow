@@ -82,7 +82,7 @@ int tagging_store_is_alive(TaggingStore *store) {
   return alive;
 }
 
-int tagging_store_store_taggings (TaggingStore *store, const Tagging **taggings, int size) {
+int tagging_store_store_taggings (TaggingStore *store, Tagging **taggings, int size) {
   int success = true;
   
   if (tagging_store_is_alive(store) && taggings) {

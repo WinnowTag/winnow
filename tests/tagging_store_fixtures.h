@@ -51,7 +51,6 @@ static void assert_tagging_count_is(int n) {
   if (mysql_stmt_execute(tagging_count_stmt)) fail("Failed executing tagging count query");
   if (mysql_stmt_bind_result(tagging_count_stmt, result)) fail("Failed binding tagging count results");
   if (!mysql_stmt_fetch(tagging_count_stmt)) {
-    mark_point();
     assert_equal(n, inserted_count);
   } else {
     mark_point();
