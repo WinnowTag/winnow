@@ -732,8 +732,8 @@ void *flusher_func(void *engine_vp) {
           now_tm.tm_mday++;
         }
         
-        now_tm.tm_hour = 3;
-        now_tm.tm_min = 0;
+        now_tm.tm_hour = 4;
+        now_tm.tm_min = 30;
         now_tm.tm_sec = 0;
         struct timespec wake_at;
         wake_at.tv_sec = mktime(&now_tm);
