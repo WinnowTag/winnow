@@ -8,6 +8,7 @@
  
 #include <time.h>
 #include <string.h>
+#include <pthread.h>
 #include "item_source.h"
 #include "logging.h"
 
@@ -90,6 +91,7 @@ typedef struct CACHING_ITEM_SOURCE_STATE {
   ItemSource *is;
   ItemList *items;
   time_t    loaded_at;
+  pthread_mutex_t *mutex;
 } CachingItemSourceState;
 
 ItemSource * create_caching_item_source(ItemSource * is) {
@@ -103,6 +105,11 @@ ItemSource * create_caching_item_source(ItemSource * is) {
     }
     
     state->is = is;
+    
+    state->mutex = calloc(1, sizeof(pthread_mutex_t));
+    if (!state->mutex) fatal("Could not calloc mutex");
+    if (pthread_mutex_init(state->mutex, NULL)) fatal("Could not init mutex");
+    
     time_t start = time(0);
     state->items = is_fetch_all_items(is);
     state->loaded_at = time(0);
@@ -126,6 +133,13 @@ Item * cis_fetch_item(const void *state_vp, const int item_id) {
   CachingItemSourceState *state = (CachingItemSourceState*) state_vp;
   if (state) {
     item = item_list_item(state->items, item_id);
+    
+    // If it is not in the cache, try fetching it
+    if (NULL == item) {
+      pthread_mutex_lock(state->mutex);
+      item = is_fetch_item(state->is, item_id);
+      pthread_mutex_unlock(state->mutex);
+    }
   }
   return item;
 }
@@ -169,6 +183,11 @@ void cis_free(void * state_vp) {
     if (state->is) {
       free_item_source(state->is);
       state->is = NULL;
+    }
+    
+    if (state->mutex) {
+      pthread_mutex_destroy(state->mutex);
+      free(state->mutex);
     }
     
     free(state);

@@ -92,9 +92,11 @@ ItemSource * create_db_item_source(DBConfig * config) {
 Item * fetch_item_func(const void *state_p, int item_id) {
   DBItemSource *state = (DBItemSource*) state_p;
   Item *item = NULL;
-  MYSQL_STMT *stmt = state->fetch_item_stmt;
+  MYSQL_STMT *stmt;
   
   if (alive_func(state)) {
+    stmt = state->fetch_item_stmt;
+    
     MYSQL_BIND bind[1];
     memset(bind, 0, sizeof(bind));
     bind[0].buffer_type = MYSQL_TYPE_LONG;
