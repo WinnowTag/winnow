@@ -786,45 +786,42 @@ static const char * generate_job_id() {
   return job_id;
 }
 
-ClassificationJob * create_tag_classification_job(int tag_id) {
+static ClassificationJob * create_classification_job() {
   ClassificationJob *job = malloc(sizeof(ClassificationJob));
   if (job) {
-    job->tag_id = tag_id;
-    job->user_id = 0;
-    job->progress = 0;
-    job->job_id = generate_job_id();
-    job->state = CJOB_STATE_WAITING;
-    job->error = CJOB_ERROR_NO_ERROR;
-    job->type = CJOB_TYPE_TAG_JOB;
-    job->item_scope = ITEM_SCOPE_ALL;
-    NOW(job->created_at);
-    job->tags_classified = 0;
+    job->tag_id           = 0;
+    job->user_id          = 0;
+    job->progress         = 0;
+    job->job_id           = generate_job_id();
+    job->state            = CJOB_STATE_WAITING;
+    job->error            = CJOB_ERROR_NO_ERROR;
+    job->item_scope       = ITEM_SCOPE_ALL;
+    job->tags_classified  = 0;
     job->items_classified = 0;
-    job->auto_cleanup = false;
-    job->taggings = NULL;
-    job->num_taggings = 0;
+    job->auto_cleanup     = false;
+    job->taggings         = NULL;
+    job->num_taggings     = 0;
+    NOW(job->created_at);
+  }
+  
+  return job;
+}
+
+ClassificationJob * create_tag_classification_job(int tag_id) {
+  ClassificationJob *job = create_classification_job();
+  if (job) {
+    job->tag_id = tag_id;
+    job->type = CJOB_TYPE_TAG_JOB;    
   }
   
   return job;
 }
 
 ClassificationJob * create_user_classification_job(int user_id) {
-  ClassificationJob *job = malloc(sizeof(ClassificationJob));
+  ClassificationJob *job = create_classification_job();
   if (job) {
-    job->tag_id = 0;
     job->user_id = user_id;
-    job->progress = 0;
-    job->job_id = generate_job_id();
-    job->state = CJOB_STATE_WAITING;
-    job->error = CJOB_ERROR_NO_ERROR;
-    job->type = CJOB_TYPE_USER_JOB;
-    job->item_scope = ITEM_SCOPE_ALL;
-    NOW(job->created_at);
-    job->tags_classified = 0;
-    job->items_classified = 0;
-    job->auto_cleanup = false;
-    job->taggings = NULL;
-    job->num_taggings = 0;
+    job->type = CJOB_TYPE_USER_JOB;    
   }
   
   return job;
@@ -948,6 +945,7 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist,
   
   int i;
   int failed = false;
+  
   ItemList *items = is_fetch_all_items(item_source);
   if (!items) MALLOC_ERR();
   int number_of_items = item_list_size(items);
@@ -958,8 +956,10 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist,
   if (!job->taggings) MALLOC_ERR();
   
   /* Start by training up all the classifiers for the tags */
+  job->state = CJOB_STATE_TRAINING;  
   TrainedClassifier **tc = calloc(taglist->size, sizeof(TrainedClassifier*));
   if (!tc) MALLOC_ERR();
+  
   for (i = 0; i < taglist->size; i++) {
     tc[i] = train(taglist->tags[i], item_source);
     if (!tc[i]) MALLOC_ERR();
@@ -971,6 +971,7 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist,
   job->state = CJOB_STATE_CALCULATING;
   Classifier **classifier = calloc(taglist->size, sizeof(Classifier*));
   if (!classifier) MALLOC_ERR();
+  
   for (i = 0; i < taglist->size; i++) {
     classifier[i] = precompute(tc[i], random_background);
     if (!classifier[i]) MALLOC_ERR();
@@ -983,6 +984,10 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist,
   }
   job->progress = 20.0;
   NOW(job->computed_at);
+  
+  /* Clean up trained classifier array */
+  free(tc);
+  tc = NULL;
             
   /* Now do the actual classification of each item for each classifier */
   job->state = CJOB_STATE_CLASSIFYING;  
@@ -998,10 +1003,11 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist,
       for (j = 0; j < taglist->size; j++) {
         if (job->item_scope == ITEM_SCOPE_NEW && 
             item_get_time(item) < tag_last_classified_at(taglist->tags[j])) {
-          // Only classifying new items and we have reached the point where
-          // the tag has already been applied to subsequent items, so if
-          // this is the only tag we bail out completely, if there are other
-          // tags just try the next one.
+          /* Only classifying new items and we have reached the point where
+           * the tag has already been applied to subsequent items, so if
+           * this is the only tag we bail out completely, if there are other
+           * tags just try the next one.
+           */
           if (taglist->size > 1) {
             continue;
           } else {
@@ -1060,7 +1066,6 @@ static void cjob_process(ClassificationJob *job, const ItemSource *item_source,
   if (job->state == CJOB_STATE_CANCELLED) return;
   
   NOW(job->started_at);
-  job->state = CJOB_STATE_TRAINING;  
   TagList *taglist = NULL;
   
   switch (job->type) {
@@ -1096,11 +1101,10 @@ static void cjob_process(ClassificationJob *job, const ItemSource *item_source,
       }
       job->progress = 80.0;
       job->state = CJOB_STATE_INSERTING;
+      NOW(job->classified_at);
     }
     free_taglist(taglist);      
-  }
-  
-  NOW(job->classified_at);
+  }  
 }
 
 /**********************************************************************************
