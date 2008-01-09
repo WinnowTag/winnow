@@ -147,6 +147,7 @@ struct CLASSIFICATION_JOB {
   struct timeval started_at;
   struct timeval trained_at;
   struct timeval computed_at;
+  struct timeval classified_at;
   struct timeval completed_at;
 };
 
@@ -187,7 +188,8 @@ ClassificationEngine * create_classification_engine(const Config *config) {
         char time_s[27];
         time_t now = time(0);
         ctime_r(&now, time_s);
-        fprintf(engine->performance_log, "# Classifier started at %s\n", time_s);
+        fprintf(engine->performance_log, "# Classifier started at %s", time_s);
+        fflush(engine->performance_log);
       }
     }
     
@@ -528,15 +530,17 @@ static void ce_record_classification_job_timings(ClassificationEngine *ce, const
     float wait_time = tdiff(job->created_at, job->started_at);
     float train_time = tdiff(job->started_at, job->trained_at);
     float calc_time = tdiff(job->trained_at, job->computed_at);
-    float clas_time = tdiff(job->computed_at, job->completed_at);
+    float clas_time = tdiff(job->computed_at, job->classified_at);
+    float insert_time = tdiff(job->classified_at, job->completed_at);
 
     if (ce->performance_log) {
       pthread_mutex_lock(ce->perf_log_mutex);    
-      fprintf(ce->performance_log, "%i,%i,%.5f,%.5f,%.5f,%.5f\n", 
+      fprintf(ce->performance_log, "%i,%i,%.5f,%.5f,%.5f,%.5f,%.5f\n", 
                 job->tags_classified, job->items_classified,
-                wait_time, train_time, calc_time, clas_time);
+                wait_time, train_time, calc_time, clas_time, 
+                insert_time);
       fflush(ce->performance_log);
-      pthread_mutex_lock(ce->perf_log_mutex);
+      pthread_mutex_unlock(ce->perf_log_mutex);
     }    
   }
 }
@@ -625,8 +629,7 @@ void *classification_worker_func(void *engine_vp) {
       /* Get the reference to the item source here so we get it fresh for each job. This means that if
        * the item source is flushed we get a new copy on the next job.
        */
-      cjob_process(job, ce->item_source, tag_db, ce->random_background);
-      ce_record_classification_job_timings(ce, job);
+      cjob_process(job, ce->item_source, tag_db, ce->random_background);      
       
       if (CJOB_STATE_ERROR != job->state) {
         q_enqueue(ce->tagging_store_queue, job);
@@ -656,15 +659,16 @@ void *insertion_worker_func(void *engine_vp) {
     ClassificationJob *job = q_dequeue_or_wait(ce->tagging_store_queue);
     
     if (job && job->taggings) {
+      debug("%i got job off insertion queue: %s", pthread_self(), cjob_id(job));
       /* Only proceed if the job is not cancelled */
       NEXT_IF_CANCELLED(ce, job);
       
-      NOW(job->started_at);
       tagging_store_store_taggings(store, job->taggings, job->num_taggings, &(job->progress));
       job->state = CJOB_STATE_COMPLETE;
       job->progress = 100;
       NOW(job->completed_at);       
-      
+      ce_record_classification_job_timings(ce, job);
+            
       if (job->auto_cleanup) {
         ce_remove_classification_job(ce, job);
         free_classification_job(job);
@@ -1096,7 +1100,7 @@ static void cjob_process(ClassificationJob *job, const ItemSource *item_source,
     free_taglist(taglist);      
   }
   
-  NOW(job->completed_at);
+  NOW(job->classified_at);
 }
 
 /**********************************************************************************
