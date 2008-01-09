@@ -660,7 +660,7 @@ void *insertion_worker_func(void *engine_vp) {
       NEXT_IF_CANCELLED(ce, job);
       
       NOW(job->started_at);
-      tagging_store_store_taggings(store, job->taggings, job->num_taggings);
+      tagging_store_store_taggings(store, job->taggings, job->num_taggings, &(job->progress));
       job->state = CJOB_STATE_COMPLETE;
       job->progress = 100;
       NOW(job->completed_at);       
@@ -947,7 +947,7 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist,
   ItemList *items = is_fetch_all_items(item_source);
   if (!items) MALLOC_ERR();
   int number_of_items = item_list_size(items);
-  const float progress_increment = 75.0 / number_of_items;
+  const float progress_increment = 60.0 / number_of_items;
 
   // allocate enough space for a tagging for each item in each tag
   job->taggings = calloc(taglist->size * number_of_items, sizeof(Tagging*));
@@ -1090,7 +1090,7 @@ static void cjob_process(ClassificationJob *job, const ItemSource *item_source,
       for (i = 0; i < taglist->size; i++) {
         tag_db_update_last_classified_at(tag_db, taglist->tags[i]);        
       }
-      job->progress = 95.0;
+      job->progress = 80.0;
       job->state = CJOB_STATE_INSERTING;
     }
     free_taglist(taglist);      

@@ -82,7 +82,7 @@ int tagging_store_is_alive(TaggingStore *store) {
   return alive;
 }
 
-int tagging_store_store_taggings (TaggingStore *store, Tagging **taggings, int size) {
+int tagging_store_store_taggings (TaggingStore *store, Tagging **taggings, int size, float *progress) {
   int success = true;
   
   if (tagging_store_is_alive(store) && taggings) {
@@ -90,6 +90,7 @@ int tagging_store_store_taggings (TaggingStore *store, Tagging **taggings, int s
       error("Could not set autocommit = 0: %s", mysql_error(store->mysql));
       success = false;
     } else {
+      float progress_increment = 20.0 / size;
       int i;
       
       for (i = 0; i < size; i++) {
@@ -98,6 +99,8 @@ int tagging_store_store_taggings (TaggingStore *store, Tagging **taggings, int s
         if (!success) {
           mysql_rollback(store->mysql);
           break;
+        } else if (NULL != progress) {
+          *progress += progress_increment;
         }
       }
       

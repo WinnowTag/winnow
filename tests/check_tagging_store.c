@@ -53,7 +53,7 @@ START_TEST(test_insert_multiple_taggings) {
   taggings[1] = &tagging2;
   taggings[2] = &tagging3;
   
-  tagging_store_store_taggings(tagging_store, taggings, 3);
+  tagging_store_store_taggings(tagging_store, taggings, 3, NULL);
   assert_tagging_stored(&tagging1);
   assert_tagging_stored(&tagging2);
   assert_tagging_not_stored(&tagging3);  
