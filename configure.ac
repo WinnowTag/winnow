@@ -44,6 +44,7 @@ AC_ARG_ENABLE([debug],
 AM_CONDITIONAL([DEBUG], [test x$debug = xtrue])
 
 ### Check Functions
+AC_CHECK_LIB([uuid], [uuid_generate])
 AC_REPLACE_FUNCS(uuid_generate)
 AC_REPLACE_FUNCS(uuid_unparse)
 
@@ -92,7 +93,12 @@ CPPFLAGS="$CPPFLAGS $MYSQL_INCLUDE"
 AC_CHECK_HEADERS([mysql.h], [], [AC_MSG_ERROR(mysql.h is missing)])
 
 ### Check for types
-AC_CHECK_TYPES(uuid_t)
+AC_CHECK_TYPES(uuid_t, [], [],
+[AC_INCLUDES_DEFAULT
+#ifdef HAVE_UUID_UUID_H
+#include <uuid/uuid.h>
+#endif
+])
 
 # Output Files
 AC_CONFIG_HEADERS([config.h])
