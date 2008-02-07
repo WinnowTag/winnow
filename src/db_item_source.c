@@ -17,9 +17,13 @@
 #define FETCH_ITEM_SQL "select token_id, frequency, time from feed_item_tokens \
                         join feed_items on feed_items.id = feed_item_tokens.feed_item_id \
                         where feed_item_id = ?"
+/* This only sorts by time and depends on the fact that rows will be sorted by feed_item_id
+ * within time, which is a function MySQL indexing.  If we chnage storage engines the query
+ * will need to be revisited.
+ */
 #define FETCH_ALL_ITEMS_SQL "select feed_items.id, token_id, frequency, time from feed_items \
                         join feed_item_tokens on feed_items.id = feed_item_tokens.feed_item_id \
-                        order by time desc, feed_items.id"
+                        order by time desc"
 
 typedef struct DB_ITEMSOURCE {
   /* DB connection configuration */
