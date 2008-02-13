@@ -47,6 +47,25 @@ START_TEST(inserts_taggings) {
   free_config(config);
 } END_TEST
 
+START_TEST(delete_existing_taggings_before_it_inserts_new_taggings) {
+  if (mysql_query(mysql, "insert into taggings (feed_item_id, tag_id, classifier_tagging, user_id, strength) VALUES (1,48,1,2,0.95)")) {
+    fail("Failed to create fixture taggings %s", mysql_error(mysql));
+  }
+  assert_tagging_count_is(1);
+  Config *config = load_config("conf/test.conf");
+  ClassificationEngine *ce = create_classification_engine(config);
+  ce_start(ce);
+  ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
+  mark_point();
+  ce_stop(ce);
+  mark_point();
+  assert_tagging_count_is(11);
+  assert_equal_f(100.0, cjob_progress(job));
+  assert_equal(CJOB_STATE_COMPLETE, cjob_state(job));
+  free_classification_engine(ce);
+  free_config(config);
+} END_TEST
+
 START_TEST(inserts_taggings_for_all_users_tags) {
   assert_tagging_count_is(0);
   Config *config = load_config("conf/test.conf");
@@ -64,14 +83,18 @@ START_TEST(inserts_taggings_for_all_users_tags) {
 } END_TEST
 
 START_TEST (test_new_items_job_insert_taggings_for_items_with_time_later_than_last_classified) {
-  assert_tagging_count_is(0);
+  /* This should not delete existing tags */
+  if (mysql_query(mysql, "insert into taggings (feed_item_id, tag_id, classifier_tagging, user_id, strength) VALUES (1,38,1,2,0.95)")) {
+      fail("Failed to create fixture taggings %s", mysql_error(mysql));
+    }
+  assert_tagging_count_is(1);
   Config *config = load_config("conf/test.conf");
   ClassificationEngine *ce = create_classification_engine(config);
   ce_start(ce);
   ClassificationJob *job = ce_add_classify_new_items_job_for_tag(ce, 38);
   mark_point();
   ce_stop(ce);
-  assert_tagging_count_is(1);
+  assert_tagging_count_is(2);
   free_classification_engine(ce);
   free_config(config);
 } END_TEST
@@ -311,6 +334,7 @@ Suite * classification_engine_suite(void) {
   TCase *tc_end_to_end = tcase_create("end to end");
   tcase_add_checked_fixture(tc_end_to_end, setup_end_to_end, teardown_end_to_end);
   tcase_add_test(tc_end_to_end, inserts_taggings);
+  tcase_add_test(tc_end_to_end, delete_existing_taggings_before_it_inserts_new_taggings);
   tcase_add_test(tc_end_to_end, inserts_taggings_for_all_users_tags);
   tcase_add_test(tc_end_to_end, cancelled_job_doesnt_insert_taggings_if_cancelled_before_processed);
   tcase_add_test(tc_end_to_end, can_send_bogus_tag_id_without_taking_down_the_server);

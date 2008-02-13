@@ -10,6 +10,7 @@
 #define TAGGING_H_
 
 #include "cls_config.h"
+#include "tag.h"
 
 typedef struct TAGGING_STORE TaggingStore;
 
@@ -25,7 +26,9 @@ typedef struct TAGGING {
 /** Functions for Tagging stores */
 extern TaggingStore * create_db_tagging_store (const DBConfig *config, float insertion_threshold);
 extern int            tagging_store_store     (TaggingStore *store, const Tagging *tagging);
-extern int            tagging_store_store_taggings (TaggingStore *store, Tagging **taggings, int size, float *progress);
+extern int            tagging_store_clear_for_tag(TaggingStore *store, const Tag *tag);
+extern int            tagging_store_replace_taggings (TaggingStore *store, const TagList *taglist, 
+                                                      Tagging **taggings, int size, float *progress);
 extern void           tagging_store_close     (TaggingStore *store);
 extern int            tagging_store_is_alive  (TaggingStore *store);
 extern void           free_tagging_store      (TaggingStore *store);

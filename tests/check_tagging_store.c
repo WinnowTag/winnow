@@ -28,13 +28,24 @@ START_TEST(test_insert_tagging) {
 } END_TEST
 
 START_TEST(test_insert_multiple_taggings) {
+  TagList *taglist = create_tag_list();
+  taglist_add_tag(taglist, create_tag(NULL, NULL, 23, 45));
+  taglist_add_tag(taglist, create_tag(NULL, NULL, 23, 46));
+  
   TaggingStore *tagging_store = create_db_tagging_store(&config, 0.9);
   assert_not_null(tagging_store);
+    
+  Tagging tagging1, tagging2, tagging3, old_tagging;
   
-  Tagging tagging1, tagging2, tagging3;
+  old_tagging.user_id = 23;
+  old_tagging.tag_id = 45;
+  old_tagging.item_id = 58;
+  old_tagging.strength = 0.9;
+  tagging_store_store(tagging_store, &old_tagging);
+  assert_tagging_stored(&old_tagging);
   
   tagging1.user_id = 23;
-  tagging1.tag_id = 45;
+  tagging1.tag_id = 46;
   tagging1.item_id = 56;
   tagging1.strength = 0.9;
   
@@ -44,7 +55,7 @@ START_TEST(test_insert_multiple_taggings) {
   tagging2.strength = 0.9;
   
   tagging3.user_id = 23;
-  tagging3.tag_id = 46;
+  tagging3.tag_id = 45;
   tagging3.item_id = 58;
   tagging3.strength = 0.89;
 
@@ -53,10 +64,11 @@ START_TEST(test_insert_multiple_taggings) {
   taggings[1] = &tagging2;
   taggings[2] = &tagging3;
   
-  tagging_store_store_taggings(tagging_store, taggings, 3, NULL);
+  tagging_store_replace_taggings(tagging_store, taglist, taggings, 3, NULL);
   assert_tagging_stored(&tagging1);
   assert_tagging_stored(&tagging2);
-  assert_tagging_not_stored(&tagging3);  
+  assert_tagging_not_stored(&tagging3);
+  assert_tagging_not_stored(&old_tagging);
 } END_TEST
 
 START_TEST(test_dont_insert_tagging_below_threshold) {
@@ -83,15 +95,16 @@ START_TEST (test_remove_tagging_below_threshold) {
   Tagging tagging2;
   tagging2.user_id = 23;
   tagging2.tag_id = 45;
-  tagging2.item_id = 57;
+  tagging2.item_id = 58;
   tagging2.strength = 0.85;
   
   tagging_store_store(tagging_store, &tagging1);
   assert_tagging_stored(&tagging1);
   
-  tagging_store_store(tagging_store, &tagging2);
+  tagging_store_clear_for_tag(tagging_store, create_tag(NULL, NULL, 23, 45));
   assert_tagging_not_stored(&tagging1);
   assert_tagging_not_stored(&tagging2);
+  assert_tagging_count_is(0);
 } END_TEST
 
 START_TEST(test_insert_duplicate_updates_strength) {

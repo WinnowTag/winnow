@@ -138,6 +138,7 @@ struct CLASSIFICATION_JOB {
   ClassificationJobError error;
   int auto_cleanup;
   ItemScope item_scope;
+  TagList *taglist;
   int tags_classified;
   int items_classified;
   Tagging **taggings;
@@ -663,7 +664,12 @@ void *insertion_worker_func(void *engine_vp) {
       /* Only proceed if the job is not cancelled */
       NEXT_IF_CANCELLED(ce, job);
       
-      tagging_store_store_taggings(store, job->taggings, job->num_taggings, &(job->progress));
+      if (job->item_scope == ITEM_SCOPE_ALL) {
+        tagging_store_replace_taggings(store, job->taglist, job->taggings, job->num_taggings, &(job->progress));
+      } else {
+        tagging_store_replace_taggings(store, NULL, job->taggings, job->num_taggings, &(job->progress));
+      }
+      
       job->state = CJOB_STATE_COMPLETE;
       job->progress = 100;
       NOW(job->completed_at);       
@@ -801,6 +807,7 @@ static ClassificationJob * create_classification_job() {
     job->auto_cleanup     = false;
     job->taggings         = NULL;
     job->num_taggings     = 0;
+    job->taglist          = NULL;
     NOW(job->created_at);
   }
   
@@ -841,6 +848,10 @@ void free_classification_job(ClassificationJob * job) {
     
     if (job->job_id) {
       free((char *)job->job_id);
+    }
+    
+    if (job->taglist) {
+      free_taglist(job->taglist);
     }
         
     free(job);
@@ -1066,22 +1077,21 @@ static void cjob_process(ClassificationJob *job, const ItemSource *item_source,
   if (job->state == CJOB_STATE_CANCELLED) return;
   
   NOW(job->started_at);
-  TagList *taglist = NULL;
   
   switch (job->type) {
     case CJOB_TYPE_TAG_JOB: {
       Tag *tag = tag_db_load_tag_by_id(tag_db, job->tag_id);
       if (tag) {
-        taglist = create_tag_list();
-        taglist_add_tag(taglist, tag);
+        job->taglist = create_tag_list();
+        taglist_add_tag(job->taglist, tag);
       } else {
         SET_JOB_ERROR(job, CJOB_ERROR_NO_SUCH_TAG, "Tag %i does not exist", job->tag_id);
       }
     }
     break;
     case CJOB_TYPE_USER_JOB:
-      taglist = tag_db_load_tags_to_classify_for_user(tag_db, job->user_id);          
-      if (!taglist || taglist->size == 0) {
+      job->taglist = tag_db_load_tags_to_classify_for_user(tag_db, job->user_id);          
+      if (!job->taglist || job->taglist->size == 0) {
         SET_JOB_ERROR(job, CJOB_ERROR_NO_TAGS_FOR_USER, "No tags for user %i", job->user_id);
       }
     break;
@@ -1090,20 +1100,19 @@ static void cjob_process(ClassificationJob *job, const ItemSource *item_source,
     break;
   }
     
-  if (taglist) {
-    job->tags_classified = taglist->size;
+  if (job->taglist) {
+    job->tags_classified = job->taglist->size;
     job->progress = 5.0;
     
-    if (!cjob_classify(job, taglist, item_source, random_background)) {
+    if (!cjob_classify(job, job->taglist, item_source, random_background)) {
       int i;
-      for (i = 0; i < taglist->size; i++) {
-        tag_db_update_last_classified_at(tag_db, taglist->tags[i]);        
+      for (i = 0; i < job->taglist->size; i++) {
+        tag_db_update_last_classified_at(tag_db, job->taglist->tags[i]);        
       }
       job->progress = 80.0;
       job->state = CJOB_STATE_INSERTING;
       NOW(job->classified_at);
-    }
-    free_taglist(taglist);      
+    }    
   }  
 }
 

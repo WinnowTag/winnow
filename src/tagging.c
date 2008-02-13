@@ -11,19 +11,20 @@
 #include <string.h>
 #include "misc.h"
 #include "tagging.h"
+#include "tag.h"
 #include "logging.h"
 
 #define INS_TAGGING_STMT "insert into taggings                                                      \
                           (feed_item_id, tag_id, user_id, strength, classifier_tagging, created_on) \
                            VALUES (?, ?, ?, ?, 1, UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE          \
                            strength = VALUES(strength), created_on = VALUES(created_on)"
-#define DEL_TAGGING_STMT "delete from taggings where feed_item_id = ? and tag_id = ? and user_id = ?\
-                          and classifier_tagging = 1"
+#define DEL_TAGGINGS_STMT "delete from taggings where tag_id = ? and classifier_tagging = 1"
+
 struct TAGGING_STORE {
   DBConfig config;
   MYSQL *mysql;
   MYSQL_STMT *insertion_stmt;
-  MYSQL_STMT *delete_stmt;
+  MYSQL_STMT *delete_by_tag_stmt;
   float insertion_threshold;
 };
 
@@ -82,7 +83,43 @@ int tagging_store_is_alive(TaggingStore *store) {
   return alive;
 }
 
-int tagging_store_store_taggings (TaggingStore *store, Tagging **taggings, int size, float *progress) {
+int tagging_store_clear_for_tag(TaggingStore *store, const Tag *tag) {
+  int success = true;
+  
+  if (tagging_store_is_alive(store)) {
+    MYSQL_BIND params[1];
+    memset(params, 0, sizeof(params));
+    params[0].buffer_type = MYSQL_TYPE_LONG;
+    params[0].buffer = (char *) &(tag->tag_id);
+    
+    if (mysql_stmt_bind_param(store->delete_by_tag_stmt, params)) {
+      error("Error binding variables for delete_by_tag statement: %s", mysql_stmt_error(store->delete_by_tag_stmt));
+      success = false;
+    } else if (mysql_stmt_execute(store->delete_by_tag_stmt)) {
+      error("Error executing delete_by_tag statement: %s", mysql_stmt_error(store->delete_by_tag_stmt));
+      success = false;
+    }    
+  } else {
+    success = false;
+  }
+  
+  return success;
+}
+
+/** Replaces the taggings for a given tag with the provided taggings.
+ * 
+ * @param store The tagging store in which to store the taggings.
+ * @param taglist A list of tags to replace. All the classifier taggings for the 
+ *                tags in this TagList will be deleted before the new taggings
+ *                are inserted.  This can be NULL, in which case now classifier
+ *                taggings are deleted.
+ * @param taggings An array of new taggings. All taggings with strength higher than
+ *                 store->insertion_threshold will be inserted into the database.
+ * @param size    The size of the taggings array.
+ * @param progress A pointer to a float. If not NULL this will be updated with progress
+ *                 as taggings are inserted.
+ */
+int tagging_store_replace_taggings (TaggingStore *store, const TagList *taglist, Tagging **taggings, int size, float *progress) {
   int success = true;
   
   if (tagging_store_is_alive(store) && taggings) {
@@ -90,17 +127,37 @@ int tagging_store_store_taggings (TaggingStore *store, Tagging **taggings, int s
       error("Could not set autocommit = 0: %s", mysql_error(store->mysql));
       success = false;
     } else {
-      float progress_increment = 20.0 / size;
+      int increment_base = size;
+      if (taglist) {
+        increment_base += taglist->size;
+      }
+      
+      float progress_increment = 20.0 / increment_base;
       int i;
       
-      for (i = 0; i < size; i++) {
-        success = tagging_store_store(store, taggings[i]);
-        
-        if (!success) {
-          mysql_rollback(store->mysql);
-          break;
-        } else if (NULL != progress) {
-          *progress += progress_increment;
+      if (taglist) {
+        for (i = 0; i < taglist->size; i++) {
+          success = tagging_store_clear_for_tag(store, taglist->tags[i]);
+          
+          if (!success) {
+            mysql_rollback(store->mysql);
+            break;
+          } else if (NULL != progress) {
+            *progress += progress_increment;
+          }
+        }
+      }
+      
+      if (success) {      
+        for (i = 0; i < size; i++) {
+          success = tagging_store_store(store, taggings[i]);
+          
+          if (!success) {
+            mysql_rollback(store->mysql);
+            break;
+          } else if (NULL != progress) {
+            *progress += progress_increment;
+          }
         }
       }
       
@@ -118,10 +175,9 @@ int tagging_store_store_taggings (TaggingStore *store, Tagging **taggings, int s
 
 int tagging_store_store(TaggingStore *store, const Tagging *tagging) {
   int success = true;
-  if (tagging_store_is_alive(store) && tagging) {
-    MYSQL_STMT *stmt = tagging->strength >= store->insertion_threshold ?
-                        store->insertion_stmt :
-                        store->delete_stmt;
+  if (tagging_store_is_alive(store) && tagging && tagging->strength >= store->insertion_threshold) {
+    MYSQL_STMT *stmt = store->insertion_stmt;
+                        
     MYSQL_BIND params[4];
     memset(params, 0, sizeof(params));
     params[0].buffer_type = MYSQL_TYPE_LONG;
@@ -158,13 +214,13 @@ static int establish_connection(TaggingStore *store) {
     success = false;
   } else {
     store->insertion_stmt = mysql_stmt_init(store->mysql);
-    store->delete_stmt = mysql_stmt_init(store->mysql);
+    store->delete_by_tag_stmt = mysql_stmt_init(store->mysql);
     
-    if (NULL == store->insertion_stmt || NULL == store->delete_stmt) {
+    if (NULL == store->insertion_stmt || NULL == store->delete_by_tag_stmt) {
       fatal("Error mallocing Prepared Statement: %s", mysql_error(store->mysql));
       success = false;
     } else if (mysql_stmt_prepare(store->insertion_stmt, INS_TAGGING_STMT, strlen(INS_TAGGING_STMT)) ||
-               mysql_stmt_prepare(store->delete_stmt, DEL_TAGGING_STMT, strlen(DEL_TAGGING_STMT))) {
+               mysql_stmt_prepare(store->delete_by_tag_stmt, DEL_TAGGINGS_STMT, strlen(DEL_TAGGINGS_STMT))) {
       fatal("Error preparing hard coded statement: %s", mysql_error(store->mysql));
       success = false;
     }
