@@ -94,6 +94,7 @@ int cfg_engine_config(const Config * config, EngineConfig * econfig) {
 
 int cfg_httpd_config(const Config * config, HttpdConfig * httpd) {
   httpd->port = config_lookup_int(config->config, "httpd.port");
+  httpd->allowed_ip = config_lookup_string(config->config, "httpd.allowed_ip");
   return 0;
 }
 

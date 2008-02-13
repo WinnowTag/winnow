@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <arpa/inet.h>
 #include "httpd.h"
 #include "cls_config.h"
 #include "logging.h"
@@ -357,6 +358,29 @@ static int process_request(void * ce_vp, struct MHD_Connection * connection,
   return ret;
 }
 
+static int access_policy(void *ip_vp, const struct sockaddr * addr, socklen_t addrlen) {
+  char *allowed_ip = ip_vp;
+  int allow = MHD_NO;
+  
+  if (allowed_ip) {
+    if (addr->sa_family == AF_INET) {
+      char ip[16];      
+      inet_ntop(AF_INET, &(((struct sockaddr_in *)addr)->sin_addr), ip, sizeof (ip));
+      
+      if (0 == strncmp(allowed_ip, ip, sizeof(ip))) {
+        allow = MHD_YES;
+      } else {
+        info("Rejected connection from %s because it didn't match allowed ip %s", ip, allowed_ip);
+      }
+    }   
+  } else {
+    allow = MHD_YES;
+  }
+  
+  return allow;
+}
+
+
 Httpd * httpd_start(Config *config, ClassificationEngine *ce) {
   Httpd *httpd = malloc(sizeof(Httpd));
   if (httpd) {
@@ -368,8 +392,8 @@ Httpd * httpd_start(Config *config, ClassificationEngine *ce) {
     
     httpd->mhd = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG,
                                   httpd_config.port,
-                                  NULL,
-                                  NULL,
+                                  access_policy,
+                                  (void*) httpd_config.allowed_ip,
                                   process_request,
                                   ce,
                                   MHD_OPTION_END);

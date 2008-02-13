@@ -18,6 +18,7 @@ START_TEST(test_http_config) {
   HttpdConfig httpd;
   cfg_httpd_config(config, &httpd);
   assert_equal(8008, httpd.port);
+  assert_equal_s("127.0.0.1", httpd.allowed_ip);
 } END_TEST
 
 START_TEST(test_engine_settings) {

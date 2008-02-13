@@ -26,6 +26,7 @@ typedef struct ENGINE_CONFIG {
 
 typedef struct HTTP_CONFIG {
   int port;
+  const char *allowed_ip;
 } HttpdConfig;
 
 extern Config   * load_config        (const char * config_file);
