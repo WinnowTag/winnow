@@ -8,6 +8,7 @@
 
 #include <stdlib.h>
 #include <mysql.h>
+#include <mysqld_error.h>
 #include <string.h>
 #include "misc.h"
 #include "tagging.h"
@@ -192,8 +193,8 @@ int tagging_store_store(TaggingStore *store, const Tagging *tagging) {
     if (mysql_stmt_bind_param(stmt, params)) {
       error("Error binding variables for insertion statement: %s", mysql_stmt_error(stmt));
       success = false;
-    } else if (mysql_stmt_execute(stmt)) {
-      error("Error executing tagging insertion statement: %s", mysql_stmt_error(stmt));
+    } else if (mysql_stmt_execute(stmt) && mysql_stmt_errno(stmt) != ER_NO_REFERENCED_ROW_2) {
+      error("Error executing tagging insertion statement: %s (%d)", mysql_stmt_error(stmt), mysql_stmt_errno(stmt));
       success = false;
     }
   }
