@@ -8,7 +8,7 @@ create table "feeds" (
   "title"       text
 );
   
-create table "entry" (
+create table "entries" (
   "id"          integer NOT NULL PRIMARY KEY,
   "full_id"     text,
   "title"       text,
@@ -34,7 +34,7 @@ create table "entry_tokens" (
   "frequency"    integer NOT NULL,
   primary key ("entry_id", "token_id"),
   constraint "entry_tokens_entry_id" foreign key ("entry_id")
-    references "feed_itemss" ("id") ON DELETE CASCADE,
+    references "entries" ("id") ON DELETE CASCADE,
   constraint "entry_tokens_token_id" foreign key ("token_id")
     references "tokens" ("id")
 );
