@@ -22,6 +22,9 @@ typedef struct ITEM_LIST {
 /** An item source stores a reference to an item loading function
  *  and some state to pass as the first argument to the item 
  *  loading function.
+ * 
+ *  An ItemSource is different from an item cache since it is specifically
+ *  used for fetching items for the purpose of classification.
  */
 typedef struct ITEMSOURCE {
   Item* (*fetch_func)(const void*, const int item_id);

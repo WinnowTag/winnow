@@ -15,6 +15,9 @@
 
 #include <time.h>
 
+/** An Item represents a unit to be classified. In this system an ItemCache entry
+ *  can be represented as an Item in order to be classified.
+ */
 typedef struct ITEM {
   /* The ID of the item */
   int id;
