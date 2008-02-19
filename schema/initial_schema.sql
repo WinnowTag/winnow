@@ -16,9 +16,9 @@ create table "entries" (
   "alternate"   text,
   "self"        text,
   "content"     text,
-  "updated"     text,
+  "updated"     real,
   "feed_id"     integer NOT NULL,
-  "created_at"  text,
+  "created_at"  real,
   constraint "entry_feed" foreign key ("feed_id")
     references "feeds" ("id") ON DELETE CASCADE
 );
