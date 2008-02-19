@@ -68,6 +68,8 @@ AC_CHECK_LIB(mysqlclient_r, mysql_real_connect,
   [AC_DEFINE(HAVE_DATABASE_ACCESS,,[We have DB libraries])], 
   [AC_MSG_ERROR(Could not find mysqlclient with mysql_real_connect)])
 
+AC_CHECK_LIB(sqlite3, [sqlite3_open_v2], [], [AC_MSG_ERROR(Could not find sqlite3 with sqlite3_open_v2)])
+
 # Unit testing library
 if test "x$PKG_CONFIG" != "x"; then
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])

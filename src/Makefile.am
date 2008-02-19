@@ -39,7 +39,9 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            time_helper.h             \
                            time_helper.c						 \
                            create_file.c             \
-                           uuid.h \
+                           sqlite_item_source.c      \
+                           sqlite_item_source.h      \
+                           uuid.h                    \
                            svnversion.h
                            
 libclassifier_la_LIBADD = @LTLIBOBJS@

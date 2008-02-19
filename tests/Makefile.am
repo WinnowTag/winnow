@@ -1,4 +1,4 @@
-TESTS = check_all check_db check_http
+TESTS = check_all
 CLEANFILES = http_test.log http_test_data.log test.log
 
 LDFLAGS = -static
@@ -21,6 +21,7 @@ check_all_SOURCES = check_all.c \
                 check_queue.c $(top_builddir)/src/job_queue.h \
                 check_config.c $(top_builddir)/src/cls_config.h \
                 check_caching_item_source.c \
+                check_sqlite_item_source.c $(top_builddir)/src/sqlite_item_source.h \
                 $(top_builddir)/src/tagging.h \
                 assertions.h  \
                 mock_item_source.h \

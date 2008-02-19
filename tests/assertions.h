@@ -27,8 +27,12 @@
 #define assert_equal(expected, actual) fail_unless(expected == actual, "expected %d but got %d", expected, actual)
 #endif
 
+#ifndef assert_not_equal
+#define assert_not_equal(expected, actual) fail_unless(expected != actual, "expected %d to be something else", expected, actual)
+#endif
+
 #ifndef assert_equal_s
-#define assert_equal_s(e, a) fail_unless(strcmp(e,a) == 0, "expected %s but got %d", e, a)
+#define assert_equal_s(e, a) fail_unless(strcmp(e,a) == 0, "expected %s but got %s", e, a)
 #endif
 
 #ifndef assert_equal_f

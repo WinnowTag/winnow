@@ -33,6 +33,14 @@
 #define ERR 1
 #endif
 
+#ifndef CLASSIFIER_OK
+#define CLASSIFIER_OK 0
+#endif
+
+#ifndef CLASSIFIER_FAIL
+#define CLASSIFIER_FAIL 1
+#endif
+
 extern int create_file(const char *filename);
 
 #endif
