@@ -1,4 +1,4 @@
-TESTS = check_all
+TESTS = check_all #check_db check_http
 CLEANFILES = http_test.log http_test_data.log test.log
 
 LDFLAGS = -static
@@ -34,13 +34,11 @@ check_all_LDADD = @CHECK_LIBS@  \
               $(top_builddir)/src/libclassifier.la
               
 check_db_SOURCES = check_db.c                    \
-            check_db_item_source.c               \
             check_tag_db.c                       \
             check_tagging_store.c                \
             check_db_random_background.c         \
             check_classification_engine.c        \
             $(top_builddir)/src/classification_engine.h \
-            $(top_builddir)/src/db_item_source.h \
             $(top_builddir)/src/item.h           \
             $(top_builddir)/src/item_source.h    \
             $(top_builddir)/src/tag.h            \

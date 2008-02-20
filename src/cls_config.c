@@ -98,19 +98,6 @@ int cfg_httpd_config(const Config * config, HttpdConfig * httpd) {
   return 0;
 }
 
-/** Gets the item DB configuration.
- *
- *  The passed in db_config will be initialized with the DB settings
- *  defined in the configuration. The char* assigned to the db_config
- *  will be managed by the configuration object and should not be freed
- *  by the caller.
- *
- *  Returns true if the db_config is set, false otherwise.
- */
-int cfg_item_db_config(const Config * config, DBConfig *db_config) {
-  return load_db_config(config, db_config, ITEM_DB);
-}
-
 int cfg_tag_db_config(const Config * config, DBConfig *db_config) {
   return load_db_config(config, db_config, TAG_DB);
 }

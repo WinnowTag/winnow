@@ -40,30 +40,6 @@ START_TEST(default_engine_settings) {
   free_config(config);
 } END_TEST
 
-START_TEST (null_item_db_configuration) {
-  Config *config = load_config("fixtures/no-db.conf");
-  assert_not_null(config);
-  DBConfig db_config;
-  int rc = cfg_item_db_config(config, &db_config);
-  assert_false(rc);
-  
-  free_config(config);
-} END_TEST
-
-START_TEST (item_db_configuration) {
-  Config *config = load_config("fixtures/db.conf");
-  DBConfig db_config;
-  int rc = cfg_item_db_config(config, &db_config);
-  assert_true(rc);
-  
-  assert_equal_s("localhost", db_config.host);
-  assert_equal_s("bob", db_config.user);
-  assert_equal_s("password", db_config.password);
-  assert_equal_s("collector", db_config.database);
-  assert_equal(3307, db_config.port); 
-  free_config(config);
-} END_TEST
-
 START_TEST (tag_db_configuration) {
   Config *config = load_config("fixtures/db.conf");
   DBConfig db_config;
@@ -109,8 +85,6 @@ config_suite(void) {
 
 // START_TESTS
   tcase_add_checked_fixture(tc_case, setup_fixture_path, teardown_fixture_path);
-  tcase_add_test(tc_case, null_item_db_configuration);
-  tcase_add_test(tc_case, item_db_configuration);
   tcase_add_test(tc_case, tag_db_configuration);
   tcase_add_test(tc_case, tagging_store_db_configuration);
   tcase_add_test(tc_case, test_engine_settings);

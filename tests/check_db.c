@@ -20,8 +20,7 @@ int main(void) {
   initialize_logging("test.log");
   int number_failed;
   
-  SRunner *sr = srunner_create(db_item_source_suite());
-  srunner_add_suite(sr, tag_db_suite());
+  SRunner *sr = srunner_create(tag_db_suite());
   srunner_add_suite(sr, tagging_store_suite());
   srunner_add_suite(sr, db_random_background_suite());
   srunner_add_suite(sr, classification_engine_suite());

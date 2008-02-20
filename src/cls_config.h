@@ -22,6 +22,7 @@ typedef struct ENGINE_CONFIG {
   int num_workers;
   float insertion_threshold;
   const char *performance_log;
+  const char *item_cache_db;
 } EngineConfig;
 
 typedef struct HTTP_CONFIG {
@@ -31,7 +32,6 @@ typedef struct HTTP_CONFIG {
 
 extern Config   * load_config        (const char * config_file);
 extern int        cfg_engine_config  (const Config * config, EngineConfig *econfig);
-extern int        cfg_item_db_config (const Config * config, DBConfig *db_config);
 extern int        cfg_tag_db_config  (const Config * config, DBConfig *db_config);
 extern int        cfg_tagging_store_db_config (const Config * config, DBConfig *db_config);
 extern int        cfg_httpd_config   (const Config *config, HttpdConfig *httpd);

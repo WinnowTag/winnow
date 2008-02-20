@@ -23,20 +23,6 @@
 #include "random_background.h"
 #include "logging.h"
 
-#ifdef HAVE_DATABASE_ACCESS
-#include <mysql.h>
-#include "db_item_source.h"
-#define DB_SYSTEM_INIT  mysql_library_init(-1, NULL, NULL)
-#define DB_THREAD_INIT  mysql_thread_init()
-#define DB_THREAD_END   mysql_thread_end()
-#define DB_SYSTEM_END   mysql_library_end()
-#else
-#define DB_SYSTEM_INIT
-#define DB_THREAD_INIT
-#define DB_THREAD_END
-#define DB_SYSTEM_END
-#endif
-
 #define INIT_MUTEX(mutex) \
   mutex = calloc(1, sizeof(pthread_mutex_t)); \
   if (!mutex) MALLOC_ERR();              \
@@ -201,17 +187,8 @@ ClassificationEngine * create_classification_engine(const Config *config) {
     INIT_COND(engine->classification_suspension_cond);
     INIT_COND(engine->suspension_notification_cond);    
     
-    /* Attempt to get a valid item store. */
-#ifdef HAVE_DATABASE_ACCESS
-    DBConfig item_store_config;
-    if (cfg_item_db_config(config, &item_store_config)) {
-      ItemSource *is = create_db_item_source(&item_store_config);
-      if (NULL == is) goto item_source_error; 
-      engine->item_source = create_caching_item_source(is);        
-      if (NULL == engine->item_source) goto item_source_error;
-      engine->random_background = create_random_background_from_db(engine->item_source, &item_store_config);
-    }
-#endif
+    /* TODO Attempt to get a valid item store. */
+
     
     if (NULL == engine->item_source) {      
       goto item_source_error;
@@ -407,7 +384,6 @@ int ce_is_running(const ClassificationEngine * engine) {
  * been started. The engine will then process jobs as they are added to the engine.
  */
 int ce_start(ClassificationEngine * engine) {
-  DB_SYSTEM_INIT;
   int success = true;
   if (engine) {
     engine->is_running = true;
@@ -584,7 +560,6 @@ static void ce_record_classification_job_timings(ClassificationEngine *ce, const
  * 
  */
 void *classification_worker_func(void *engine_vp) {
-  DB_THREAD_INIT;
   /* Grab references to shared resources */
   ClassificationEngine *ce = (ClassificationEngine*) engine_vp;
   Queue *job_queue         = ce->classification_job_queue;  
@@ -641,13 +616,11 @@ void *classification_worker_func(void *engine_vp) {
   info("classification_worker %i ending", pthread_self());
   free_tag_db(tag_db);
   
-  DB_THREAD_END;
   return EXIT_SUCCESS;
 }
 
 void *insertion_worker_func(void *engine_vp) {
   info("Starting insertion worker thread id = %i", pthread_self());
-  DB_THREAD_INIT;
   ClassificationEngine *ce = (ClassificationEngine*) engine_vp;
   EngineConfig econfig;
   cfg_engine_config(ce->config, &econfig);
@@ -686,8 +659,7 @@ void *insertion_worker_func(void *engine_vp) {
   }
   
   info("insertion worker function ending");
-  free_tagging_store(store);
-  DB_THREAD_END;
+  free_tagging_store(store);  
   return EXIT_SUCCESS;
 }
 
@@ -716,7 +688,6 @@ static void create_classify_new_item_jobs_for_all_tags(ClassificationEngine *ce)
 }
 
 void *flusher_func(void *engine_vp) {
-  DB_THREAD_INIT;
   ClassificationEngine *engine = (ClassificationEngine*) engine_vp;
   
   if (engine) {
@@ -767,7 +738,6 @@ void *flusher_func(void *engine_vp) {
     }    
   }
   
-  DB_THREAD_END;
   return EXIT_SUCCESS;
 }
 
