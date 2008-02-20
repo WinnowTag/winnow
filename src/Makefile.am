@@ -37,8 +37,8 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            time_helper.h             \
                            time_helper.c						 \
                            create_file.c             \
-                           sqlite_item_source.c      \
-                           sqlite_item_source.h      \
+                           item_cache.c      				 \
+                           item_cache.h				       \
                            uuid.h                    \
                            svnversion.h
                            

@@ -21,7 +21,7 @@ check_all_SOURCES = check_all.c \
                 check_queue.c $(top_builddir)/src/job_queue.h \
                 check_config.c $(top_builddir)/src/cls_config.h \
                 check_caching_item_source.c \
-                check_sqlite_item_source.c $(top_builddir)/src/sqlite_item_source.h \
+                check_item_cache.c $(top_builddir)/src/item_cache.h \
                 $(top_builddir)/src/tagging.h \
                 assertions.h  \
                 mock_item_source.h \
