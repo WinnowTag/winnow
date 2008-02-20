@@ -8,7 +8,7 @@
 
 #include <check.h>
 #include "../src/item_source.h"
-#include "../src/item.h"
+#include "../src/item_cache.h"
 #include "assertions.h"
 #include "mock_item_source.h"
 

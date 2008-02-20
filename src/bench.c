@@ -10,7 +10,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <pthread.h>
-#include "item.h"
+#include "item_cache.h"
 #include "file_item_source.h"
 #include "pool.h"
 #include "random_background.h"

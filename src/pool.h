@@ -12,7 +12,7 @@
 #if HAVE_JUDY_H
 #include <Judy.h>
 #endif
-#include "item.h"
+#include "item_cache.h"
 #include "item_source.h"
 
 typedef struct POOL {

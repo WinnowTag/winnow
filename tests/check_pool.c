@@ -9,7 +9,7 @@
 #include <math.h>
 #include <check.h>
 #include "../src/pool.h"
-#include "../src/item.h"
+#include "../src/item_cache.h"
 #include "../src/misc.h"
 #include "assertions.h"
 #include "mock_item_source.h"

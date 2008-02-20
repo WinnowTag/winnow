@@ -101,8 +101,7 @@ int read_token_file(Item *item, const char * itempath) {
         while (1) {
           int items_read;
           items_read = fread(token, 4, 2, token_file);
-          if (2 == items_read) {
-            item->total_tokens += token[1];
+          if (2 == items_read) {            
             if (item_add_token(item, token[0], token[1])) {
               break;
             }

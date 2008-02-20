@@ -9,7 +9,7 @@
 #ifndef _FILE_ITEM_SOURCE_H_
 #define _FILE_ITEM_SOURCE_H_
 
-#include "item.h"
+#include "item_cache.h"
 #include "item_source.h"
 
 extern ItemSource * create_file_item_source (const char * corpus_directory);

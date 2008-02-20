@@ -9,7 +9,7 @@
 #define RANDOMBACKGROUND_H 1
 
 #include "pool.h"
-#include "item.h"
+#include "item_cache.h"
 #include "cls_config.h"
 
 extern Pool * create_random_background_from_file (const ItemSource * is, const char * file);

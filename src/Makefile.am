@@ -15,7 +15,6 @@ LDFLAGS = -rpath $(libdir)
 CFLAGS = -Wall
 
 libclassifier_la_SOURCES = classifier.c classifier.h \
-                           item.c item.h             \
                            item_source.c             \
                            item_source.h             \
                            file_item_source.c        \

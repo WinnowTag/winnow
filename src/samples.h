@@ -8,7 +8,7 @@
 #ifndef _SAMPLES_H_
 #define _SAMPLES_H_
 
-#include "item.h"
+#include "item_cache.h"
 #include "item_source.h"
 
 typedef struct SAMPLES {

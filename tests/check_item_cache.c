@@ -10,7 +10,7 @@
 #include "assertions.h"
 #include "../src/item_cache.h"
 #include "../src/misc.h"
-#include "../src/item.h"
+#include "../src/item_cache.h"
 
 START_TEST (creating_with_missing_db_file_fails) {
   ItemCache *item_cache;
@@ -46,25 +46,40 @@ static void teardown_fetch_item(void) {
 }
 
 START_TEST (test_fetch_item_returns_null_when_item_doesnt_exist) {
-//  Item *item = sqlite_item_source_fetch_item(item_cache, 111);
-//  assert_null(item);
+  Item *item = item_cache_fetch_item(item_cache, 111);
+  assert_null(item);
+  free_item(item);
 } END_TEST
 
 START_TEST (test_fetch_item_contains_item_id) {
-//  Item *item = sqlite_item_source_fetch_item(item_cache, 890806);
-//  assert_not_null(item);
-//  assert_equal(890806, item_get_id(item));
+  Item *item = item_cache_fetch_item(item_cache, 890806);
+  assert_not_null(item);
+  assert_equal(890806, item_get_id(item));
+  free_item(item);
+} END_TEST
+
+START_TEST (test_fetch_item_contains_item_time) {
+  Item *item = item_cache_fetch_item(item_cache, 890806);
+  assert_not_null(item);
+  assert_equal(1178551672, item_get_time(item));
+  free_item(item);
 } END_TEST
 
 START_TEST (test_fetch_item_contains_the_right_number_of_tokens) {
-// Item *item = sqlite
+ Item *item = item_cache_fetch_item(item_cache, 890806);
+ assert_not_null(item);
+ assert_equal(76, item_get_num_tokens(item));
+ free_item(item);
 } END_TEST
 
 START_TEST (test_fetch_item_contains_the_right_frequency_for_a_given_token) {
-  
+  Item *item = item_cache_fetch_item(item_cache, 890806);
+  assert_not_null(item);
+  Token token;
+  item_get_token(item, 9949, &token);
+  assert_equal(9949, token.id);
+  assert_equal(3, token.frequency);
 } END_TEST
-
-
 
 Suite *
 sqlite_item_source_suite(void) {
@@ -82,10 +97,12 @@ sqlite_item_source_suite(void) {
   tcase_add_checked_fixture(fetch_item_case, setup_fetch_item, teardown_fetch_item);
   tcase_add_test(fetch_item_case, test_fetch_item_returns_null_when_item_doesnt_exist);
   tcase_add_test(fetch_item_case, test_fetch_item_contains_item_id);
+  tcase_add_test(fetch_item_case, test_fetch_item_contains_item_time);
   tcase_add_test(fetch_item_case, test_fetch_item_contains_the_right_number_of_tokens);
   tcase_add_test(fetch_item_case, test_fetch_item_contains_the_right_frequency_for_a_given_token);
   
   suite_add_tcase(s, tc_case);
+  suite_add_tcase(s, fetch_item_case);
   return s;
 }
 

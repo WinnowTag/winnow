@@ -8,7 +8,7 @@
 #ifndef MOCKITEMSOURCE_H
 #define MOCKITEMSOURCE_H 1
 #endif
-#include "../src/item.h"
+#include "../src/item_cache.h"
 #include "../src/item_source.h"
 #include "fixtures.h"
 

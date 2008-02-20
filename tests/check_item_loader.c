@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <check.h>
 #include <string.h>
-#include "../src/item.h"
+#include "../src/item_cache.h"
 #include "../src/item_source.h"
 #include "../src/file_item_source.h"
 #include "assertions.h"

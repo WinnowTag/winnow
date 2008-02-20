@@ -9,7 +9,7 @@
 #ifndef _ITEM_SOURCE_H_
 #define _ITEM_SOURCE_H_
 #include <Judy.h>
-#include "item.h"
+#include "item_cache.h"
 
 typedef struct ITEM_LIST {
   int size;

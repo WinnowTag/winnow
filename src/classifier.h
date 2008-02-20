@@ -9,7 +9,7 @@
 #define CLASSIFIER_H
 #include "pool.h"
 #include "tag.h"
-#include "item.h"
+#include "item_cache.h"
 #include "clue.h"
 #include "item_source.h"
 #include "tagging.h"
