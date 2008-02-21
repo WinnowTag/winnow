@@ -37,11 +37,11 @@ START_TEST (create_with_valid_db) {
 /* Tests for fetching an item */
 ItemCache *item_cache;
 
-static void setup_fetch_item(void) {
+static void setup_cache(void) {
   item_cache_create(&item_cache, "fixtures/valid.db");
 }
 
-static void teardown_fetch_item(void) {
+static void teardown_item_cache(void) {
   free_item_cache(item_cache);
 }
 
@@ -81,6 +81,32 @@ START_TEST (test_fetch_item_contains_the_right_frequency_for_a_given_token) {
   assert_equal(3, token.frequency);
 } END_TEST
 
+START_TEST (test_fetch_item_after_load) {
+  item_cache_load(item_cache);
+  Item *item = item_cache_fetch_item(item_cache, 890806);
+  assert_not_null(item);
+} END_TEST
+
+START_TEST (test_fetch_item_after_load_contains_tokens) {
+  item_cache_load(item_cache);
+  Item *item = item_cache_fetch_item(item_cache, 890806);
+  assert_not_null(item);
+  assert_equal(76, item_get_num_tokens(item));
+} END_TEST
+
+/* Test loading the item cache */
+START_TEST (test_load_loads_the_right_number_of_items) {
+  int rc = item_cache_load(item_cache);
+  assert_equal(CLASSIFIER_OK, rc);
+  assert_equal(10, item_cache_cached_size(item_cache));
+} END_TEST
+
+START_TEST (test_load_sets_cache_loaded_to_true) {
+  int rc = item_cache_load(item_cache);
+  assert_equal(CLASSIFIER_OK, rc);
+  assert_equal(true, item_cache_loaded(item_cache));
+} END_TEST
+
 Suite *
 sqlite_item_source_suite(void) {
   Suite *s = suite_create("ItemCache");  
@@ -94,15 +120,23 @@ sqlite_item_source_suite(void) {
 // END_TESTS
   
   TCase *fetch_item_case = tcase_create("fetch_item");
-  tcase_add_checked_fixture(fetch_item_case, setup_fetch_item, teardown_fetch_item);
+  tcase_add_checked_fixture(fetch_item_case, setup_cache, teardown_item_cache);
   tcase_add_test(fetch_item_case, test_fetch_item_returns_null_when_item_doesnt_exist);
   tcase_add_test(fetch_item_case, test_fetch_item_contains_item_id);
   tcase_add_test(fetch_item_case, test_fetch_item_contains_item_time);
   tcase_add_test(fetch_item_case, test_fetch_item_contains_the_right_number_of_tokens);
   tcase_add_test(fetch_item_case, test_fetch_item_contains_the_right_frequency_for_a_given_token);
+  tcase_add_test(fetch_item_case, test_fetch_item_after_load);
+  tcase_add_test(fetch_item_case, test_fetch_item_after_load_contains_tokens);
+  
+  TCase *load = tcase_create("load");
+  tcase_add_checked_fixture(load, setup_cache, teardown_item_cache);
+  tcase_add_test(load, test_load_loads_the_right_number_of_items);  
+  tcase_add_test(load, test_load_sets_cache_loaded_to_true);
   
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
+  suite_add_tcase(s, load);
   return s;
 }
 

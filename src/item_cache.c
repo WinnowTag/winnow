@@ -20,6 +20,8 @@
 #define CURRENT_USER_VERSION 1
 #define FETCH_ITEM_SQL "select id, strftime('%s', updated) from entries where id = ?"
 #define FETCH_ITEM_TOKENS_SQL "select token_id, frequency from entry_tokens where entry_id = ?"
+#define FETCH_ALL_ITEMS_SQL "select id, strftime('%s', updated) from entries"
+#define FETCH_ALL_ITEMS_TOKENS_SQL "select entry_id, token_id, frequency from entry_tokens order by entry_id"
 
 struct ITEM {
   /* The ID of the item */
@@ -34,12 +36,22 @@ struct ITEM {
 
 /** This is the opaque type for the Item Cache */
 struct ITEM_CACHE {
-  sqlite3 *db;  
   const char *db_file;
-  int user_version;
-  int version_mismatch;
+  sqlite3 *db;  
   sqlite3_stmt *fetch_item_stmt;
   sqlite3_stmt *fetch_item_tokens_stmt;
+  sqlite3_stmt *fetch_all_items_stmt;
+  sqlite3_stmt *fetch_all_item_tokens_stmt;
+  
+  int user_version;
+  int version_mismatch;
+  
+  /* Flag for whether the item cache has been loaded. */
+  int loaded;
+  /* The Judy Array that stores each item keyed by their id. */
+  Pvoid_t items_by_id;
+  /* TODO A linked list of item ids in descending order of updated time. */
+  
 };
 
 static int get_user_version(ItemCache *item_cache) {
@@ -68,7 +80,9 @@ static int create_prepared_statements(ItemCache *item_cache) {
   int rc = CLASSIFIER_OK;
   
   if (SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ITEM_SQL, -1, &(item_cache->fetch_item_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ITEM_TOKENS_SQL, -1, &(item_cache->fetch_item_tokens_stmt), NULL)) {
+      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ITEM_TOKENS_SQL, -1, &(item_cache->fetch_item_tokens_stmt), NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ALL_ITEMS_SQL, -1, &(item_cache->fetch_all_items_stmt), NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ALL_ITEMS_TOKENS_SQL, -1, &(item_cache->fetch_all_item_tokens_stmt), NULL)) {
     fatal("Unable to prepare statment: %s", item_cache_errmsg(item_cache));
     rc = CLASSIFIER_FAIL;
   }
@@ -91,7 +105,10 @@ int item_cache_create(ItemCache **item_cache, const char * db_file) {
   int rc = CLASSIFIER_OK;
   
   *item_cache = malloc(sizeof(struct ITEM_CACHE));
+  
   (*item_cache)->version_mismatch = 0;
+  (*item_cache)->items_by_id = NULL;
+  (*item_cache)->loaded = false;
   
   if (*item_cache == NULL) {
     fatal("Unable to allocate memory for SQLiteItemSource");
@@ -116,12 +133,28 @@ int item_cache_create(ItemCache **item_cache, const char * db_file) {
   return rc;
 }
 
+/** Free the memory and database connection associated with the item cache.
+ */
 void free_item_cache(ItemCache *item_cache) {
+  
   if (item_cache) {
     if (item_cache->db) {
       sqlite3_finalize(item_cache->fetch_item_stmt);
       sqlite3_finalize(item_cache->fetch_item_tokens_stmt);
+      sqlite3_finalize(item_cache->fetch_all_items_stmt);
+      sqlite3_finalize(item_cache->fetch_all_item_tokens_stmt);
       sqlite3_close(item_cache->db);
+    }
+    
+    if (item_cache->loaded) {
+      Word_t index = 0;
+      PWord_t item_pointer;
+      JLF(item_pointer, item_cache->items_by_id, index);
+      while (NULL != item_pointer) {
+        free_item((Item*) (*item_pointer));
+        JLN(item_pointer, item_cache->items_by_id, index);
+      }
+      JLFA(index, item_cache->items_by_id);      
     }
     
     memset(item_cache, 0, sizeof(struct ITEM_CACHE));
@@ -129,6 +162,8 @@ void free_item_cache(ItemCache *item_cache) {
   }
 }
 
+/** Gets the latest error message.
+ */
 const char * item_cache_errmsg(const ItemCache *item_cache) {
   const char *msg = "No Error";
   
@@ -141,6 +176,97 @@ const char * item_cache_errmsg(const ItemCache *item_cache) {
   }
   
   return msg;
+}
+
+/** Load the items from the database into an in-memory cache.
+ * 
+ * The in memory cache has two structures, the first indexes each 
+ * item by their id's which provides fast retrieval via id, and the
+ * second orders ids by time from newest to oldest.
+ * 
+ * TODO Add locking around item loading in item_cache_load.
+ */
+int item_cache_load(ItemCache *item_cache) {
+  info("item_cache_load");
+  if (!item_cache) {
+    fatal("item_cache_load got NULL for item_cache");
+    return CLASSIFIER_FAIL;
+  }
+  
+  int rc = CLASSIFIER_OK;
+  Pvoid_t itemlist = NULL;  
+    
+  while (SQLITE_ROW == sqlite3_step(item_cache->fetch_all_items_stmt)) {
+    int id = sqlite3_column_int(item_cache->fetch_all_items_stmt, 0);
+    
+    if (id < 1) {
+      continue;
+    } else {
+      PWord_t item_pointer;
+      Item *item = create_item(id);
+      if (NULL == item) {
+        fatal("Malloc error creating item");
+        rc = CLASSIFIER_FAIL;
+        break;
+      }
+      item->time = sqlite3_column_int64(item_cache->fetch_all_items_stmt, 1);
+      
+      JLI(item_pointer, itemlist, id);
+      if (item_pointer != NULL) {
+        *item_pointer = (Word_t) item;
+      } else {
+        fatal("Malloc error creating item");
+        rc = CLASSIFIER_FAIL;
+        break;
+      }            
+    }
+  }
+  
+  sqlite3_reset(item_cache->fetch_all_items_stmt);
+  
+  /* Now load the tokens */
+  while (SQLITE_ROW == sqlite3_step(item_cache->fetch_all_item_tokens_stmt)) {
+    PWord_t item_pointer = NULL;
+    int id = sqlite3_column_int(item_cache->fetch_all_item_tokens_stmt, 0);
+    int token_id = sqlite3_column_int(item_cache->fetch_all_item_tokens_stmt, 1);
+    int frequency = sqlite3_column_int(item_cache->fetch_all_item_tokens_stmt, 2);
+    
+    JLG(item_pointer, itemlist, id);
+    if (NULL != item_pointer) {
+      Item *item = (Item*) (*item_pointer);
+      if (item) {
+        item_add_token(item, token_id, frequency);
+      }
+    } else {
+      error("Got token for missing item: %d", id);
+    }
+  }
+  
+  sqlite3_reset(item_cache->fetch_all_item_tokens_stmt);
+  
+  item_cache->items_by_id = itemlist;
+  item_cache->loaded = true;
+  
+  return rc;
+}
+
+/** Returns the number of items in the in-memory cache.
+ */
+int item_cache_cached_size(const ItemCache *item_cache) {
+  int count;
+  JLC(count, item_cache->items_by_id, 0, -1);
+  return count;
+}
+
+/** Returns true if the item cache has been loaded into memory.
+ */
+int item_cache_loaded(const ItemCache *item_cache) {
+  if (!item_cache) {
+    fatal("Got NULL item_cache in item_cache_loaded");
+    return false;
+  }
+  
+  return item_cache->loaded;
 }
 
 /** Fetch an item from the cache.
@@ -161,42 +287,52 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
     return item;
   }
   
-  sqlite3_rc = sqlite3_bind_int(item_cache->fetch_item_stmt, 1, id);
-  if (SQLITE_OK != sqlite3_rc) {
-    fatal("fetch_item_stmt bind error = %s", item_cache_errmsg(item_cache));
-    return item;
-  } else {  
-    sqlite3_rc = sqlite3_step(item_cache->fetch_item_stmt);
-    
-    if (SQLITE_ROW == sqlite3_rc) {
-      item = create_item(sqlite3_column_int(item_cache->fetch_item_stmt, 0));
-      if (NULL != item) {
-        item->time = (time_t) sqlite3_column_int64(item_cache->fetch_item_stmt, 1);      
-      }
-    } else if (SQLITE_DONE != sqlite3_rc) {
-      error("Error fetching item %d: %s", id, item_cache_errmsg(item_cache));
+  if (item_cache->loaded) {
+    PWord_t item_pointer;
+    JLG(item_pointer, item_cache->items_by_id, id);
+    if (NULL != item_pointer) {
+      item = (Item*)(*item_pointer);
     }
   }
   
-  sqlite3_clear_bindings(item_cache->fetch_item_stmt);
-  sqlite3_reset(item_cache->fetch_item_stmt);
-  
-  /* Load up the tokens */
-  if (item) {
-    sqlite3_rc = sqlite3_bind_int(item_cache->fetch_item_tokens_stmt, 1, id);
-    
+  if (NULL == item) {  
+    sqlite3_rc = sqlite3_bind_int(item_cache->fetch_item_stmt, 1, id);
     if (SQLITE_OK != sqlite3_rc) {
-      fatal("fetch_item_tokens_stmt bind error = %s", item_cache_errmsg(item_cache));
-      free_item(item); item = NULL;
-    } else {
-      while (SQLITE_ROW == sqlite3_step(item_cache->fetch_item_tokens_stmt)) {
-        item_add_token(item, sqlite3_column_int(item_cache->fetch_item_tokens_stmt, 0),
-                             sqlite3_column_int(item_cache->fetch_item_tokens_stmt, 1));
+      fatal("fetch_item_stmt bind error = %s", item_cache_errmsg(item_cache));
+      return item;
+    } else {  
+      sqlite3_rc = sqlite3_step(item_cache->fetch_item_stmt);
+      
+      if (SQLITE_ROW == sqlite3_rc) {
+        item = create_item(sqlite3_column_int(item_cache->fetch_item_stmt, 0));
+        if (NULL != item) {
+          item->time = (time_t) sqlite3_column_int64(item_cache->fetch_item_stmt, 1);      
+        }
+      } else if (SQLITE_DONE != sqlite3_rc) {
+        error("Error fetching item %d: %s", id, item_cache_errmsg(item_cache));
       }
     }
     
-    sqlite3_clear_bindings(item_cache->fetch_item_tokens_stmt);
-    sqlite3_reset(item_cache->fetch_item_tokens_stmt);
+    sqlite3_clear_bindings(item_cache->fetch_item_stmt);
+    sqlite3_reset(item_cache->fetch_item_stmt);
+    
+    /* Load up the tokens */
+    if (item) {
+      sqlite3_rc = sqlite3_bind_int(item_cache->fetch_item_tokens_stmt, 1, id);
+      
+      if (SQLITE_OK != sqlite3_rc) {
+        fatal("fetch_item_tokens_stmt bind error = %s", item_cache_errmsg(item_cache));
+        free_item(item); item = NULL;
+      } else {
+        while (SQLITE_ROW == sqlite3_step(item_cache->fetch_item_tokens_stmt)) {
+          item_add_token(item, sqlite3_column_int(item_cache->fetch_item_tokens_stmt, 0),
+                               sqlite3_column_int(item_cache->fetch_item_tokens_stmt, 1));
+        }
+      }
+      
+      sqlite3_clear_bindings(item_cache->fetch_item_tokens_stmt);
+      sqlite3_reset(item_cache->fetch_item_tokens_stmt);
+    }
   }
   
   return item;
