@@ -17,9 +17,11 @@
 #include "assertions.h"
 #include "../src/logging.h"
 #include "fixtures.h"
+#include "../src/item_cache.h"
 
 #define PORT 8008
 
+ItemCache *item_cache;
 Config *config;
 ClassificationEngine *ce;
 Httpd *httpd;
@@ -34,8 +36,9 @@ static void setup_httpd() {
   data    = fopen("/tmp/test_data.xml", "w");
   
   setup_fixture_path();
+  item_cache_create(&item_cache, "fixtures/valid.db");
   config = load_config("fixtures/real-db.conf");
-  ce = create_classification_engine(config);  
+  ce = create_classification_engine(item_cache, config);  
   httpd = httpd_start(config, ce);
   devnull = fopen("/dev/null", "w");
 }

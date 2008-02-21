@@ -15,13 +15,26 @@
 #include "classification_engine.h"
 #include "uuid.h"
 #include "classifier.h"
-#include "item_source.h"
+#include "item_cache.h"
 #include "tagging.h"
 #include "tag.h"
 #include "job_queue.h"
 #include "misc.h"
 #include "random_background.h"
 #include "logging.h"
+
+#ifdef HAVE_DATABASE_ACCESS
+#include <mysql.h>
+#define DB_SYSTEM_INIT  mysql_library_init(-1, NULL, NULL)
+#define DB_THREAD_INIT  mysql_thread_init()
+#define DB_THREAD_END   mysql_thread_end()
+#define DB_SYSTEM_END   mysql_library_end()
+#else
+#define DB_SYSTEM_INIT
+#define DB_THREAD_INIT
+#define DB_THREAD_END
+#define DB_SYSTEM_END
+#endif
 
 #define INIT_MUTEX(mutex) \
   mutex = calloc(1, sizeof(pthread_mutex_t)); \
@@ -48,15 +61,10 @@ struct CLASSIFICATION_ENGINE {
   
   pthread_mutex_t *perf_log_mutex;
   
-  /* Pointer to item source for classification.
-   * 
-   * The ItemSource can be shared by all threads.
-   * It is initialized on engine creation and
-   * flushed periodically.  When it is flushed
-   * all classification threads are stopped, then
-   * the item source is flushed and reloaded.
+  /* Pointer to the ItemCache.
+   *  
    */
-  ItemSource *item_source;
+  ItemCache *item_cache;
   
   /* Shared RandomBackground
    */
@@ -143,7 +151,7 @@ static ClassificationJob * create_tag_classification_job(int tag_id);
 static ClassificationJob * create_user_classification_job(int tag_id);
 static void *classification_worker_func(void *engine_vp);
 static void *insertion_worker_func(void *engine_vp);
-static void *flusher_func(void *engine_vp);
+//static void *flusher_func(void *engine_vp);
 static void cjob_process(ClassificationJob *job, const ItemSource *is, TagDB *tagdb, const Pool *background);
 static void cjob_free_taggings(ClassificationJob *job);
 static float tdiff(struct timeval from, struct timeval to);
@@ -153,11 +161,12 @@ static float tdiff(struct timeval from, struct timeval to);
  * This verifies that the classifiation engine has a valid item source,
  * if the item source is invalid it returns NULL.
  */
-ClassificationEngine * create_classification_engine(const Config *config) {
+ClassificationEngine * create_classification_engine(ItemCache *item_cache, const Config *config) {
   ClassificationEngine *engine = calloc(1, sizeof(ClassificationEngine));
   
   if (engine) {
     engine->config = config;
+    engine->item_cache = item_cache;
     cfg_engine_config(config, &(engine->engine_config));
     engine->is_running = false;
     engine->is_inserting = false;
@@ -186,26 +195,13 @@ ClassificationEngine * create_classification_engine(const Config *config) {
     INIT_MUTEX(engine->perf_log_mutex);
     INIT_COND(engine->classification_suspension_cond);
     INIT_COND(engine->suspension_notification_cond);    
-    
-    /* TODO Attempt to get a valid item store. */
-
-    
-    if (NULL == engine->item_source) {      
-      goto item_source_error;
-    }
-    
+        
     engine->classification_job_queue = new_queue();
     engine->tagging_store_queue = new_queue();
   }
   
 exit:
   return engine;
-  
-item_source_error:
-  free_classification_engine(engine);
-  engine = NULL;
-  error("No item source defined or supported");
-  goto exit;
 malloc_error:
   fatal("Malloc error in classification engine initialization");
   engine = NULL;
@@ -218,11 +214,6 @@ malloc_error:
 void free_classification_engine(ClassificationEngine *engine) {
   if (engine) {
     ce_kill(engine);
-    
-    if (engine->item_source) {
-      free_item_source(engine->item_source);
-      engine->item_source = NULL;
-    }
     
     if (engine->performance_log) {
       fclose(engine->performance_log);
@@ -384,6 +375,7 @@ int ce_is_running(const ClassificationEngine * engine) {
  * been started. The engine will then process jobs as they are added to the engine.
  */
 int ce_start(ClassificationEngine * engine) {
+  DB_SYSTEM_INIT;
   int success = true;
   if (engine) {
     engine->is_running = true;
@@ -399,13 +391,14 @@ int ce_start(ClassificationEngine * engine) {
       }
     }
     
+    
     if (pthread_create(&(engine->insertion_worker_thread), NULL, insertion_worker_func, engine)) {
       fatal("Error creating thread for insertion");
     }
     
-    if (pthread_create(&(engine->flusher), NULL, flusher_func, engine)) {
-      fatal("Error creating thread for item source flushing");
-    }    
+//    if (pthread_create(&(engine->flusher), NULL, flusher_func, engine)) {
+//      fatal("Error creating thread for item source flushing");
+//    }    
   }
   
   return success;
@@ -560,6 +553,7 @@ static void ce_record_classification_job_timings(ClassificationEngine *ce, const
  * 
  */
 void *classification_worker_func(void *engine_vp) {
+  DB_THREAD_INIT;
   /* Grab references to shared resources */
   ClassificationEngine *ce = (ClassificationEngine*) engine_vp;
   Queue *job_queue         = ce->classification_job_queue;  
@@ -605,7 +599,7 @@ void *classification_worker_func(void *engine_vp) {
       /* Get the reference to the item source here so we get it fresh for each job. This means that if
        * the item source is flushed we get a new copy on the next job.
        */
-      cjob_process(job, ce->item_source, tag_db, ce->random_background);      
+     // cjob_process(job, ce->item_cache, tag_db, ce->random_background);      
       
       if (CJOB_STATE_ERROR != job->state) {
         q_enqueue(ce->tagging_store_queue, job);
@@ -616,10 +610,12 @@ void *classification_worker_func(void *engine_vp) {
   info("classification_worker %i ending", pthread_self());
   free_tag_db(tag_db);
   
+  DB_THREAD_END;
   return EXIT_SUCCESS;
 }
 
 void *insertion_worker_func(void *engine_vp) {
+  DB_THREAD_INIT;
   info("Starting insertion worker thread id = %i", pthread_self());
   ClassificationEngine *ce = (ClassificationEngine*) engine_vp;
   EngineConfig econfig;
@@ -659,87 +655,88 @@ void *insertion_worker_func(void *engine_vp) {
   }
   
   info("insertion worker function ending");
-  free_tagging_store(store);  
+  free_tagging_store(store);
+  DB_THREAD_END;
   return EXIT_SUCCESS;
 }
 
-static void create_classify_new_item_jobs_for_all_tags(ClassificationEngine *ce) {
-  if (ce) {
-    DBConfig dbConfig;
-    cfg_tag_db_config(ce->config, &dbConfig);
-    TagDB *tag_db = create_tag_db(&dbConfig);
-    if (tag_db) {
-      int i;
-      int size;
-      int *ids = tag_db_get_all_tag_ids(tag_db, &size);
-      
-      for (i = 0; i < size; i++) {
-        ce_add_classify_new_items_job_for_tag(ce, ids[i]);
-      }
-      
-      free(ids);
-      info("Created %i classify new items jobs", size);
-    } else {
-      error("Could not create tag_db in create_classify_new_item_jobs_for_all_tags");
-    }
-    
-    free_tag_db(tag_db);
-  }
-}
+//static void create_classify_new_item_jobs_for_all_tags(ClassificationEngine *ce) {
+//  if (ce) {
+//    DBConfig dbConfig;
+//    cfg_tag_db_config(ce->config, &dbConfig);
+//    TagDB *tag_db = create_tag_db(&dbConfig);
+//    if (tag_db) {
+//      int i;
+//      int size;
+//      int *ids = tag_db_get_all_tag_ids(tag_db, &size);
+//      
+//      for (i = 0; i < size; i++) {
+//        ce_add_classify_new_items_job_for_tag(ce, ids[i]);
+//      }
+//      
+//      free(ids);
+//      info("Created %i classify new items jobs", size);
+//    } else {
+//      error("Could not create tag_db in create_classify_new_item_jobs_for_all_tags");
+//    }
+//    
+//    free_tag_db(tag_db);
+//  }
+//}
 
-void *flusher_func(void *engine_vp) {
-  ClassificationEngine *engine = (ClassificationEngine*) engine_vp;
-  
-  if (engine) {
-    pthread_mutex_t flush_wait_mutex;
-    pthread_cond_t flush_wait_cond;
-    
-    if (pthread_mutex_init(&flush_wait_mutex, NULL) || pthread_cond_init(&flush_wait_cond, NULL)) {
-      fatal("Could not create mutex or cond for flusher thread");
-    } else {
-      while (engine->is_running) {        
-        // This will run at 0200 everyday
-        char timebuffer[26];
-        time_t now = time(0);
-        struct tm now_tm;
-        localtime_r(&now, &now_tm);
-        
-        // If we are past 0200 move to the next day
-        if (now_tm.tm_hour >= 3) {
-          now_tm.tm_mday++;
-        }
-        
-        now_tm.tm_hour = 4;
-        now_tm.tm_min = 30;
-        now_tm.tm_sec = 0;
-        struct timespec wake_at;
-        wake_at.tv_sec = mktime(&now_tm);
-        wake_at.tv_nsec = 0;
-        
-        pthread_mutex_lock(&flush_wait_mutex);
-        if (ETIMEDOUT == pthread_cond_timedwait(&flush_wait_cond, &flush_wait_mutex, &wake_at)) {
-          time_t woke_at = time(0);
-          ctime_r(&woke_at, timebuffer);
-          info("Flusher thread woke up at %s", timebuffer);
-          
-          ce_suspend(engine);
-          is_flush(engine->item_source);
-          create_classify_new_item_jobs_for_all_tags(engine);
-          ce_resume(engine);
-          
-          time_t done_at = time(0);
-          ctime_r(&done_at, timebuffer);
-          info("Flushing complete and classification resumed at %s", timebuffer);
-        } else {
-          // woke up for some other reasons
-        }
-        pthread_mutex_unlock(&flush_wait_mutex);
-      }
-    }    
-  }
-  
-  return EXIT_SUCCESS;
-}
+//void *flusher_func(void *engine_vp) {
+//  ClassificationEngine *engine = (ClassificationEngine*) engine_vp;
+//  
+//  if (engine) {
+//    pthread_mutex_t flush_wait_mutex;
+//    pthread_cond_t flush_wait_cond;
+//    
+//    if (pthread_mutex_init(&flush_wait_mutex, NULL) || pthread_cond_init(&flush_wait_cond, NULL)) {
+//      fatal("Could not create mutex or cond for flusher thread");
+//    } else {
+//      while (engine->is_running) {        
+//        // This will run at 0200 everyday
+//        char timebuffer[26];
+//        time_t now = time(0);
+//        struct tm now_tm;
+//        localtime_r(&now, &now_tm);
+//        
+//        // If we are past 0200 move to the next day
+//        if (now_tm.tm_hour >= 3) {
+//          now_tm.tm_mday++;
+//        }
+//        
+//        now_tm.tm_hour = 4;
+//        now_tm.tm_min = 30;
+//        now_tm.tm_sec = 0;
+//        struct timespec wake_at;
+//        wake_at.tv_sec = mktime(&now_tm);
+//        wake_at.tv_nsec = 0;
+//        
+//        pthread_mutex_lock(&flush_wait_mutex);
+//        if (ETIMEDOUT == pthread_cond_timedwait(&flush_wait_cond, &flush_wait_mutex, &wake_at)) {
+//          time_t woke_at = time(0);
+//          ctime_r(&woke_at, timebuffer);
+//          info("Flusher thread woke up at %s", timebuffer);
+//          
+//          ce_suspend(engine);
+//          is_flush(engine->item_source);
+//          create_classify_new_item_jobs_for_all_tags(engine);
+//          ce_resume(engine);
+//          
+//          time_t done_at = time(0);
+//          ctime_r(&done_at, timebuffer);
+//          info("Flushing complete and classification resumed at %s", timebuffer);
+//        } else {
+//          // woke up for some other reasons
+//        }
+//        pthread_mutex_unlock(&flush_wait_mutex);
+//      }
+//    }    
+//  }
+//  
+//  return EXIT_SUCCESS;
+//}
 
 /********************************************************************************
  * Classification Job functions

@@ -13,6 +13,7 @@
 #include "../src/classification_engine.h"
 #include "tagging_store_fixtures.h"
 #include "../src/logging.h"
+#include "../src/item_cache.h"
 #include "fixtures.h"
 
 #define TAG_ID 48
@@ -21,20 +22,28 @@
 /************************************************************************
  * End to End tests
  ************************************************************************/
+ItemCache *item_cache;
+ClassificationEngine *ce;
+Config *ce_config;
+
 static void setup_end_to_end(void) {
   setup_fixture_path();
   setup_tagging_store();
+  item_cache_create(&item_cache, "fixtures/valid.db");
+  ce_config = load_config("conf/test.conf");
+  ce = create_classification_engine(item_cache, ce_config);
 }
 
 static void teardown_end_to_end(void) {
   setup_fixture_path();
   setup_tagging_store();
+  free_classification_engine(ce);
+  free_config(ce_config);
+  free_item_cache(item_cache);
 }
 
 START_TEST(inserts_taggings) {
-  assert_tagging_count_is(0);
-  Config *config = load_config("conf/test.conf");
-  ClassificationEngine *ce = create_classification_engine(config);
+  assert_tagging_count_is(0);  
   ce_start(ce);
   ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
   mark_point();
@@ -43,8 +52,6 @@ START_TEST(inserts_taggings) {
   assert_tagging_count_is(11);
   assert_equal_f(100.0, cjob_progress(job));
   assert_equal(CJOB_STATE_COMPLETE, cjob_state(job));
-  free_classification_engine(ce);
-  free_config(config);
 } END_TEST
 
 START_TEST(delete_existing_taggings_before_it_inserts_new_taggings) {
@@ -52,8 +59,6 @@ START_TEST(delete_existing_taggings_before_it_inserts_new_taggings) {
     fail("Failed to create fixture taggings %s", mysql_error(mysql));
   }
   assert_tagging_count_is(1);
-  Config *config = load_config("conf/test.conf");
-  ClassificationEngine *ce = create_classification_engine(config);
   ce_start(ce);
   ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
   mark_point();
@@ -62,14 +67,10 @@ START_TEST(delete_existing_taggings_before_it_inserts_new_taggings) {
   assert_tagging_count_is(11);
   assert_equal_f(100.0, cjob_progress(job));
   assert_equal(CJOB_STATE_COMPLETE, cjob_state(job));
-  free_classification_engine(ce);
-  free_config(config);
 } END_TEST
 
 START_TEST(inserts_taggings_for_all_users_tags) {
   assert_tagging_count_is(0);
-  Config *config = load_config("conf/test.conf");
-  ClassificationEngine *ce = create_classification_engine(config);
   ce_start(ce);
   ClassificationJob *job = ce_add_classification_job_for_user(ce, 2);
   mark_point();
@@ -78,8 +79,6 @@ START_TEST(inserts_taggings_for_all_users_tags) {
   assert_tagging_count_is(66);
   assert_equal_f(100.0, cjob_progress(job));
   assert_equal(CJOB_STATE_COMPLETE, cjob_state(job));
-  free_classification_engine(ce);
-  free_config(config);
 } END_TEST
 
 START_TEST (test_new_items_job_insert_taggings_for_items_with_time_later_than_last_classified) {
@@ -88,21 +87,15 @@ START_TEST (test_new_items_job_insert_taggings_for_items_with_time_later_than_la
       fail("Failed to create fixture taggings %s", mysql_error(mysql));
     }
   assert_tagging_count_is(1);
-  Config *config = load_config("conf/test.conf");
-  ClassificationEngine *ce = create_classification_engine(config);
   ce_start(ce);
   ClassificationJob *job = ce_add_classify_new_items_job_for_tag(ce, 38);
   mark_point();
   ce_stop(ce);
   assert_tagging_count_is(2);
-  free_classification_engine(ce);
-  free_config(config);
 } END_TEST
 
 
 START_TEST(cancelled_job_doesnt_insert_taggings_if_cancelled_before_processed) {
-  Config *config = load_config("conf/test.conf");
-  ClassificationEngine *ce = create_classification_engine(config);
   ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
   info("cancelled job: %s", cjob_id(job));
   cjob_cancel(job);
@@ -110,13 +103,9 @@ START_TEST(cancelled_job_doesnt_insert_taggings_if_cancelled_before_processed) {
   ce_stop(ce);
   mark_point();
   //assert_tagging_count_is(0);
-  free_classification_engine(ce);
-  free_config(config);
 } END_TEST
 
 START_TEST(can_send_bogus_tag_id_without_taking_down_the_server) {
-  Config *config = load_config("conf/test.conf");
-  ClassificationEngine *ce = create_classification_engine(config);
   ClassificationJob *job = ce_add_classification_job_for_tag(ce, BOGUS_TAG_ID);
   
   ce_start(ce);
@@ -125,13 +114,9 @@ START_TEST(can_send_bogus_tag_id_without_taking_down_the_server) {
   assert_equal(CJOB_STATE_ERROR, cjob_state(job));
   assert_equal(CJOB_ERROR_NO_SUCH_TAG, cjob_error(job));
   
-  free_classification_engine(ce);
-  free_config(config);
 } END_TEST
 
 START_TEST(can_send_bogus_user_id_without_taking_down_the_server) {
-  Config *config = load_config("conf/test.conf");
-  ClassificationEngine *ce = create_classification_engine(config);
   ClassificationJob *job = ce_add_classification_job_for_user(ce, 10);
   
   ce_start(ce);
@@ -140,26 +125,25 @@ START_TEST(can_send_bogus_user_id_without_taking_down_the_server) {
   assert_equal(CJOB_STATE_ERROR, cjob_state(job));
   assert_equal(CJOB_ERROR_NO_TAGS_FOR_USER, cjob_error(job));
   
-  free_classification_engine(ce);
-  free_config(config);
 } END_TEST
 
 /************************************************************************
  * Job Tracking tests
  ************************************************************************/
-Config *ce_config;
-ClassificationEngine *ce;
+
 
 static void setup_engine() {
   setup_fixture_path();
+  item_cache_create(&item_cache, "fixtures/valid.db");
   ce_config = load_config("conf/test.conf");
-  ce = create_classification_engine(ce_config);
+  ce = create_classification_engine(item_cache, ce_config);
 }
 
 static void teardown_engine() {
   teardown_fixture_path();
   free_classification_engine(ce);
   free_config(ce_config);
+  free_item_cache(item_cache);
 }
 
 START_TEST(add_job_to_queue) {
@@ -264,9 +248,11 @@ START_TEST (remove_classification_job_wont_removes_the_job_from_the_engines_job_
  ************************************************************************/
 
 START_TEST(test_engine_initialization) {
+  ItemCache *item_cache;
+  item_cache_create(&item_cache, "fixtures/valid.db");
   Config *config = load_config("conf/test.conf");
   assert_not_null(config);
-  ClassificationEngine *engine = create_classification_engine(config);
+  ClassificationEngine *engine = create_classification_engine(item_cache, config);
   assert_not_null(engine);
   assert_false(ce_is_running(engine));
   free_classification_engine(engine);
@@ -274,9 +260,12 @@ START_TEST(test_engine_initialization) {
 } END_TEST
 
 START_TEST(test_engine_starting_and_stopping) {
+  ItemCache *item_cache;
+  item_cache_create(&item_cache, "fixtures/valid.db");
   Config *config = load_config("conf/test.conf");
   assert_not_null(config);
-  ClassificationEngine *engine = create_classification_engine(config);
+  
+  ClassificationEngine *engine = create_classification_engine(item_cache, config);
   assert_not_null(engine);
   int start_code = ce_start(engine);
   assert_equal(1, start_code);
@@ -289,22 +278,6 @@ START_TEST(test_engine_starting_and_stopping) {
   free_config(config);
 } END_TEST
 
-START_TEST(test_engine_initialization_with_non_existant_db) {
-  Config *config = load_config("fixtures/db.conf");
-  assert_not_null(config);
-  ClassificationEngine *engine = create_classification_engine(config);
-  assert_null(engine);
-  free_config(config);
-} END_TEST
-
-START_TEST(test_engine_initialization_without_corpus_defined) {
-  Config *config = load_config("fixtures/no-db.conf");
-  assert_not_null(config);
-  ClassificationEngine *engine = create_classification_engine(config);
-  assert_null(engine);
-  free_config(config);
-} END_TEST
-
 Suite * classification_engine_suite(void) {
   Suite *s = suite_create("classification_engine");
   TCase *tc_initialization_case = tcase_create("initialization");
@@ -312,8 +285,6 @@ Suite * classification_engine_suite(void) {
   // START_TESTS
   tcase_add_checked_fixture(tc_initialization_case, setup_fixture_path, teardown_fixture_path);
   tcase_add_test(tc_initialization_case, test_engine_initialization); 
-  tcase_add_test(tc_initialization_case, test_engine_initialization_without_corpus_defined);
-  tcase_add_test(tc_initialization_case, test_engine_initialization_with_non_existant_db);
   tcase_add_test(tc_initialization_case, test_engine_starting_and_stopping);
   // END_TESTS
   

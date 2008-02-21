@@ -171,11 +171,11 @@ int main(int argc, char **argv) {
     signal(SIGHUP, SIG_IGN);
   if (signal(SIGTERM, termination_handler) == SIG_IGN)
     signal(SIGTERM, SIG_IGN);
-    
-  initialize_logging(real_log_file);
-  engine = create_classification_engine(config);
-  httpd = httpd_start(config, engine);  
-  ce_run(engine);
+//    
+//  initialize_logging(real_log_file);
+//  engine = create_classification_engine(config);
+//  httpd = httpd_start(config, engine);  
+//  ce_run(engine);
   
   return EXIT_SUCCESS;
 }

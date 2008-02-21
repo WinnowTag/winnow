@@ -10,6 +10,7 @@
 #define CLASSIFICATION_ENGINE_H_
 
 #include "cls_config.h"
+#include "item_cache.h"
 
 typedef struct CLASSIFICATION_ENGINE ClassificationEngine;
 typedef struct CLASSIFICATION_JOB ClassificationJob;
@@ -38,7 +39,7 @@ typedef enum CLASSIFICATION_JOB_TYPE {
   CJOB_TYPE_USER_JOB
 } ClassificationJobType;
 
-extern ClassificationEngine * create_classification_engine(const Config * config);
+extern ClassificationEngine * create_classification_engine(ItemCache *item_cache, const Config * config);
 extern void                   free_classification_engine(ClassificationEngine * engine);
 extern int                    ce_is_running(const ClassificationEngine *engine);
 extern int                    ce_start(ClassificationEngine *engine);
