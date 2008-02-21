@@ -107,6 +107,48 @@ START_TEST (test_load_sets_cache_loaded_to_true) {
   assert_equal(true, item_cache_loaded(item_cache));
 } END_TEST
 
+/* Test iteration */
+void setup_iteration(void) {
+  item_cache_create(&item_cache, "fixtures/valid.db");
+  item_cache_load(item_cache);
+}
+
+void teardown_iteration(void) {
+  free_item_cache(item_cache);
+}
+
+int iterates_over_all_items(const Item *item, void *memo) {
+  if (item) {
+    int *iteration_count = (int*) memo;
+    (*iteration_count)++;
+  }
+  
+  return CLASSIFIER_OK;
+}
+
+START_TEST (test_iterates_over_all_items) {
+  int iteration_count = 0;
+  item_cache_each_item(item_cache, iterates_over_all_items, &iteration_count);
+  assert_equal(10, iteration_count);
+} END_TEST
+
+int cancels_iteration_when_it_returns_fail(const Item *item, void *memo) {
+  int *iteration_count = (int*) memo;
+  (*iteration_count)++;
+  
+  if (*iteration_count < 5) {
+    return CLASSIFIER_OK;
+  } else {
+    return CLASSIFIER_FAIL;
+  }
+}
+
+START_TEST (test_iteration_stops_when_iterator_returns_CLASSIFIER_FAIL) {
+  int iteration_count = 0;
+  item_cache_each_item(item_cache, cancels_iteration_when_it_returns_fail, &iteration_count);
+  assert_equal(5, iteration_count);
+} END_TEST
+
 Suite *
 sqlite_item_source_suite(void) {
   Suite *s = suite_create("ItemCache");  
@@ -134,9 +176,15 @@ sqlite_item_source_suite(void) {
   tcase_add_test(load, test_load_loads_the_right_number_of_items);  
   tcase_add_test(load, test_load_sets_cache_loaded_to_true);
   
+  TCase *iteration = tcase_create("iteration");
+  tcase_add_checked_fixture(iteration, setup_iteration, teardown_iteration);
+  tcase_add_test(iteration, test_iterates_over_all_items);
+  tcase_add_test(iteration, test_iteration_stops_when_iterator_returns_CLASSIFIER_FAIL);
+  
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
   suite_add_tcase(s, load);
+  suite_add_tcase(s, iteration);
   return s;
 }
 

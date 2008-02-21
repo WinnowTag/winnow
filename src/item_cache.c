@@ -338,6 +338,27 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
   return item;
 }
 
+/** Iterates over each item.
+ * 
+ *  TODO Add read locking to item_cache_each_item.
+ */
+int item_cache_each_item(const ItemCache *item_cache, ItemIterator iterator, void *memo) {
+  if (item_cache->loaded) {
+    Word_t index = 0;
+    PWord_t item_pointer;
+    
+    JLF(item_pointer, item_cache->items_by_id, index);
+    while (item_pointer != NULL) {
+      Item *item = (Item*) (*item_pointer);
+      if (CLASSIFIER_OK != iterator(item, memo)) {
+        break;
+      }
+      JLN(item_pointer, item_cache->items_by_id, index);
+    }
+  }
+  return 0;
+}
+
 /******************************************************************************
  * Item creation functions 
  ******************************************************************************/
