@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <sqlite3.h>
 #include <string.h>
+#include <pthread.h>
 #if HAVE_JUDY_H
 #include <Judy.h>
 #endif
@@ -42,6 +43,7 @@ struct ITEM_CACHE {
   sqlite3_stmt *fetch_item_tokens_stmt;
   sqlite3_stmt *fetch_all_items_stmt;
   sqlite3_stmt *fetch_all_item_tokens_stmt;
+  pthread_mutex_t *db_access_mutex; 
   
   int user_version;
   int version_mismatch;
@@ -110,6 +112,21 @@ int item_cache_create(ItemCache **item_cache, const char * db_file) {
   (*item_cache)->items_by_id = NULL;
   (*item_cache)->loaded = false;
   
+  (*item_cache)->db_access_mutex = calloc(1, sizeof(pthread_mutex_t));
+  if (!(*item_cache)->db_access_mutex) {
+    fatal("MALLOC error for db_access_mutex");
+    free(*item_cache);
+    *item_cache = NULL;
+    rc = CLASSIFIER_FAIL;
+  } else {
+    if (pthread_mutex_init((*item_cache)->db_access_mutex, NULL)) {
+      fatal("pthread_mutex_init error for db_access_mutex");
+      free(*item_cache);
+      *item_cache = NULL;
+      rc = CLASSIFIER_FAIL;
+    }
+  }
+  
   if (*item_cache == NULL) {
     fatal("Unable to allocate memory for SQLiteItemSource");
     rc = CLASSIFIER_FAIL;
@@ -155,6 +172,11 @@ void free_item_cache(ItemCache *item_cache) {
         JLN(item_pointer, item_cache->items_by_id, index);
       }
       JLFA(index, item_cache->items_by_id);      
+    }
+    
+    if (item_cache->db_access_mutex) {
+      pthread_mutex_destroy(item_cache->db_access_mutex);
+      free(item_cache->db_access_mutex);
     }
     
     memset(item_cache, 0, sizeof(struct ITEM_CACHE));
@@ -275,7 +297,8 @@ int item_cache_loaded(const ItemCache *item_cache) {
  * @param id The id of the item to get.
  * @returns The Item with the id matching id. It is the responsibility of the
  *          caller to free the item.
- * TODO Add locks around item_cache_fetch_item so only a single thread can do it.
+ * TODO Add locks around item_cache_fetch_item so only a single thread can do the DB access.
+ * TODO Add r/w locks around in-memory item cache.
  * TODO Handle SQLITE_BUSY in case another process locks the database.
  */
 Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
@@ -295,7 +318,10 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
     }
   }
   
-  if (NULL == item) {  
+  if (NULL == item) {
+    pthread_mutex_lock(item_cache->db_access_mutex);
+    debug("thread(%i) has locked db_access_mutex to fetch %i", pthread_self(), id);
+    
     sqlite3_rc = sqlite3_bind_int(item_cache->fetch_item_stmt, 1, id);
     if (SQLITE_OK != sqlite3_rc) {
       fatal("fetch_item_stmt bind error = %s", item_cache_errmsg(item_cache));
@@ -333,6 +359,9 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
       sqlite3_clear_bindings(item_cache->fetch_item_tokens_stmt);
       sqlite3_reset(item_cache->fetch_item_tokens_stmt);
     }
+    
+    pthread_mutex_unlock(item_cache->db_access_mutex);
+    debug("thread(%i) has unlocked db_access_mutex after fetching %i", pthread_self(), id);
   }
   
   return item;

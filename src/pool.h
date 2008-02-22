@@ -13,7 +13,6 @@
 #include <Judy.h>
 #endif
 #include "item_cache.h"
-#include "item_source.h"
 
 typedef struct POOL {
   int total_tokens;
@@ -22,7 +21,7 @@ typedef struct POOL {
 
 extern Pool * new_pool               (void);
 extern int    pool_add_item          (Pool *pool, const Item *item);
-extern int    pool_add_items         (Pool *pool, const int items[], int size, const ItemSource *is);
+extern int    pool_add_items         (Pool *pool, const int items[], int size, const ItemCache *is);
 extern int    pool_num_tokens        (const Pool *pool);
 extern int    pool_total_tokens      (const Pool *pool);
 extern int    pool_token_frequency   (const Pool *pool, int token_id);

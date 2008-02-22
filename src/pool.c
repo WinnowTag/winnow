@@ -54,12 +54,12 @@ int pool_add_item(Pool *pool, const Item *item) {
 }
 
 /** Not Re-entrant */
-int pool_add_items(Pool *pool, const int items[], int size, const ItemSource *is) {
+int pool_add_items(Pool *pool, const int items[], int size, const ItemCache *item_cache) {
   int success = true;
   int i;
   
   for (i = 0; i < size; i++) {
-    Item *item = is_fetch_item(is, items[i]);
+    Item *item = item_cache_fetch_item(item_cache, items[i]);
     if (NULL != item) {
       pool_add_item(pool, item);
     } else {

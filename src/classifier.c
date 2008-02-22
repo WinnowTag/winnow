@@ -25,7 +25,7 @@ static double compute_n(const ProbToken *foregrounds[], int n_fg,
 static double chi2_combine(const Clue **clues, int num_clues);
 
 /** Functions for transitioning classifiers between various states */
-TrainedClassifier * train(const Tag *tag, const ItemSource *is) {
+TrainedClassifier * train(const Tag *tag, const ItemCache *item_cache) {
   TrainedClassifier *tc = malloc(sizeof(struct TRAINED_CLASSIFIER));
   
   if (NULL != tc) {
@@ -47,7 +47,7 @@ TrainedClassifier * train(const Tag *tag, const ItemSource *is) {
       int *examples = tag_positive_examples(tag);
     
       if (NULL != examples) {
-        pool_add_items(tc->positive_pool, examples, size, is);
+        pool_add_items(tc->positive_pool, examples, size, item_cache);
         free(examples);
       } else {
         goto train_malloc_error;
@@ -60,7 +60,7 @@ TrainedClassifier * train(const Tag *tag, const ItemSource *is) {
       int *examples = tag_negative_examples(tag);
       
       if (NULL != examples) {
-        pool_add_items(tc->negative_pool, examples, size, is);
+        pool_add_items(tc->negative_pool, examples, size, item_cache);
         free(examples);
       } else {
         goto train_malloc_error;

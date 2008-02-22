@@ -20,7 +20,6 @@
 #include "tag.h"
 #include "job_queue.h"
 #include "misc.h"
-#include "random_background.h"
 #include "logging.h"
 
 #ifdef HAVE_DATABASE_ACCESS
@@ -127,6 +126,7 @@ struct CLASSIFICATION_JOB {
   int tag_id;
   int user_id;
   float progress;
+  float progress_increment;
   ClassificationJobType type;
   ClassificationJobState state;
   ClassificationJobError error;
@@ -135,6 +135,7 @@ struct CLASSIFICATION_JOB {
   TagList *taglist;
   int tags_classified;
   int items_classified;
+  Classifier **classifiers;
   Tagging **taggings;
   int num_taggings;
   /* Timestamps for process timing */
@@ -152,7 +153,7 @@ static ClassificationJob * create_user_classification_job(int tag_id);
 static void *classification_worker_func(void *engine_vp);
 static void *insertion_worker_func(void *engine_vp);
 //static void *flusher_func(void *engine_vp);
-static void cjob_process(ClassificationJob *job, const ItemSource *is, TagDB *tagdb, const Pool *background);
+static void cjob_process(ClassificationJob *job, const ItemCache *is, TagDB *tagdb, const Pool *background);
 static void cjob_free_taggings(ClassificationJob *job);
 static float tdiff(struct timeval from, struct timeval to);
 
@@ -599,7 +600,7 @@ void *classification_worker_func(void *engine_vp) {
       /* Get the reference to the item source here so we get it fresh for each job. This means that if
        * the item source is flushed we get a new copy on the next job.
        */
-     // cjob_process(job, ce->item_cache, tag_db, ce->random_background);      
+      cjob_process(job, ce->item_cache, tag_db, ce->random_background);      
       
       if (CJOB_STATE_ERROR != job->state) {
         q_enqueue(ce->tagging_store_queue, job);
@@ -775,6 +776,7 @@ static ClassificationJob * create_classification_job() {
     job->taggings         = NULL;
     job->num_taggings     = 0;
     job->taglist          = NULL;
+    job->classifiers      = NULL;
     NOW(job->created_at);
   }
   
@@ -911,35 +913,75 @@ float cjob_duration(const ClassificationJob *job) {
   return duration;
 }
 
+static int classify_item(const Item *item, void *memo) {
+  ClassificationJob *job = (ClassificationJob *) memo;
+  int rc = CLASSIFIER_OK;
+  int i;
+        
+  for (i = 0; i < job->taglist->size; i++) {
+    if (job->item_scope == ITEM_SCOPE_NEW && 
+        item_get_time(item) < tag_last_classified_at(job->taglist->tags[i])) {
+      /* Only classifying new items and we have reached the point where
+       * the tag has already been applied to subsequent items, so if
+       * this is the only tag we bail out completely, if there are other
+       * tags just try the next one.
+       */
+      if (job->taglist->size > 1) {
+        continue;
+      } else {
+        debug("item time %i less than last classified time %i", item_get_time(item), tag_last_classified_at(job->taglist->tags[i]));
+        rc = CLASSIFIER_FAIL;
+        break;
+      }
+    }
+     
+    job->items_classified++;
+    debug("classifying %d", item_get_id(item));
+    Tagging *tagging = classify(job->classifiers[i], item);
+    if (!tagging) MALLOC_ERR();
+    
+    job->taggings[job->num_taggings++] = tagging;        
+  }
+
+  job->progress += job->progress_increment;
+  
+  return rc;
+malloc_error:
+  job->error = CJOB_STATE_ERROR;
+  job->error = CJOB_ERROR_UNKNOWN_ERROR;
+  fatal("Malloc error in classification processing, probably out of memory??");
+  return CLASSIFIER_FAIL;
+}
+
 /** Do the actual classification.
  * 
  */
-static int cjob_classify(ClassificationJob *job, const TagList *taglist, 
-                         const ItemSource *item_source, const Pool *random_background) {
+static int cjob_classify(ClassificationJob *job, const ItemCache *item_cache, const Pool *random_background) {
   
-  if (taglist->size < 1) {
+  if (job->taglist->size < 1) {
     return 1;
   }
   
   int i;
   int failed = false;
   
-  ItemList *items = is_fetch_all_items(item_source);
-  if (!items) MALLOC_ERR();
-  int number_of_items = item_list_size(items);
-  const float progress_increment = 60.0 / number_of_items;
+  int number_of_items = item_cache_cached_size(item_cache);
+  job->progress_increment = 60.0 / number_of_items;
 
   // allocate enough space for a tagging for each item in each tag
-  job->taggings = calloc(taglist->size * number_of_items, sizeof(Tagging*));
+  job->taggings = calloc(job->taglist->size * number_of_items, sizeof(Tagging*));
   if (!job->taggings) MALLOC_ERR();
+  // allocate enough space for pointers to all the classifiers
+  job->classifiers = calloc(job->taglist->size, sizeof(Classifier*));
+  if (!job->classifiers) MALLOC_ERR();
   
   /* Start by training up all the classifiers for the tags */
-  job->state = CJOB_STATE_TRAINING;  
-  TrainedClassifier **tc = calloc(taglist->size, sizeof(TrainedClassifier*));
+  job->state = CJOB_STATE_TRAINING;
+  TrainedClassifier **tc = calloc(job->taglist->size, sizeof(TrainedClassifier*));
   if (!tc) MALLOC_ERR();
   
-  for (i = 0; i < taglist->size; i++) {
-    tc[i] = train(taglist->tags[i], item_source);
+  for (i = 0; i < job->taglist->size; i++) {
+    tc[i] = train(job->taglist->tags[i], item_cache);
     if (!tc[i]) MALLOC_ERR();
   }
   job->progress = 10.0;
@@ -947,12 +989,10 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist,
       
   /* Now precompute all the classifiers */
   job->state = CJOB_STATE_CALCULATING;
-  Classifier **classifier = calloc(taglist->size, sizeof(Classifier*));
-  if (!classifier) MALLOC_ERR();
   
-  for (i = 0; i < taglist->size; i++) {
-    classifier[i] = precompute(tc[i], random_background);
-    if (!classifier[i]) MALLOC_ERR();
+  for (i = 0; i < job->taglist->size; i++) {
+    job->classifiers[i] = precompute(tc[i], random_background);
+    if (!job->classifiers[i]) MALLOC_ERR();
     
     /*  Once we have the precomputed classifier
      *  we can discard the trained classifier.
@@ -969,59 +1009,21 @@ static int cjob_classify(ClassificationJob *job, const TagList *taglist,
             
   /* Now do the actual classification of each item for each classifier */
   job->state = CJOB_STATE_CLASSIFYING;  
-  for (i = 0; i < number_of_items; i++) {    
-    Item *item = item_list_item_at(items, i);
-    
-    if (NULL == item) {
-      error("item at %i was NULL", i);    
-    } else {
-      int complete = false; 
-      int j;
-      
-      for (j = 0; j < taglist->size; j++) {
-        if (job->item_scope == ITEM_SCOPE_NEW && 
-            item_get_time(item) < tag_last_classified_at(taglist->tags[j])) {
-          /* Only classifying new items and we have reached the point where
-           * the tag has already been applied to subsequent items, so if
-           * this is the only tag we bail out completely, if there are other
-           * tags just try the next one.
-           */
-          if (taglist->size > 1) {
-            continue;
-          } else {
-            complete = true;
-            break;
-          }
-        }
-         
-        job->items_classified++;
-        Tagging *tagging = classify(classifier[j], item);
-        if (!tagging) MALLOC_ERR();
-        
-        job->taggings[job->num_taggings++] = tagging;        
-      }
-      
-      if (complete) {
-        break;
-      }
-    }
-
-    job->progress += progress_increment;
-  }
+  item_cache_each_item(item_cache, classify_item, job);
   
 exit:
-  for (i = 0; i < taglist->size; i++) {
+  for (i = 0; i < job->taglist->size; i++) {
     if (tc && tc[i]) {
       tc_free(tc[i]);      
     }
     
-    if (classifier && classifier[i]) {
-      free_classifier(classifier[i]);      
+    if (job->classifiers && job->classifiers[i]) {
+      free_classifier(job->classifiers[i]);      
     }
   }  
   
-  if (classifier) {
-    free(classifier);
+  if (job->classifiers) {
+    free(job->classifiers);
   }
   
   if (tc) {
@@ -1038,7 +1040,7 @@ malloc_error:
   goto exit;
 }
 
-static void cjob_process(ClassificationJob *job, const ItemSource *item_source, 
+static void cjob_process(ClassificationJob *job, const ItemCache *item_cache, 
                          TagDB *tag_db, const Pool *random_background) {
   /* If the job is cancelled bail out before doing anything */
   if (job->state == CJOB_STATE_CANCELLED) return;
@@ -1071,7 +1073,7 @@ static void cjob_process(ClassificationJob *job, const ItemSource *item_source,
     job->tags_classified = job->taglist->size;
     job->progress = 5.0;
     
-    if (!cjob_classify(job, job->taglist, item_source, random_background)) {
+    if (!cjob_classify(job, item_cache, random_background)) {
       int i;
       for (i = 0; i < job->taglist->size; i++) {
         tag_db_update_last_classified_at(tag_db, job->taglist->tags[i]);        

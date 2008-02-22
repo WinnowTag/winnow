@@ -22,7 +22,6 @@ int main(void) {
   
   SRunner *sr = srunner_create(tag_db_suite());
   srunner_add_suite(sr, tagging_store_suite());
-  srunner_add_suite(sr, db_random_background_suite());
   srunner_add_suite(sr, classification_engine_suite());
   
   srunner_run_all(sr, CK_NORMAL);

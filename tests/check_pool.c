@@ -12,7 +12,17 @@
 #include "../src/item_cache.h"
 #include "../src/misc.h"
 #include "assertions.h"
-#include "mock_item_source.h"
+
+ItemCache *item_cache;
+
+static void setup(void) {
+  item_cache_create(&item_cache, "fixtures/valid.db"); 
+  item_cache_load(item_cache);
+}
+
+static void teardown(void) {
+  free_item_cache(item_cache);
+}
 
 START_TEST (create_pool) {
   Pool *pool = new_pool();
@@ -29,41 +39,24 @@ START_TEST (new_pool_is_empty) {
 
 START_TEST (add_1_item) {
   Pool *pool = new_pool();
-  pool_add_item(pool, is_fetch_item(is, 1));
-  assert_equal(2, pool_num_tokens(pool));
-  assert_equal(13, pool_total_tokens(pool));
-  assert_equal(10, pool_token_frequency(pool, 1));
-  assert_equal(3, pool_token_frequency(pool, 2));
+  pool_add_item(pool, item_cache_fetch_item(item_cache, 878944));
+  assert_equal(186, pool_num_tokens(pool));
+  assert_equal(336, pool_total_tokens(pool));
+  assert_equal(9, pool_token_frequency(pool, 7982));
+  assert_equal(1, pool_token_frequency(pool, 7967));
   assert_equal(0, pool_token_frequency(pool, 10));
   free_pool(pool);
 } END_TEST
 
 START_TEST (add_2_items_with_same_tokens) {
   Pool *pool = new_pool();
-  pool_add_item(pool, is_fetch_item(is, 1));
-  pool_add_item(pool, is_fetch_item(is, 3));
-  assert_equal(2, pool_num_tokens(pool));
-  assert_equal(23, pool_total_tokens(pool));
-  assert_equal(16, pool_token_frequency(pool, 1));
-  assert_equal(7, pool_token_frequency(pool, 2));
-  assert_equal(0, pool_token_frequency(pool, 3));
-  assert_equal(0, pool_token_frequency(pool, 10));
-  free_pool(pool);
-} END_TEST
-
-START_TEST (add_2_items_with_1_overlapping_token) {
-  Pool *pool = new_pool();
-  int ret_val;
-  int items[] = {1, 2};
-  
-  ret_val = pool_add_items(pool, items, 2, is);
-  assert_equal(true, ret_val);  
-  
-  assert_equal(3, pool_num_tokens(pool));
-  assert_equal(22, pool_total_tokens(pool));
-  assert_equal(15, pool_token_frequency(pool, 1));
-  assert_equal(3, pool_token_frequency(pool, 2));
-  assert_equal(4, pool_token_frequency(pool, 3));
+  pool_add_item(pool, item_cache_fetch_item(item_cache, 709254));
+  pool_add_item(pool, item_cache_fetch_item(item_cache, 753459));
+  assert_equal(196, pool_num_tokens(pool));
+  assert_equal(323, pool_total_tokens(pool));
+  assert_equal(3, pool_token_frequency(pool, 665));
+  assert_equal(3, pool_token_frequency(pool, 1179));
+  assert_equal(1, pool_token_frequency(pool, 1222));
   assert_equal(0, pool_token_frequency(pool, 10));
   free_pool(pool);
 } END_TEST
@@ -71,9 +64,8 @@ START_TEST (add_2_items_with_1_overlapping_token) {
 START_TEST (token_iteration) {
   int ret_val;
   Pool *pool = new_pool();
-  pool_add_item(pool, is_fetch_item(is, 1));
-  pool_add_item(pool, is_fetch_item(is, 2));
-  pool_add_item(pool, is_fetch_item(is, 3));
+  pool_add_item(pool, item_cache_fetch_item(item_cache, 709254));
+  pool_add_item(pool, item_cache_fetch_item(item_cache, 753459));
   
   Token token;
   token.id = 0;
@@ -81,23 +73,13 @@ START_TEST (token_iteration) {
   ret_val = pool_next_token(pool, &token);
   assert_true(ret_val);
   assert_equal(1, token.id);
-  assert_equal(21, token.frequency);
+  assert_equal(1, token.frequency);
 
   ret_val = pool_next_token(pool, &token);  
   assert_true(ret_val);
-  assert_equal(2, token.id);
-  assert_equal(7, token.frequency);
-  
-  ret_val = pool_next_token(pool, &token);
-  assert_true(ret_val);
-  assert_equal(3, token.id);
-  assert_equal(4, token.frequency);
-  
-  ret_val = pool_next_token(pool, &token);
-  assert_false(ret_val);
-  assert_equal(0, token.id);
-  assert_equal(0, token.frequency);
-  
+  assert_equal(13, token.id);
+  assert_equal(2, token.frequency);
+   
   free_pool(pool);
 } END_TEST
 
@@ -115,12 +97,11 @@ pool_suite(void) {
   Suite *s = suite_create("Pool");
   
   TCase *tc_pool = tcase_create("Pool");
-  tcase_add_checked_fixture (tc_pool, setup_mock_item_source, teardown_mock_item_source);
+  tcase_add_checked_fixture (tc_pool, setup, teardown);
   tcase_add_test(tc_pool, create_pool);
   tcase_add_test(tc_pool, new_pool_is_empty);
   tcase_add_test(tc_pool, add_1_item);
   tcase_add_test(tc_pool, add_2_items_with_same_tokens);
-  tcase_add_test(tc_pool, add_2_items_with_1_overlapping_token);
   tcase_add_test(tc_pool, token_iteration);
   tcase_add_test(tc_pool, token_iteration_with_null_pool_doesnt_crash);
   suite_add_tcase(s, tc_pool);  

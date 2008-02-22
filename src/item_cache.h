@@ -26,7 +26,8 @@ extern int item_cache_load(ItemCache *item_cache);
 extern int item_cache_loaded(const ItemCache *item_cache);
 extern int item_cache_cached_size(const ItemCache *item_cache);
 extern Item * item_cache_fetch_item(ItemCache *is, int item_id);  
-extern const char * item_cache_errmsg(const ItemCache *is); 
+extern const char * item_cache_errmsg(const ItemCache *is);
+extern int item_cache_each_item(const ItemCache *item_cache, ItemIterator iterator, void *memo);
 extern void free_item_cache(ItemCache *is);
 
 extern Item * create_item             (int id);

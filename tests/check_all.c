@@ -29,7 +29,6 @@ int main(void) {
   srunner_add_suite(sr, tag_suite());
   srunner_add_suite(sr, classifier_suite());
   srunner_add_suite(sr, item_suite());
-  srunner_add_suite(sr, random_background_suite());
   srunner_add_suite(sr, clue_suite());
   srunner_add_suite(sr, samples_suite());
   srunner_add_suite(sr, queue_suite());

@@ -30,6 +30,7 @@ static void setup_end_to_end(void) {
   setup_fixture_path();
   setup_tagging_store();
   item_cache_create(&item_cache, "fixtures/valid.db");
+  item_cache_load(item_cache);
   ce_config = load_config("conf/test.conf");
   ce = create_classification_engine(item_cache, ce_config);
 }
@@ -49,7 +50,7 @@ START_TEST(inserts_taggings) {
   mark_point();
   ce_stop(ce);
   mark_point();
-  assert_tagging_count_is(11);
+  assert_tagging_count_is(item_cache_cached_size(item_cache));
   assert_equal_f(100.0, cjob_progress(job));
   assert_equal(CJOB_STATE_COMPLETE, cjob_state(job));
 } END_TEST
@@ -64,7 +65,7 @@ START_TEST(delete_existing_taggings_before_it_inserts_new_taggings) {
   mark_point();
   ce_stop(ce);
   mark_point();
-  assert_tagging_count_is(11);
+  assert_tagging_count_is(item_cache_cached_size(item_cache));
   assert_equal_f(100.0, cjob_progress(job));
   assert_equal(CJOB_STATE_COMPLETE, cjob_state(job));
 } END_TEST
@@ -76,7 +77,7 @@ START_TEST(inserts_taggings_for_all_users_tags) {
   mark_point();
   ce_stop(ce);
   mark_point();
-  assert_tagging_count_is(66);
+  assert_tagging_count_is(6 * item_cache_cached_size(item_cache));
   assert_equal_f(100.0, cjob_progress(job));
   assert_equal(CJOB_STATE_COMPLETE, cjob_state(job));
 } END_TEST
@@ -91,7 +92,7 @@ START_TEST (test_new_items_job_insert_taggings_for_items_with_time_later_than_la
   ClassificationJob *job = ce_add_classify_new_items_job_for_tag(ce, 38);
   mark_point();
   ce_stop(ce);
-  assert_tagging_count_is(2);
+  assert_tagging_count_is(5);
 } END_TEST
 
 
@@ -135,6 +136,7 @@ START_TEST(can_send_bogus_user_id_without_taking_down_the_server) {
 static void setup_engine() {
   setup_fixture_path();
   item_cache_create(&item_cache, "fixtures/valid.db");
+  item_cache_load(item_cache);
   ce_config = load_config("conf/test.conf");
   ce = create_classification_engine(item_cache, ce_config);
 }
@@ -250,6 +252,7 @@ START_TEST (remove_classification_job_wont_removes_the_job_from_the_engines_job_
 START_TEST(test_engine_initialization) {
   ItemCache *item_cache;
   item_cache_create(&item_cache, "fixtures/valid.db");
+  item_cache_load(item_cache);
   Config *config = load_config("conf/test.conf");
   assert_not_null(config);
   ClassificationEngine *engine = create_classification_engine(item_cache, config);
@@ -262,6 +265,7 @@ START_TEST(test_engine_initialization) {
 START_TEST(test_engine_starting_and_stopping) {
   ItemCache *item_cache;
   item_cache_create(&item_cache, "fixtures/valid.db");
+  item_cache_load(item_cache);
   Config *config = load_config("conf/test.conf");
   assert_not_null(config);
   
