@@ -1,4 +1,4 @@
-TESTS = check_all check_db #check_http
+TESTS = check_all check_db check_http
 CLEANFILES = http_test.log http_test_data.log test.log
 
 LDFLAGS = -static
