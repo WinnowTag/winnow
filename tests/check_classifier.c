@@ -12,7 +12,7 @@
 #include "../src/tag.h"
 #include "../src/clue.h"
 #include "assertions.h"
-#include "mock_item_source.h"
+#include "mock_items.h"
 
 /*************************************************************
  *   Unit tests for trainer
@@ -394,7 +394,7 @@ classifier_suite(void) {
   suite_add_tcase(s, tc_trainer);
   
   TCase *tc_precomputer = tcase_create("Precomputer");
-  tcase_add_checked_fixture(tc_precomputer, setup_mock_item_source, teardown_mock_item_source);
+  tcase_add_checked_fixture(tc_precomputer, setup_mock_items, teardown_mock_items);
   tcase_add_test(tc_precomputer, precompute_keeps_user_and_tag);
   tcase_add_test(tc_precomputer, precompute_creates_probabilities_for_each_token_in_tc);
   tcase_add_test(tc_precomputer, test_with_bias);

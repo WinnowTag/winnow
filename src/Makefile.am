@@ -15,15 +15,10 @@ LDFLAGS = -rpath $(libdir)
 CFLAGS = -Wall
 
 libclassifier_la_SOURCES = classifier.c classifier.h \
-                           item_source.c             \
-                           item_source.h             \
-                           file_item_source.c        \
-                           file_item_source.h        \
                            logging.h logging.c       \
                            pool.c                    \
                            tag.c tag.h               \
                            clue.h clue.c             \
-                           samples.c samples.h       \
                            job_queue.c job_queue.h   \
                            cls_config.c cls_config.h \
                            tagging.h tagging.c       \

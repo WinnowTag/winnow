@@ -10,16 +10,11 @@ check_http_LDADD  = @CHECK_LIBS@ $(top_builddir)/src/libclassifier.la
 
 check_all_SOURCES = check_all.c \
                 check_classifier.c $(top_builddir)/src/classifier.h \
-                check_item_loader.c $(top_builddir)/src/item.h \
-                $(top_builddir)/src/item_source.h \
-                $(top_builddir)/src/file_item_source.h \
                 check_pool.c \
                 check_tag.c $(top_builddir)/src/tag.h \
                 check_clue.c $(top_builddir)/src/clue.h \
-                check_samples.c $(top_builddir)/src/samples.h \
                 check_queue.c $(top_builddir)/src/job_queue.h \
                 check_config.c $(top_builddir)/src/cls_config.h \
-                check_caching_item_source.c \
                 check_item_cache.c $(top_builddir)/src/item_cache.h \
                 $(top_builddir)/src/tagging.h \
                 assertions.h  \

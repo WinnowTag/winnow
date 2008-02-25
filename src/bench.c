@@ -11,15 +11,10 @@
 #include <sys/time.h>
 #include <pthread.h>
 #include "item_cache.h"
-#include "file_item_source.h"
-#include "samples.h"
 #include "tag.h"
 #include "classifier.h"
 
 void *do_classification(void *nothing);
-
-ItemSource *is;
-Samples *samples;
 Pool *random_background;
 TagList *tags;
 int num_tags;

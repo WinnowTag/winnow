@@ -195,7 +195,7 @@ START_TEST (test_random_background_has_right_count_for_a_token) {
 } END_TEST
 
 Suite *
-sqlite_item_source_suite(void) {
+item_cache_suite(void) {
   Suite *s = suite_create("ItemCache");  
   TCase *tc_case = tcase_create("case");
 
