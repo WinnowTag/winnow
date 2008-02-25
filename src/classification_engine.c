@@ -64,11 +64,7 @@ struct CLASSIFICATION_ENGINE {
    *  
    */
   ItemCache *item_cache;
-  
-  /* Shared RandomBackground
-   */
-  Pool *random_background;
-  
+    
   /* The Queue on which classification jobs are stored.
    *
    * This is shared between each classification worker.
@@ -153,7 +149,7 @@ static ClassificationJob * create_user_classification_job(int tag_id);
 static void *classification_worker_func(void *engine_vp);
 static void *insertion_worker_func(void *engine_vp);
 //static void *flusher_func(void *engine_vp);
-static void cjob_process(ClassificationJob *job, const ItemCache *is, TagDB *tagdb, const Pool *background);
+static void cjob_process(ClassificationJob *job, const ItemCache *is, TagDB *tagdb);
 static void cjob_free_taggings(ClassificationJob *job);
 static float tdiff(struct timeval from, struct timeval to);
 
@@ -238,7 +234,6 @@ void free_classification_engine(ClassificationEngine *engine) {
     pthread_mutex_destroy(engine->suspension_notification_mutex);
     pthread_mutex_destroy(engine->perf_log_mutex);
     
-    free_pool(engine->random_background);
     free_queue(engine->classification_job_queue);
     free_queue(engine->tagging_store_queue);
     free(engine);
@@ -600,7 +595,7 @@ void *classification_worker_func(void *engine_vp) {
       /* Get the reference to the item source here so we get it fresh for each job. This means that if
        * the item source is flushed we get a new copy on the next job.
        */
-      cjob_process(job, ce->item_cache, tag_db, ce->random_background);      
+      cjob_process(job, ce->item_cache, tag_db);
       
       if (CJOB_STATE_ERROR != job->state) {
         q_enqueue(ce->tagging_store_queue, job);
@@ -956,7 +951,7 @@ malloc_error:
 /** Do the actual classification.
  * 
  */
-static int cjob_classify(ClassificationJob *job, const ItemCache *item_cache, const Pool *random_background) {
+static int cjob_classify(ClassificationJob *job, const ItemCache *item_cache) {
   
   if (job->taglist->size < 1) {
     return 1;
@@ -991,7 +986,7 @@ static int cjob_classify(ClassificationJob *job, const ItemCache *item_cache, co
   job->state = CJOB_STATE_CALCULATING;
   
   for (i = 0; i < job->taglist->size; i++) {
-    job->classifiers[i] = precompute(tc[i], random_background);
+    job->classifiers[i] = precompute(tc[i], item_cache_random_background(item_cache));
     if (!job->classifiers[i]) MALLOC_ERR();
     
     /*  Once we have the precomputed classifier
@@ -1040,8 +1035,7 @@ malloc_error:
   goto exit;
 }
 
-static void cjob_process(ClassificationJob *job, const ItemCache *item_cache, 
-                         TagDB *tag_db, const Pool *random_background) {
+static void cjob_process(ClassificationJob *job, const ItemCache *item_cache, TagDB *tag_db) {
   /* If the job is cancelled bail out before doing anything */
   if (job->state == CJOB_STATE_CANCELLED) return;
   
@@ -1073,7 +1067,7 @@ static void cjob_process(ClassificationJob *job, const ItemCache *item_cache,
     job->tags_classified = job->taglist->size;
     job->progress = 5.0;
     
-    if (!cjob_classify(job, item_cache, random_background)) {
+    if (!cjob_classify(job, item_cache)) {
       int i;
       for (i = 0; i < job->taglist->size; i++) {
         tag_db_update_last_classified_at(tag_db, job->taglist->tags[i]);        
