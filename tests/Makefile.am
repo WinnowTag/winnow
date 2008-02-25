@@ -1,8 +1,8 @@
 TESTS = check_all check_db check_http
 CLEANFILES = http_test.log http_test_data.log test.log
 
-LDFLAGS = -static
-CFLAGS = -g -DDEBUG
+LDFLAGS = -static @SQLITE3_LDFLAGS@
+CFLAGS = -g -DDEBUG @SQLITE3_CFLAGS@
 check_PROGRAMS = check_all check_db check_http 
 
 check_http_SOURCE = check_http.c
