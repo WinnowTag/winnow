@@ -27,11 +27,15 @@
 #define DEFAULT_CONFIG_FILE "config/classifier.conf"
 #define DEFAULT_LOG_FILE "log/classifier.log"
 #define DEFAULT_PID_FILE "log/classifier.pid"
+#define DEFAULT_DB_FILE "log/classifier.db"
+
 #define PID_VAL 512
+#define DB_VAL  513
 #define SHORT_OPTS "hvdc:l:"
-#define USAGE "Usage: classifier [-dvh] [-c CONFIGFILE] [-l LOGFILE] [--pid PIDFILE]\n"
+#define USAGE "Usage: classifier [-dvh] [-c CONFIGFILE] [-l LOGFILE] [--db DATABASE_FILE] [--pid PIDFILE]\n"
 
 static Config *config;
+static ItemCache *item_cache;
 static ClassificationEngine *engine;
 static Httpd *httpd;
 
@@ -55,6 +59,11 @@ void termination_handler(int sig) {
       free_classification_engine(engine);
     }
     
+    if (item_cache) {
+      fprintf(stderr, "\tClosing database.\n");
+      free_item_cache(item_cache);
+    }
+    
     fprintf(stderr, "Complete.\n");
     if (config) {
       free_config(config);
@@ -70,6 +79,7 @@ int main(int argc, char **argv) {
   char *config_file = DEFAULT_CONFIG_FILE;
   char *log_file = DEFAULT_LOG_FILE;
   char *pid_file = DEFAULT_PID_FILE;
+  char *db_file = DEFAULT_DB_FILE;
   char real_config_file[MAXPATHLEN];
   char real_log_file[MAXPATHLEN];
   
@@ -81,6 +91,7 @@ int main(int argc, char **argv) {
       {"config-file", required_argument, 0, 'c'},
       {"log-file", required_argument, 0, 'l'},
       {"pid", required_argument, 0, PID_VAL},
+      {"db", required_argument, 0, DB_VAL},
       {0, 0, 0, 0}
   };
   
@@ -98,6 +109,9 @@ int main(int argc, char **argv) {
       break;
       case PID_VAL:
         pid_file = optarg;
+      break;
+      case DB_VAL:
+        db_file = optarg;
       break;
       case 'd':
         daemonize = true;
@@ -127,7 +141,7 @@ int main(int argc, char **argv) {
     exit(EXIT_FAILURE);
   }
   
-  /* Load config before we daemonize to allow use to pick
+  /* Load config before we daemonize to allow us to pick
    * up and relative paths defined in the config file.
    */
   config = load_config(real_config_file);
@@ -171,11 +185,16 @@ int main(int argc, char **argv) {
     signal(SIGHUP, SIG_IGN);
   if (signal(SIGTERM, termination_handler) == SIG_IGN)
     signal(SIGTERM, SIG_IGN);
-//    
-//  initialize_logging(real_log_file);
-//  engine = create_classification_engine(config);
-//  httpd = httpd_start(config, engine);  
-//  ce_run(engine);
-  
-  return EXIT_SUCCESS;
+    
+  initialize_logging(real_log_file);
+  if (CLASSIFIER_OK != item_cache_create(&item_cache, db_file)) {
+    fprintf(stderr, "Error opening classifier database file at %s: %s\n", db_file, item_cache_errmsg(item_cache));
+    free_item_cache(item_cache);
+    return EXIT_FAILURE;
+  } else {
+    engine = create_classification_engine(item_cache, config);
+    httpd = httpd_start(config, engine);  
+    ce_run(engine);
+    return EXIT_SUCCESS;
+  }
 }

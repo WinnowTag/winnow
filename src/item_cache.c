@@ -118,7 +118,7 @@ static int create_prepared_statements(ItemCache *item_cache) {
 int item_cache_create(ItemCache **item_cache, const char * db_file) {
   int rc = CLASSIFIER_OK;
   
-  *item_cache = malloc(sizeof(struct ITEM_CACHE));
+  *item_cache = calloc(1, sizeof(struct ITEM_CACHE));
   
   (*item_cache)->version_mismatch = 0;
   (*item_cache)->items_by_id = NULL;
