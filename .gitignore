@@ -21,3 +21,5 @@ src/cls_bench
 *.la
 src/svnversion.h
 stamp-h1
+.DS_Store
+.gdb_history
