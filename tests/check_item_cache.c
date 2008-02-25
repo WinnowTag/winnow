@@ -149,6 +149,30 @@ START_TEST (test_iteration_stops_when_iterator_returns_CLASSIFIER_FAIL) {
   assert_equal(5, iteration_count);
 } END_TEST
 
+static int i = 0;
+
+int stores_ids(const Item * item, void *memo) {
+  int *ids = (int*) memo;
+  ids[i++] = item_get_id(item);
+  return CLASSIFIER_OK;
+}
+
+START_TEST (test_iteration_happens_in_reverse_updated_order) {
+  i = 0;
+  int ids[10];
+  item_cache_each_item(item_cache, stores_ids, ids);
+  assert_equal(709254, ids[0]);
+  assert_equal(880389, ids[1]);
+  assert_equal(888769, ids[2]);
+  assert_equal(886643, ids[3]);
+  assert_equal(890806, ids[4]);
+  assert_equal(802739, ids[5]);
+  assert_equal(884409, ids[6]);
+  assert_equal(753459, ids[7]);
+  assert_equal(878944, ids[8]);
+  assert_equal(886294, ids[9]);
+} END_TEST
+
 /* Test RandomBackground */
 START_TEST (test_random_background_is_null_before_load) {
   assert_null(item_cache_random_background(item_cache));
@@ -201,6 +225,7 @@ sqlite_item_source_suite(void) {
   tcase_add_checked_fixture(iteration, setup_iteration, teardown_iteration);
   tcase_add_test(iteration, test_iterates_over_all_items);
   tcase_add_test(iteration, test_iteration_stops_when_iterator_returns_CLASSIFIER_FAIL);
+  tcase_add_test(iteration, test_iteration_happens_in_reverse_updated_order);
   
   TCase *rndbg = tcase_create("random background");
   tcase_add_checked_fixture(rndbg, setup_cache, teardown_item_cache);

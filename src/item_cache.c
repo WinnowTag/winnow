@@ -21,9 +21,15 @@
 #define CURRENT_USER_VERSION 1
 #define FETCH_ITEM_SQL "select id, strftime('%s', updated) from entries where id = ?"
 #define FETCH_ITEM_TOKENS_SQL "select token_id, frequency from entry_tokens where entry_id = ?"
-#define FETCH_ALL_ITEMS_SQL "select id, strftime('%s', updated) from entries"
+#define FETCH_ALL_ITEMS_SQL "select id, strftime('%s', updated) from entries order by updated desc"
 #define FETCH_ALL_ITEMS_TOKENS_SQL "select entry_id, token_id, frequency from entry_tokens order by entry_id"
 #define FETCH_RANDOM_BACKGROUND "select entry_id from random_backgrounds"
+
+typedef struct ORDERED_ITEM_LIST OrderedItemList;
+struct ORDERED_ITEM_LIST {
+  Item *item;
+  OrderedItemList *next;
+};
 
 struct ITEM {
   /* The ID of the item */
@@ -54,7 +60,9 @@ struct ITEM_CACHE {
   int loaded;
   /* The Judy Array that stores each item keyed by their id. */
   Pvoid_t items_by_id;
-  /* TODO A linked list of item ids in descending order of updated time. */
+  /* A linked list of item ids in descending order of updated time. */
+  OrderedItemList *items_in_order;
+  
   /* The Random Background pool. */
   Pool *random_background;
 };
@@ -225,6 +233,8 @@ int item_cache_load(ItemCache *item_cache) {
   }
   
   int rc = CLASSIFIER_OK;
+  OrderedItemList *ordered_list = NULL;
+  OrderedItemList *last = NULL;
   Pvoid_t itemlist = NULL;  
     
   while (SQLITE_ROW == sqlite3_step(item_cache->fetch_all_items_stmt)) {
@@ -249,7 +259,19 @@ int item_cache_load(ItemCache *item_cache) {
         fatal("Malloc error creating item");
         rc = CLASSIFIER_FAIL;
         break;
-      }            
+      }
+      
+      if (!ordered_list) {
+        ordered_list = malloc(sizeof(OrderedItemList));
+        ordered_list->item = item;
+        ordered_list->next = NULL;
+        last = ordered_list;
+      } else {
+        last->next = malloc(sizeof(OrderedItemList));
+        last->next->item = item;
+        last->next->next = NULL;
+        last = last->next;
+      }
     }
   }
   
@@ -274,7 +296,7 @@ int item_cache_load(ItemCache *item_cache) {
   }
   
   sqlite3_reset(item_cache->fetch_all_item_tokens_stmt);
-  
+    
   /* Now load the random background */
   Pool *rndbg = new_pool();
   while (SQLITE_ROW == sqlite3_step(item_cache->random_background_stmt)) {
@@ -293,6 +315,7 @@ int item_cache_load(ItemCache *item_cache) {
   
   item_cache->random_background = rndbg;
   item_cache->items_by_id = itemlist;
+  item_cache->items_in_order = ordered_list;
   item_cache->loaded = true;
   
   return rc;
@@ -398,17 +421,15 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
  *  TODO Add read locking to item_cache_each_item.
  */
 int item_cache_each_item(const ItemCache *item_cache, ItemIterator iterator, void *memo) {
-  if (item_cache->loaded) {
-    Word_t index = 0;
-    PWord_t item_pointer;
-    
-    JLF(item_pointer, item_cache->items_by_id, index);
-    while (item_pointer != NULL) {
-      Item *item = (Item*) (*item_pointer);
+  if (item_cache->loaded) {    
+    OrderedItemList *current = item_cache->items_in_order;
+        
+    while (current) {
+      Item *item = current->item;
       if (CLASSIFIER_OK != iterator(item, memo)) {
         break;
       }
-      JLN(item_pointer, item_cache->items_by_id, index);
+      current = current->next;
     }
   }
   return 0;
