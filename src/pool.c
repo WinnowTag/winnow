@@ -5,9 +5,19 @@
 //
 // Please contact info@peerworks.org for further information.
 
-#include "pool.h"
+#include <config.h>
+#include "item_cache.h"
 #include "misc.h"
 #include "logging.h"
+
+#if HAVE_JUDY_H
+#include <Judy.h>
+#endif
+
+struct POOL {
+  int total_tokens;
+  Pvoid_t tokens;
+};
 
 Pool * new_pool(void) {
   Pool *pool = malloc(sizeof(Pool));

@@ -23,6 +23,7 @@
 #define FETCH_ITEM_TOKENS_SQL "select token_id, frequency from entry_tokens where entry_id = ?"
 #define FETCH_ALL_ITEMS_SQL "select id, strftime('%s', updated) from entries"
 #define FETCH_ALL_ITEMS_TOKENS_SQL "select entry_id, token_id, frequency from entry_tokens order by entry_id"
+#define FETCH_RANDOM_BACKGROUND "select entry_id from random_backgrounds"
 
 struct ITEM {
   /* The ID of the item */
@@ -43,6 +44,7 @@ struct ITEM_CACHE {
   sqlite3_stmt *fetch_item_tokens_stmt;
   sqlite3_stmt *fetch_all_items_stmt;
   sqlite3_stmt *fetch_all_item_tokens_stmt;
+  sqlite3_stmt *random_background_stmt;
   pthread_mutex_t *db_access_mutex; 
   
   int user_version;
@@ -53,7 +55,8 @@ struct ITEM_CACHE {
   /* The Judy Array that stores each item keyed by their id. */
   Pvoid_t items_by_id;
   /* TODO A linked list of item ids in descending order of updated time. */
-  
+  /* The Random Background pool. */
+  Pool *random_background;
 };
 
 static int get_user_version(ItemCache *item_cache) {
@@ -84,7 +87,8 @@ static int create_prepared_statements(ItemCache *item_cache) {
   if (SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ITEM_SQL, -1, &(item_cache->fetch_item_stmt), NULL) ||
       SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ITEM_TOKENS_SQL, -1, &(item_cache->fetch_item_tokens_stmt), NULL) ||
       SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ALL_ITEMS_SQL, -1, &(item_cache->fetch_all_items_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ALL_ITEMS_TOKENS_SQL, -1, &(item_cache->fetch_all_item_tokens_stmt), NULL)) {
+      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ALL_ITEMS_TOKENS_SQL, -1, &(item_cache->fetch_all_item_tokens_stmt), NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_RANDOM_BACKGROUND, -1, &(item_cache->random_background_stmt), NULL)) {
     fatal("Unable to prepare statment: %s", item_cache_errmsg(item_cache));
     rc = CLASSIFIER_FAIL;
   }
@@ -110,6 +114,7 @@ int item_cache_create(ItemCache **item_cache, const char * db_file) {
   
   (*item_cache)->version_mismatch = 0;
   (*item_cache)->items_by_id = NULL;
+  (*item_cache)->random_background = NULL;
   (*item_cache)->loaded = false;
   
   (*item_cache)->db_access_mutex = calloc(1, sizeof(pthread_mutex_t));
@@ -171,7 +176,11 @@ void free_item_cache(ItemCache *item_cache) {
         free_item((Item*) (*item_pointer));
         JLN(item_pointer, item_cache->items_by_id, index);
       }
-      JLFA(index, item_cache->items_by_id);      
+      JLFA(index, item_cache->items_by_id);  
+      
+      if (item_cache->random_background) {
+        free_pool(item_cache->random_background);
+      }
     }
     
     if (item_cache->db_access_mutex) {
@@ -266,6 +275,23 @@ int item_cache_load(ItemCache *item_cache) {
   
   sqlite3_reset(item_cache->fetch_all_item_tokens_stmt);
   
+  /* Now load the random background */
+  Pool *rndbg = new_pool();
+  while (SQLITE_ROW == sqlite3_step(item_cache->random_background_stmt)) {
+    int id = sqlite3_column_int(item_cache->random_background_stmt, 0);
+    PWord_t item_pointer = NULL;
+    JLG(item_pointer, itemlist, id);
+    if (NULL != item_pointer) {
+      Item *item = (Item*) (*item_pointer);
+      if (item) {
+        pool_add_item(rndbg, item);
+      }      
+    }
+  }
+  
+  sqlite3_reset(item_cache->random_background_stmt);
+  
+  item_cache->random_background = rndbg;
   item_cache->items_by_id = itemlist;
   item_cache->loaded = true;
   
@@ -388,11 +414,29 @@ int item_cache_each_item(const ItemCache *item_cache, ItemIterator iterator, voi
   return 0;
 }
 
+/** Gets the RandomBackground pool.
+ * 
+ *  This only returns the pool if the item cache has been loaded.
+ *  Otherwise it returns NULL.
+ * 
+ *  The items to use in the random background are defined in the random_backgrounds
+ *  table in the database. The pool returned has each of these items added to it.
+ *  
+ * @param item_cache The ItemCache to get the random background pool for.
+ * @return The random background pool.
+ */
+const Pool * item_cache_random_background(const ItemCache * item_cache)  {
+  const Pool * random_background = NULL;
+  if (item_cache) {
+    random_background = item_cache->random_background;
+  }
+  
+  return random_background;
+}
+
 /******************************************************************************
  * Item creation functions 
  ******************************************************************************/
-
-
 
 /** Create a empty item.
  *

@@ -308,6 +308,7 @@ Suite * classification_engine_suite(void) {
 
   TCase *tc_end_to_end = tcase_create("end to end");
   tcase_add_checked_fixture(tc_end_to_end, setup_end_to_end, teardown_end_to_end);
+  tcase_set_timeout(tc_end_to_end, 5);
   tcase_add_test(tc_end_to_end, inserts_taggings);
   tcase_add_test(tc_end_to_end, delete_existing_taggings_before_it_inserts_new_taggings);
   tcase_add_test(tc_end_to_end, inserts_taggings_for_all_users_tags);

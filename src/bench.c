@@ -12,7 +12,6 @@
 #include <pthread.h>
 #include "item_cache.h"
 #include "file_item_source.h"
-#include "pool.h"
 #include "samples.h"
 #include "tag.h"
 #include "classifier.h"

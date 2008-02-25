@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <math.h>
 #include <check.h>
-#include "../src/pool.h"
 #include "../src/item_cache.h"
 #include "../src/misc.h"
 #include "assertions.h"

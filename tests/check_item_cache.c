@@ -149,6 +149,27 @@ START_TEST (test_iteration_stops_when_iterator_returns_CLASSIFIER_FAIL) {
   assert_equal(5, iteration_count);
 } END_TEST
 
+/* Test RandomBackground */
+START_TEST (test_random_background_is_null_before_load) {
+  assert_null(item_cache_random_background(item_cache));
+} END_TEST
+
+START_TEST (test_creates_random_background_after_load) {
+  item_cache_load(item_cache);
+  assert_not_null(item_cache_random_background(item_cache));
+} END_TEST
+
+START_TEST (test_random_background_is_correct_size) {
+  item_cache_load(item_cache);
+  assert_equal(750, pool_num_tokens(item_cache_random_background(item_cache)));
+} END_TEST
+
+START_TEST (test_random_background_has_right_count_for_a_token) {
+  item_cache_load(item_cache);
+  const Pool *bg = item_cache_random_background(item_cache);
+  assert_equal(2, pool_token_frequency(bg, 2515));
+} END_TEST
+
 Suite *
 sqlite_item_source_suite(void) {
   Suite *s = suite_create("ItemCache");  
@@ -181,10 +202,18 @@ sqlite_item_source_suite(void) {
   tcase_add_test(iteration, test_iterates_over_all_items);
   tcase_add_test(iteration, test_iteration_stops_when_iterator_returns_CLASSIFIER_FAIL);
   
+  TCase *rndbg = tcase_create("random background");
+  tcase_add_checked_fixture(rndbg, setup_cache, teardown_item_cache);
+  tcase_add_test(rndbg, test_random_background_is_null_before_load);
+  tcase_add_test(rndbg, test_creates_random_background_after_load);
+  tcase_add_test(rndbg, test_random_background_is_correct_size);
+  tcase_add_test(rndbg, test_random_background_has_right_count_for_a_token);
+  
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
   suite_add_tcase(s, load);
   suite_add_tcase(s, iteration);
+  suite_add_tcase(s, rndbg);
   return s;
 }
 

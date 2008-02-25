@@ -9,7 +9,6 @@
 #include <math.h>
 #include "classifier.h"
 #include "logging.h"
-#include "pool.h"
 #include "tag.h"
 #include "misc.h"
 #include "clue.h"

@@ -16,7 +16,7 @@ typedef struct TOKEN {
 } Token, *Token_p;
 
 typedef struct ITEM Item;
-
+typedef struct POOL Pool;
 typedef struct ITEM_CACHE ItemCache;
 
 typedef int (*ItemIterator) (const Item *item, void *memo);
@@ -28,6 +28,7 @@ extern int item_cache_cached_size(const ItemCache *item_cache);
 extern Item * item_cache_fetch_item(ItemCache *is, int item_id);  
 extern const char * item_cache_errmsg(const ItemCache *is);
 extern int item_cache_each_item(const ItemCache *item_cache, ItemIterator iterator, void *memo);
+extern const Pool * item_cache_random_background(const ItemCache *item_cache);
 extern void free_item_cache(ItemCache *is);
 
 extern Item * create_item             (int id);
@@ -41,5 +42,15 @@ extern int    item_next_token         (const Item *item, Token_p token);
 extern void   free_item               (Item *item);
 /* This should only be called by item loaders */
 extern int    item_add_token          (Item *item, int id, int frequency);
+
+/* Prototypes for pools */
+extern Pool * new_pool               (void);
+extern int    pool_add_item          (Pool *pool, const Item *item);
+extern int    pool_add_items         (Pool *pool, const int items[], int size, const ItemCache *is);
+extern int    pool_num_tokens        (const Pool *pool);
+extern int    pool_total_tokens      (const Pool *pool);
+extern int    pool_token_frequency   (const Pool *pool, int token_id);
+extern void   free_pool              (Pool *pool);
+extern int    pool_next_token        (const Pool *pool, Token_p token);
 
 #endif /*SQLITE_ITEM_SOURCE_H_*/

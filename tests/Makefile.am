@@ -13,7 +13,7 @@ check_all_SOURCES = check_all.c \
                 check_item_loader.c $(top_builddir)/src/item.h \
                 $(top_builddir)/src/item_source.h \
                 $(top_builddir)/src/file_item_source.h \
-                check_pool.c $(top_builddir)/src/pool.h \
+                check_pool.c \
                 check_tag.c $(top_builddir)/src/tag.h \
                 check_clue.c $(top_builddir)/src/clue.h \
                 check_samples.c $(top_builddir)/src/samples.h \

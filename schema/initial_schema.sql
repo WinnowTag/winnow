@@ -39,4 +39,10 @@ create table "entry_tokens" (
     references "tokens" ("id")
 );
 
+create table "random_backgrounds" (
+  "entry_id" integer NOT NULL PRIMARY KEY,
+  constraint "random_backgrounds_entry_id" foreign key ("entry_id")
+    references "entries" ("id")
+);
+
 commit;

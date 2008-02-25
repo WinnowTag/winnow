@@ -20,7 +20,7 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            file_item_source.c        \
                            file_item_source.h        \
                            logging.h logging.c       \
-                           pool.c pool.h             \
+                           pool.c                    \
                            tag.c tag.h               \
                            clue.h clue.c             \
                            samples.c samples.h       \
