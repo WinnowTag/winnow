@@ -1,6 +1,7 @@
 AC_INIT([classifier], [1.0], [info@peerworks.org])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_CONFIG_LIBOBJ_DIR(src)
+AC_DEFINE_DIR([DATADIR], [datadir], [The place where data is installed])
 
 ### Check for programs.
 AC_PROG_CC
@@ -104,5 +105,5 @@ AC_CHECK_TYPES(uuid_t, [], [],
 
 # Output Files
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile schema/Makefile])
 AC_OUTPUT

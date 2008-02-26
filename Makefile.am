@@ -1,5 +1,5 @@
 ACLOCAL_AMFLAGS = -I m4
-SUBDIRS = src . tests
+SUBDIRS = src . tests schema
 
 dist-hook:
 	rm -rf `find $(distdir) -name .svn`

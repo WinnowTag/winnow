@@ -21,6 +21,7 @@ typedef struct ITEM_CACHE ItemCache;
 
 typedef int (*ItemIterator) (const Item *item, void *memo);
 
+extern int item_cache_initialize(const char *dbfile, char *error);
 extern int item_cache_create(ItemCache **is, const char *db_file);
 extern int item_cache_load(ItemCache *item_cache);
 extern int item_cache_loaded(const ItemCache *item_cache);

@@ -11,6 +11,7 @@
 #include <sqlite3.h>
 #include <string.h>
 #include <pthread.h>
+#include <errno.h>
 #if HAVE_JUDY_H
 #include <Judy.h>
 #endif
@@ -104,7 +105,61 @@ static int create_prepared_statements(ItemCache *item_cache) {
   return rc;
 }
 
-/** Create an SQLite ItemSource.
+/** Initialize an SQLite database with the ItemCache schema.
+ * 
+ * @param db_file File to initialize.
+ * @param error Any error message is stored here.
+ */
+int item_cache_initialize(const char *db_file, char * error) {
+  int rc = CLASSIFIER_OK;
+  sqlite3 *db;
+  FILE *file;
+  
+  if (NULL != (file = fopen(db_file, "r"))) {
+    snprintf(error, 512, "Database file %s already exists, no action taken.", db_file);
+    fclose(file);
+    rc = CLASSIFIER_FAIL;
+  } else if (SQLITE_OK != sqlite3_open_v2(db_file, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL)) {
+    snprintf(error, 512, "Error creating database file %s: %s.", db_file, sqlite3_errmsg(db));
+    sqlite3_close(db);
+    rc = CLASSIFIER_FAIL;
+  } else {
+    FILE *schema_file;
+    char *schema;
+    char schema_file_name[512];
+    snprintf(schema_file_name, 512, "%s/%s/%s", DATADIR, PACKAGE,"initial_schema.sql");
+    
+    if (NULL != (schema_file = fopen(schema_file_name, "r"))) {
+      fseek(schema_file, 0, SEEK_END);
+      int size = ftell(schema_file);
+      schema = malloc(size + 1);
+      fseek(schema_file, 0, SEEK_SET);
+      
+      if (size != fread(schema, sizeof(char), size, schema_file)) {        
+        rc = CLASSIFIER_FAIL;
+        snprintf(error, 512, "Error reading schema file %s: %s", schema_file_name, strerror(errno));
+      } else {
+        schema[size] = 0;       
+        if (SQLITE_OK != sqlite3_exec(db, schema, NULL, NULL, NULL)) {
+          snprintf(error, 512, "Error loading schema into database file: %s", sqlite3_errmsg(db));
+          rc = CLASSIFIER_FAIL;
+        }
+      }
+      
+      free(schema);
+      fclose(schema_file);
+    } else {
+      snprintf(error, 512, "Could not find the database schema file at %s. Perhaps it is missing from the install.", schema_file_name);
+      rc = CLASSIFIER_FAIL;
+    }
+    
+    sqlite3_close(db);    
+  }
+  
+  return rc;
+}
+
+/** Create an SQLite ItemCache.
  * 
  * @param item_cache A pointer to an pointer to an SQLiteItemSource. This
  *           will be initialized as an SQLiteItemSource.

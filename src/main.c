@@ -31,8 +31,9 @@
 
 #define PID_VAL 512
 #define DB_VAL  513
+#define CREATE_DB_VAL 514
 #define SHORT_OPTS "hvdc:l:"
-#define USAGE "Usage: classifier [-dvh] [-c CONFIGFILE] [-l LOGFILE] [--db DATABASE_FILE] [--pid PIDFILE]\n"
+#define USAGE "Usage: classifier [-dvh] [-c CONFIGFILE] [-l LOGFILE] [--db DATABASE_FILE] [--pid PIDFILE] [--create-db]\n"
 
 static Config *config;
 static ItemCache *item_cache;
@@ -73,8 +74,55 @@ void termination_handler(int sig) {
   }
 }
 
-int main(int argc, char **argv) {
+static void _daemonize(const char * pid_file) {
   int pid, sid;
+  pid = fork();
+      
+  if (pid < 0) {
+    exit(EXIT_FAILURE);
+  } else if (pid > 0) {
+    if (pid_file) {
+      FILE *pidout = fopen(pid_file, "w");
+      if (pidout) {
+        fprintf(pidout, "%i", pid);
+        fclose(pidout);
+      } else {
+        fprintf(stderr, "Could not open pid file %s: %s", pid_file, strerror(errno));
+      }
+    }
+    // exit the foreground process
+    exit(EXIT_SUCCESS);
+  }
+  
+  umask(0);
+  
+  sid = setsid();
+  if (sid < 0) {
+    fprintf(stderr, "setsid failed: %s", strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+  
+  if (chdir("/") < 0) {
+    fprintf(stderr, "chdir(\"/\") failed: %s", strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+}
+
+static int start_classifier(const char * db_file) {  
+  if (CLASSIFIER_OK != item_cache_create(&item_cache, db_file)) {
+    fprintf(stderr, "Error opening classifier database file at %s: %s\n", db_file, item_cache_errmsg(item_cache));
+    free_item_cache(item_cache);
+    return EXIT_FAILURE;
+  } else {
+    engine = create_classification_engine(item_cache, config);
+    httpd = httpd_start(config, engine);  
+    ce_run(engine);
+    return EXIT_SUCCESS;
+  }
+}
+
+int main(int argc, char **argv) {
+  int create_database = false;
   int daemonize = false;
   char *config_file = DEFAULT_CONFIG_FILE;
   char *log_file = DEFAULT_LOG_FILE;
@@ -92,6 +140,7 @@ int main(int argc, char **argv) {
       {"log-file", required_argument, 0, 'l'},
       {"pid", required_argument, 0, PID_VAL},
       {"db", required_argument, 0, DB_VAL},
+      {"create-db", no_argument, 0, CREATE_DB_VAL},
       {0, 0, 0, 0}
   };
   
@@ -113,6 +162,9 @@ int main(int argc, char **argv) {
       case DB_VAL:
         db_file = optarg;
       break;
+      case CREATE_DB_VAL:
+        create_database = true;
+      break;
       case 'd':
         daemonize = true;
       break;
@@ -125,76 +177,49 @@ int main(int argc, char **argv) {
       break;
     }
   }
+      
+  int rc = EXIT_SUCCESS;
   
-  if (create_file(log_file)) {
-    fprintf(stderr, "Could not create %s: %s\n", log_file, strerror(errno));
-    exit(EXIT_FAILURE);
-  }
-  
-  if (NULL == realpath(config_file, real_config_file)) {
-    fprintf(stderr, "Could not find %s: %s\n", real_config_file, strerror(errno));
-    exit(EXIT_FAILURE);
-  }
-  
-  if (NULL == realpath(log_file, real_log_file)) {
-    fprintf(stderr, "Could not find %s: %s\n", real_log_file, strerror(errno));
-    exit(EXIT_FAILURE);
-  }
-  
-  /* Load config before we daemonize to allow us to pick
-   * up and relative paths defined in the config file.
-   */
-  config = load_config(real_config_file);
-    
-  if (daemonize) {
-    pid = fork();
-    
-    if (pid < 0) {
-      exit(EXIT_FAILURE);
-    } else if (pid > 0) {
-      if (pid_file) {
-        FILE *pidout = fopen(pid_file, "w");
-        if (pidout) {
-          fprintf(pidout, "%i", pid);
-          fclose(pidout);
-        } else {
-          fprintf(stderr, "Could not open pid file %s: %s", pid_file, strerror(errno));
-        }
-      }
-      // exit the foreground process
-      exit(EXIT_SUCCESS);
+  if (create_database) {
+    char error[512];
+    if (CLASSIFIER_OK != item_cache_initialize(db_file, error)) {
+      fprintf(stderr, "%s\n", error);
+      rc = EXIT_FAILURE;
+    } else {
+      fprintf(stderr, "Database successfully initialized at '%s'\n", db_file);
     }
-    
-    umask(0);
-    
-    sid = setsid();
-    if (sid < 0) {
-      fprintf(stderr, "setsid failed: %s", strerror(errno));
-      exit(EXIT_FAILURE);
-    }
-    
-    if (chdir("/") < 0) {
-      fprintf(stderr, "chdir(\"/\") failed: %s", strerror(errno));
-      exit(EXIT_FAILURE);
-    }
-  }
-  
-  if (signal(SIGINT, termination_handler) == SIG_IGN) 
-    signal(SIGINT, SIG_IGN);
-  if (signal(SIGHUP, termination_handler) == SIG_IGN) 
-    signal(SIGHUP, SIG_IGN);
-  if (signal(SIGTERM, termination_handler) == SIG_IGN)
-    signal(SIGTERM, SIG_IGN);
-    
-  initialize_logging(real_log_file);
-  if (CLASSIFIER_OK != item_cache_create(&item_cache, db_file)) {
-    fprintf(stderr, "Error opening classifier database file at %s: %s\n", db_file, item_cache_errmsg(item_cache));
-    free_item_cache(item_cache);
-    return EXIT_FAILURE;
   } else {
-    engine = create_classification_engine(item_cache, config);
-    httpd = httpd_start(config, engine);  
-    ce_run(engine);
-    return EXIT_SUCCESS;
+    if (create_file(log_file)) {
+      fprintf(stderr, "Could not create %s: %s\n", log_file, strerror(errno));
+      exit(EXIT_FAILURE);
+    }
+    
+    if (NULL == realpath(config_file, real_config_file)) {
+      fprintf(stderr, "Could not find %s: %s\n", real_config_file, strerror(errno));
+      exit(EXIT_FAILURE);
+    }
+    
+    if (NULL == realpath(log_file, real_log_file)) {
+      fprintf(stderr, "Could not find %s: %s\n", real_log_file, strerror(errno));
+      exit(EXIT_FAILURE);
+    }
+    
+    /* Load config before we daemonize to allow us to pick
+     * up and relative paths defined in the config file.
+     */
+    config = load_config(real_config_file);
+      
+    if (daemonize) {
+      _daemonize(pid_file);
+    }
+    
+    if (signal(SIGINT, termination_handler) == SIG_IGN)  signal(SIGINT, SIG_IGN);
+    if (signal(SIGHUP, termination_handler) == SIG_IGN)  signal(SIGHUP, SIG_IGN);
+    if (signal(SIGTERM, termination_handler) == SIG_IGN) signal(SIGTERM, SIG_IGN);
+    
+    initialize_logging(real_log_file);
+    rc = start_classifier(db_file);
   }
+  
+  return rc;
 }
