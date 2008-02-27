@@ -198,8 +198,7 @@ START_TEST (test_random_background_has_right_count_for_a_token) {
 
 static void setup_modification(void) {
   system("cp fixtures/valid.db fixtures/valid-copy.db");
-  item_cache_create(&item_cache, "fixtures/valid-copy.db");  
-  item_cache_load(item_cache);
+  item_cache_create(&item_cache, "fixtures/valid-copy.db");
 }
 
 static void teardown_modification(void) {
@@ -231,6 +230,25 @@ START_TEST (test_adding_an_entry_stores_it_in_the_database) {
   free_item(item);
 } END_TEST
 
+START_TEST (adding_an_entry_saves_all_its_attributes) {
+  
+} END_TEST
+
+START_TEST (adding_an_entry_twice_does_not_fail) {
+  ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
+                                          "http://example.org/11",
+                                          "http://example.org/11.html",
+                                          "<p>This is some content</p>",
+                                        2000.0002, 1, 20001.2);
+  int rc = item_cache_add_entry(item_cache, entry);
+  assert_equal(CLASSIFIER_OK, rc);
+  rc = item_cache_add_entry(item_cache, entry);
+  assert_equal(CLASSIFIER_OK, rc);
+} END_TEST
+
+START_TEST (test_destroying_an_entry_removes_it_from_the_database) {
+  
+} END_TEST
 
 Suite *
 item_cache_suite(void) {
@@ -275,6 +293,7 @@ item_cache_suite(void) {
   TCase *modification = tcase_create("modification");
   tcase_add_checked_fixture(modification, setup_modification, teardown_modification);
   tcase_add_test(modification, test_adding_an_entry_stores_it_in_the_database);
+  tcase_add_test(modification, adding_an_entry_twice_does_not_fail);
   
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);

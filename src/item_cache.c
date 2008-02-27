@@ -25,7 +25,7 @@
 #define FETCH_ALL_ITEMS_SQL "select id, strftime('%s', updated) from entries order by updated desc"
 #define FETCH_ALL_ITEMS_TOKENS_SQL "select entry_id, token_id, frequency from entry_tokens order by entry_id"
 #define FETCH_RANDOM_BACKGROUND "select entry_id from random_backgrounds"
-#define INSERT_ENTRY_SQL "insert into entries (id, full_id, title, author, alternate, self, content, updated, feed_id, created_at) \
+#define INSERT_ENTRY_SQL "insert or replace into entries (id, full_id, title, author, alternate, self, content, updated, feed_id, created_at) \
                           VALUES (:id, :full_id, :title, :author, :alternate, :self, :content, :updated, :feed_id, :created_at)"
 
 typedef struct ORDERED_ITEM_LIST OrderedItemList;
@@ -481,7 +481,6 @@ int item_cache_loaded(const ItemCache *item_cache) {
  * @param id The id of the item to get.
  * @returns The Item with the id matching id. It is the responsibility of the
  *          caller to free the item.
- * TODO Add locks around item_cache_fetch_item so only a single thread can do the DB access.
  * TODO Add r/w locks around in-memory item cache.
  * TODO Handle SQLITE_BUSY in case another process locks the database.
  */
@@ -601,6 +600,8 @@ const Pool * item_cache_random_background(const ItemCache * item_cache)  {
 /** Adds an entry to the item cache.
  * 
  * This immediately stores the item in the database.
+ * 
+ * TODO Add SQLITE_BUSY handling for add_entry
  */
 // :id, :full_id, :title, :author, :alternate, :self, :content, :updated, :feed_id, :created_at
 int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
