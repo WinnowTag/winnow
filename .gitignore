@@ -23,3 +23,4 @@ src/svnversion.h
 stamp-h1
 .DS_Store
 .gdb_history
+database
