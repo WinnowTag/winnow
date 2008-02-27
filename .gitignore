@@ -24,3 +24,4 @@ stamp-h1
 .DS_Store
 .gdb_history
 database
+tests/fixtures/valid-copy.db

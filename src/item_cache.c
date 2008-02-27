@@ -25,6 +25,8 @@
 #define FETCH_ALL_ITEMS_SQL "select id, strftime('%s', updated) from entries order by updated desc"
 #define FETCH_ALL_ITEMS_TOKENS_SQL "select entry_id, token_id, frequency from entry_tokens order by entry_id"
 #define FETCH_RANDOM_BACKGROUND "select entry_id from random_backgrounds"
+#define INSERT_ENTRY_SQL "insert into entries (id, full_id, title, author, alternate, self, content, updated, feed_id, created_at) \
+                          VALUES (:id, :full_id, :title, :author, :alternate, :self, :content, :updated, :feed_id, :created_at)"
 
 typedef struct ORDERED_ITEM_LIST OrderedItemList;
 struct ORDERED_ITEM_LIST {
@@ -43,6 +45,19 @@ struct ITEM {
   Pvoid_t tokens;
 }; 
 
+struct ITEM_CACHE_ENTRY {
+  int id; 
+  char * full_id;
+  char * title;
+  char * author;
+  char * alternate;
+  char * self;
+  char * content;
+  double updated;
+  int feed_id;
+  double created_at;
+};
+
 /** This is the opaque type for the Item Cache */
 struct ITEM_CACHE {
   const char *db_file;
@@ -52,6 +67,7 @@ struct ITEM_CACHE {
   sqlite3_stmt *fetch_all_items_stmt;
   sqlite3_stmt *fetch_all_item_tokens_stmt;
   sqlite3_stmt *random_background_stmt;
+  sqlite3_stmt *insert_entry_stmt;
   pthread_mutex_t *db_access_mutex; 
   
   int user_version;
@@ -67,6 +83,69 @@ struct ITEM_CACHE {
   /* The Random Background pool. */
   Pool *random_background;
 };
+
+/******************************************************************************
+ * ItemCacheEntry functions 
+ ******************************************************************************/
+#define COPY_STRING(dest, s) if (s) {   \
+  int size = strlen(s);                 \
+  dest = calloc(size + 1, sizeof(char));\
+  strncpy(dest, s, size);               \
+}
+
+#define FREE_STRING(s) if (s) { \
+  free(s);                      \
+}
+
+/* Creates an item cache entry.
+ * 
+ * This maps to the entries table in the database.
+ */
+ItemCacheEntry * create_item_cache_entry(int id, 
+                                          const char * full_id,
+                                          const char * title,
+                                          const char * author,
+                                          const char * alternate,
+                                          const char * self,
+                                          const char * content,
+                                          double updated,
+                                          int feed_id,
+                                          double created_at) {
+  ItemCacheEntry *entry = calloc(1, sizeof(struct ITEM_CACHE_ENTRY));
+  
+  if (entry) {
+    entry->id = id;
+    entry->feed_id = feed_id;
+    entry->updated = updated;
+    entry->created_at = created_at;
+    COPY_STRING(entry->full_id, full_id);
+    COPY_STRING(entry->title, title);
+    COPY_STRING(entry->author, author);
+    COPY_STRING(entry->alternate, alternate);
+    COPY_STRING(entry->self, self);
+    COPY_STRING(entry->content, content);
+  } else {
+    fatal("Malloc failed in create_item_cache_entry");
+  }
+  
+  return entry;
+}
+
+void free_entry(ItemCacheEntry *entry) {
+  if (entry) {
+    FREE_STRING(entry->full_id);
+    FREE_STRING(entry->title);
+    FREE_STRING(entry->author);
+    FREE_STRING(entry->alternate);
+    FREE_STRING(entry->self);
+    FREE_STRING(entry->content);
+    free(entry);
+  }
+}
+
+/******************************************************************************
+ * ItemCache functions 
+ ******************************************************************************/
 
 static int get_user_version(ItemCache *item_cache) {
   int rc = CLASSIFIER_OK;
@@ -97,7 +176,8 @@ static int create_prepared_statements(ItemCache *item_cache) {
       SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ITEM_TOKENS_SQL, -1, &(item_cache->fetch_item_tokens_stmt), NULL) ||
       SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ALL_ITEMS_SQL, -1, &(item_cache->fetch_all_items_stmt), NULL) ||
       SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ALL_ITEMS_TOKENS_SQL, -1, &(item_cache->fetch_all_item_tokens_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_RANDOM_BACKGROUND, -1, &(item_cache->random_background_stmt), NULL)) {
+      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_RANDOM_BACKGROUND, -1, &(item_cache->random_background_stmt), NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, INSERT_ENTRY_SQL, -1, &(item_cache->insert_entry_stmt), NULL)) {
     fatal("Unable to prepare statment: %s", item_cache_errmsg(item_cache));
     rc = CLASSIFIER_FAIL;
   }
@@ -199,7 +279,7 @@ int item_cache_create(ItemCache **item_cache, const char * db_file) {
     fatal("Unable to allocate memory for SQLiteItemSource");
     rc = CLASSIFIER_FAIL;
   } else {  
-    if (SQLITE_OK != sqlite3_open_v2(db_file, &((*item_cache)->db), SQLITE_OPEN_READONLY, NULL)) { 
+    if (SQLITE_OK != sqlite3_open_v2(db_file, &((*item_cache)->db), SQLITE_OPEN_READWRITE, NULL)) { 
       rc = CLASSIFIER_FAIL;
     } else {
       if (CLASSIFIER_OK == get_user_version(*item_cache)) {
@@ -508,6 +588,49 @@ const Pool * item_cache_random_background(const ItemCache * item_cache)  {
   }
   
   return random_background;
+}
+
+#define BIND_TEXT(stmt, txt, pos) if (txt) {               \
+  if (SQLITE_OK != sqlite3_bind_text(stmt, pos, txt, -1, NULL)) {     \
+    error("Error binding %s to parameter %i", txt, pos);              \
+    rc = CLASSIFIER_FAIL;                                             \
+    goto end;                                                         \
+  }                                                                   \
+}
+
+/** Adds an entry to the item cache.
+ * 
+ * This immediately stores the item in the database.
+ */
+// :id, :full_id, :title, :author, :alternate, :self, :content, :updated, :feed_id, :created_at
+int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
+  int rc = CLASSIFIER_OK;
+  
+  if (item_cache && entry) {
+    pthread_mutex_lock(item_cache->db_access_mutex);
+    
+    sqlite3_bind_int(item_cache->insert_entry_stmt, 1, entry->id);
+    BIND_TEXT(item_cache->insert_entry_stmt, entry->full_id, 2);
+    BIND_TEXT(item_cache->insert_entry_stmt, entry->title, 3);
+    BIND_TEXT(item_cache->insert_entry_stmt, entry->author, 4);
+    BIND_TEXT(item_cache->insert_entry_stmt, entry->alternate, 5);
+    BIND_TEXT(item_cache->insert_entry_stmt, entry->self, 6);
+    BIND_TEXT(item_cache->insert_entry_stmt, entry->content, 7);
+    sqlite3_bind_double(item_cache->insert_entry_stmt, 8, entry->updated);
+    sqlite3_bind_int(item_cache->insert_entry_stmt, 9, entry->feed_id);
+    sqlite3_bind_double(item_cache->insert_entry_stmt, 10, entry->created_at);
+    
+    if (SQLITE_DONE != sqlite3_step(item_cache->insert_entry_stmt)) {
+      error("Error inserting item %i: %s", entry->id, item_cache_errmsg(item_cache));
+      rc = CLASSIFIER_FAIL;
+    }
+end:
+    sqlite3_clear_bindings(item_cache->insert_entry_stmt);
+    sqlite3_reset(item_cache->insert_entry_stmt);    
+    pthread_mutex_unlock(item_cache->db_access_mutex);
+  }
+  
+  return rc;
 }
 
 /******************************************************************************

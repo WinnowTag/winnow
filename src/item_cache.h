@@ -18,19 +18,32 @@ typedef struct TOKEN {
 typedef struct ITEM Item;
 typedef struct POOL Pool;
 typedef struct ITEM_CACHE ItemCache;
+typedef struct ITEM_CACHE_ENTRY ItemCacheEntry;
 
 typedef int (*ItemIterator) (const Item *item, void *memo);
 
-extern int item_cache_initialize(const char *dbfile, char *error);
-extern int item_cache_create(ItemCache **is, const char *db_file);
-extern int item_cache_load(ItemCache *item_cache);
-extern int item_cache_loaded(const ItemCache *item_cache);
-extern int item_cache_cached_size(const ItemCache *item_cache);
-extern Item * item_cache_fetch_item(ItemCache *is, int item_id);  
-extern const char * item_cache_errmsg(const ItemCache *is);
-extern int item_cache_each_item(const ItemCache *item_cache, ItemIterator iterator, void *memo);
-extern const Pool * item_cache_random_background(const ItemCache *item_cache);
-extern void free_item_cache(ItemCache *is);
+extern int          item_cache_initialize         (const char *dbfile, char *error);
+extern int          item_cache_create             (ItemCache **is, const char *db_file);
+extern int          item_cache_load               (ItemCache *item_cache);
+extern int          item_cache_loaded             (const ItemCache *item_cache);
+extern int          item_cache_cached_size        (const ItemCache *item_cache);
+extern Item *       item_cache_fetch_item         (ItemCache *is, int item_id);  
+extern const char * item_cache_errmsg             (const ItemCache *is);
+extern int          item_cache_each_item          (const ItemCache *item_cache, ItemIterator iterator, void *memo);
+extern const Pool * item_cache_random_background  (const ItemCache *item_cache);
+extern int          item_cache_add_entry          (ItemCache *item_cache, ItemCacheEntry *entry);
+extern void         free_item_cache               (ItemCache *is);
+
+extern ItemCacheEntry * create_item_cache_entry(int id, 
+                                                 const char * full_id,
+                                                 const char * title,
+                                                 const char * author,
+                                                 const char * alternate,
+                                                 const char * self,
+                                                 const char * content,
+                                                 double updated,
+                                                 int feed_id,
+                                                 double created_at);
 
 extern Item * create_item             (int id);
 extern Item * create_item_with_tokens (int id, int tokens[][2], int num_tokens);

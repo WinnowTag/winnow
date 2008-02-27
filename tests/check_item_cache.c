@@ -194,6 +194,44 @@ START_TEST (test_random_background_has_right_count_for_a_token) {
   assert_equal(2, pool_token_frequency(bg, 2515));
 } END_TEST
 
+/* Item Cache modification */
+
+static void setup_modification(void) {
+  system("cp fixtures/valid.db fixtures/valid-copy.db");
+  item_cache_create(&item_cache, "fixtures/valid-copy.db");  
+  item_cache_load(item_cache);
+}
+
+static void teardown_modification(void) {
+  free_item_cache(item_cache);
+}
+
+//START_TEST (test_wait_with_nothing_changed_returns_ITEM_CACHE_UNCHANGED_immediately) {
+//  int rc = item_cache_wait(item_cache);
+//  assert_equal(ITEM_CACHE_UNCHANGED, rc);
+//} END_TEST
+//
+//START_TEST (test_wait_with_something_in_the_queue_returns_ITEM_CACHE_CHANGED) {
+//  ItemCacheEntry *entry = create_entry();
+//  item_cache_add_entry(item_cache, entry);
+//  int rc = item_cache_wait(item_cache);
+//  assert_equal(ITEM_CACHE_CHANGED, rc);
+//} END_TEST
+
+START_TEST (test_adding_an_entry_stores_it_in_the_database) {
+  ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
+                                        "http://example.org/11",
+                                        "http://example.org/11.html",
+                                        "<p>This is some content</p>",
+                                        2000.0002, 1, 20001.2);
+  int rc = item_cache_add_entry(item_cache, entry);
+  assert_equal(CLASSIFIER_OK, rc);
+  Item *item = item_cache_fetch_item(item_cache, 11);
+  assert_not_null(item);
+  free_item(item);
+} END_TEST
+
+
 Suite *
 item_cache_suite(void) {
   Suite *s = suite_create("ItemCache");  
@@ -234,11 +272,16 @@ item_cache_suite(void) {
   tcase_add_test(rndbg, test_random_background_is_correct_size);
   tcase_add_test(rndbg, test_random_background_has_right_count_for_a_token);
   
+  TCase *modification = tcase_create("modification");
+  tcase_add_checked_fixture(modification, setup_modification, teardown_modification);
+  tcase_add_test(modification, test_adding_an_entry_stores_it_in_the_database);
+  
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
   suite_add_tcase(s, load);
   suite_add_tcase(s, iteration);
   suite_add_tcase(s, rndbg);
+  suite_add_tcase(s, modification);
   return s;
 }
 
