@@ -105,5 +105,5 @@ AC_CHECK_TYPES(uuid_t, [], [],
 
 # Output Files
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile schema/Makefile])
+AC_CONFIG_FILES([Makefile bin/Makefile src/Makefile tests/Makefile schema/Makefile])
 AC_OUTPUT
