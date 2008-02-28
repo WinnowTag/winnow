@@ -195,6 +195,7 @@ START_TEST (test_random_background_has_right_count_for_a_token) {
 } END_TEST
 
 /* Item Cache modification */
+#include <sqlite3.h>
 
 static void setup_modification(void) {
   system("cp fixtures/valid.db fixtures/valid-copy.db");
@@ -231,7 +232,33 @@ START_TEST (test_adding_an_entry_stores_it_in_the_database) {
 } END_TEST
 
 START_TEST (adding_an_entry_saves_all_its_attributes) {
+  ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
+                                          "http://example.org/11",
+                                          "http://example.org/11.html",
+                                          "<p>This is some content</p>",
+                                          2000.0002, 1, 20001.2);
+  int rc = item_cache_add_entry(item_cache, entry);
+  assert_equal(CLASSIFIER_OK, rc);
   
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from entries where id = 11", -1, &stmt, NULL);
+  if (SQLITE_ROW == sqlite3_step(stmt)) {
+    assert_equal_s("id#11", sqlite3_column_text(stmt, 1));
+    assert_equal_s("Entry 11", sqlite3_column_text(stmt, 2));
+    assert_equal_s("Author 11", sqlite3_column_text(stmt, 3));
+    assert_equal_s("http://example.org/11", sqlite3_column_text(stmt, 4));
+    assert_equal_s("http://example.org/11.html", sqlite3_column_text(stmt, 5));
+    assert_equal_s("<p>This is some content</p>", sqlite3_column_text(stmt, 6));
+    assert_equal_f(2000.0002, sqlite3_column_double(stmt, 7));
+    assert_equal(1, sqlite3_column_int(stmt, 8));
+    assert_equal_f(20001.2, sqlite3_column_double(stmt, 9));
+  } else {
+    fail("Could not get record");
+  }
+  
+  sqlite3_close(db);
 } END_TEST
 
 START_TEST (adding_an_entry_twice_does_not_fail) {
@@ -294,6 +321,7 @@ item_cache_suite(void) {
   tcase_add_checked_fixture(modification, setup_modification, teardown_modification);
   tcase_add_test(modification, test_adding_an_entry_stores_it_in_the_database);
   tcase_add_test(modification, adding_an_entry_twice_does_not_fail);
+  tcase_add_test(modification, adding_an_entry_saves_all_its_attributes);
   
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
