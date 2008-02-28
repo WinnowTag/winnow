@@ -27,6 +27,7 @@
 #define FETCH_RANDOM_BACKGROUND "select entry_id from random_backgrounds"
 #define INSERT_ENTRY_SQL "insert or replace into entries (id, full_id, title, author, alternate, self, content, updated, feed_id, created_at) \
                           VALUES (:id, :full_id, :title, :author, :alternate, :self, :content, :updated, :feed_id, :created_at)"
+#define DELETE_ENTRY_SQL "delete from entries where id = ?"
 
 typedef struct ORDERED_ITEM_LIST OrderedItemList;
 struct ORDERED_ITEM_LIST {
@@ -68,6 +69,7 @@ struct ITEM_CACHE {
   sqlite3_stmt *fetch_all_item_tokens_stmt;
   sqlite3_stmt *random_background_stmt;
   sqlite3_stmt *insert_entry_stmt;
+  sqlite3_stmt *delete_entry_stmt;
   pthread_mutex_t *db_access_mutex; 
   
   int user_version;
@@ -177,7 +179,8 @@ static int create_prepared_statements(ItemCache *item_cache) {
       SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ALL_ITEMS_SQL, -1, &(item_cache->fetch_all_items_stmt), NULL) ||
       SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ALL_ITEMS_TOKENS_SQL, -1, &(item_cache->fetch_all_item_tokens_stmt), NULL) ||
       SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_RANDOM_BACKGROUND, -1, &(item_cache->random_background_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, INSERT_ENTRY_SQL, -1, &(item_cache->insert_entry_stmt), NULL)) {
+      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, INSERT_ENTRY_SQL, -1, &(item_cache->insert_entry_stmt), NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, DELETE_ENTRY_SQL, -1, &(item_cache->delete_entry_stmt), NULL)) {
     fatal("Unable to prepare statment: %s", item_cache_errmsg(item_cache));
     rc = CLASSIFIER_FAIL;
   }
@@ -602,6 +605,7 @@ const Pool * item_cache_random_background(const ItemCache * item_cache)  {
  * This immediately stores the item in the database.
  * 
  * TODO Add SQLITE_BUSY handling for add_entry
+ * TODO Queue up job to add entry to in-memory queues.
  */
 // :id, :full_id, :title, :author, :alternate, :self, :content, :updated, :feed_id, :created_at
 int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
@@ -634,6 +638,33 @@ end:
   return rc;
 }
 
+/** Removes an entry from the item cache.
+ * 
+ * TODO Add SQLITE_BUSY handling to remove_entry.
+ * TODO Queue up job to remove entry from in-memory queues.
+ */
+int item_cache_remove_entry(ItemCache *item_cache, int entry_id) {
+  int rc = CLASSIFIER_OK;
+  
+  if (item_cache) {
+    pthread_mutex_lock(item_cache->db_access_mutex);
+    
+    sqlite3_bind_int(item_cache->delete_entry_stmt, 1, entry_id);
+    
+    if (SQLITE_DONE != sqlite3_step(item_cache->delete_entry_stmt)) {
+      error("Error deleteing ItemCache entry %i: %s", entry_id, item_cache_errmsg(item_cache));
+      rc = CLASSIFIER_FAIL;      
+    } else {
+      info("Deleted ItemCache entry %i", entry_id);
+    }
+    
+    sqlite3_clear_bindings(item_cache->delete_entry_stmt);
+    sqlite3_reset(item_cache->delete_entry_stmt);
+    pthread_mutex_unlock(item_cache->db_access_mutex);    
+  }
+  
+  return rc; 
+}
 /******************************************************************************
  * Item creation functions 
  ******************************************************************************/

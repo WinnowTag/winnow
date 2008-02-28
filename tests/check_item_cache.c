@@ -273,8 +273,43 @@ START_TEST (adding_an_entry_twice_does_not_fail) {
   assert_equal(CLASSIFIER_OK, rc);
 } END_TEST
 
-START_TEST (test_destroying_an_entry_removes_it_from_the_database) {
+START_TEST (test_destroying_an_entry_removes_it_from_database) {
+  Item *item = item_cache_fetch_item(item_cache, 753459);
+  assert_not_null(item);
+  free_item(item);
   
+  int rc = item_cache_remove_entry(item_cache, 753459);
+  assert_equal(CLASSIFIER_OK, rc);
+  item = item_cache_fetch_item(item_cache, 753459);
+  assert_null(item);  
+} END_TEST
+
+START_TEST (test_destroying_an_entry_removes_it_from_the_database_file) {
+  int rc = item_cache_remove_entry(item_cache, 753459);
+  assert_equal(CLASSIFIER_OK, rc);
+  Item *item = item_cache_fetch_item(item_cache, 753459);
+  assert_null(item);
+    
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from entries where id = 753459", -1, &stmt, NULL);
+  rc = sqlite3_step(stmt);
+  assert_equal(SQLITE_DONE, rc);
+  sqlite3_close(db);
+} END_TEST
+
+START_TEST (test_destroying_an_entry_removes_tokens_from_the_database_file) {
+  int rc = item_cache_remove_entry(item_cache, 753459);
+  assert_equal(CLASSIFIER_OK, rc); 
+    
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from entry_tokens where entry_id = 753459", -1, &stmt, NULL);
+  rc = sqlite3_step(stmt);
+  assert_equal(SQLITE_DONE, rc);
+  sqlite3_close(db);
 } END_TEST
 
 Suite *
@@ -322,6 +357,9 @@ item_cache_suite(void) {
   tcase_add_test(modification, test_adding_an_entry_stores_it_in_the_database);
   tcase_add_test(modification, adding_an_entry_twice_does_not_fail);
   tcase_add_test(modification, adding_an_entry_saves_all_its_attributes);
+  tcase_add_test(modification, test_destroying_an_entry_removes_it_from_database);
+  tcase_add_test(modification, test_destroying_an_entry_removes_tokens_from_the_database_file);
+  tcase_add_test(modification, test_destroying_an_entry_removes_it_from_the_database_file);
   
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);

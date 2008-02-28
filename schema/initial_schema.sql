@@ -45,4 +45,21 @@ create table "random_backgrounds" (
     references "entries" ("id")
 );
 
+-- Triggers to handle foreign keys
+
+-- Cascading delete from entries to entry_tokens
+create trigger entry_tokens_entry_id
+  BEFORE DELETE ON entries
+  FOR EACH ROW BEGIN
+      DELETE from entry_tokens WHERE entry_id = OLD.id;
+  END;  
+  
+-- Prevent deletion of tokens when there is a matching entry_token
+CREATE TRIGGER entry_tokens_token_id
+  BEFORE DELETE ON tokens
+  FOR EACH ROW BEGIN
+      SELECT RAISE(ROLLBACK, 'delete on table "tokens" violates foreign key constraint "entry_tokens_token_id"')
+      WHERE (SELECT token_id FROM entry_tokens WHERE token_id = OLD.id) IS NOT NULL;
+  END;
+  
 commit;

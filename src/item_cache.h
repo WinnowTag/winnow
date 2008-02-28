@@ -32,6 +32,7 @@ extern const char * item_cache_errmsg             (const ItemCache *is);
 extern int          item_cache_each_item          (const ItemCache *item_cache, ItemIterator iterator, void *memo);
 extern const Pool * item_cache_random_background  (const ItemCache *item_cache);
 extern int          item_cache_add_entry          (ItemCache *item_cache, ItemCacheEntry *entry);
+extern int          item_cache_remove_entry       (ItemCache *item_cache, int entry_id);
 extern void         free_item_cache               (ItemCache *is);
 
 extern ItemCacheEntry * create_item_cache_entry(int id, 
