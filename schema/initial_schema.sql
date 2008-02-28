@@ -61,5 +61,13 @@ CREATE TRIGGER entry_tokens_token_id
       SELECT RAISE(ROLLBACK, 'delete on table "tokens" violates foreign key constraint "entry_tokens_token_id"')
       WHERE (SELECT token_id FROM entry_tokens WHERE token_id = OLD.id) IS NOT NULL;
   END;
+
+-- Prevent deletion of items that are in the random background  
+CREATE TRIGGER random_backgrounds_entry_id
+  BEFORE DELETE ON entries
+  FOR EACH ROW BEGIN
+      SELECT RAISE(ROLLBACK, 'delete on table "entries" violates foreign key constraint "random_backgrounds_entry_id"')
+      WHERE (SELECT entry_id FROM random_backgrounds WHERE entry_id = OLD.id) IS NOT NULL;
+  END;
   
 commit;

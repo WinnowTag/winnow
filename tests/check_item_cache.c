@@ -312,6 +312,32 @@ START_TEST (test_destroying_an_entry_removes_tokens_from_the_database_file) {
   sqlite3_close(db);
 } END_TEST
 
+START_TEST (test_cant_delete_an_item_that_is_used_in_the_random_background) {
+  int rc = item_cache_remove_entry(item_cache, 890806);
+  assert_equal(CLASSIFIER_FAIL, rc);
+  
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from entries where id = 890806", -1, &stmt, NULL);
+  rc = sqlite3_step(stmt);
+  assert_equal(SQLITE_ROW, rc); 
+  sqlite3_close(db);
+} END_TEST
+
+START_TEST (test_failed_deletion_doesnt_delete_tokens) {
+  int rc = item_cache_remove_entry(item_cache, 890806);
+  assert_equal(CLASSIFIER_FAIL, rc); 
+    
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from entry_tokens where entry_id = 890806", -1, &stmt, NULL);
+  rc = sqlite3_step(stmt);
+  assert_equal(SQLITE_ROW, rc);
+  sqlite3_close(db);
+} END_TEST
+
 Suite *
 item_cache_suite(void) {
   Suite *s = suite_create("ItemCache");  
@@ -360,6 +386,8 @@ item_cache_suite(void) {
   tcase_add_test(modification, test_destroying_an_entry_removes_it_from_database);
   tcase_add_test(modification, test_destroying_an_entry_removes_tokens_from_the_database_file);
   tcase_add_test(modification, test_destroying_an_entry_removes_it_from_the_database_file);
+  tcase_add_test(modification, test_cant_delete_an_item_that_is_used_in_the_random_background);
+  tcase_add_test(modification, test_failed_deletion_doesnt_delete_tokens);
   
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
