@@ -2,7 +2,8 @@
 *.lo
 *.log
 /config.*
-Makefile*
+Makefile
+Makefile.in
 .deps
 check_all
 check_db
