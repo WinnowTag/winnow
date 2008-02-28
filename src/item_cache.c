@@ -28,11 +28,17 @@
 #define INSERT_ENTRY_SQL "insert or replace into entries (id, full_id, title, author, alternate, self, content, updated, feed_id, created_at) \
                           VALUES (:id, :full_id, :title, :author, :alternate, :self, :content, :updated, :feed_id, :created_at)"
 #define DELETE_ENTRY_SQL "delete from entries where id = ?"
+#define INSERT_FEED_SQL "insert or replace into feeds VALUES (?, ?)"
 
 typedef struct ORDERED_ITEM_LIST OrderedItemList;
 struct ORDERED_ITEM_LIST {
   Item *item;
   OrderedItemList *next;
+};
+
+struct FEED {
+  int id;
+  char * title;
 };
 
 struct ITEM {
@@ -70,6 +76,8 @@ struct ITEM_CACHE {
   sqlite3_stmt *random_background_stmt;
   sqlite3_stmt *insert_entry_stmt;
   sqlite3_stmt *delete_entry_stmt;
+  sqlite3_stmt *insert_feed_stmt;
+  
   pthread_mutex_t *db_access_mutex; 
   
   int user_version;
@@ -146,6 +154,27 @@ void free_entry(ItemCacheEntry *entry) {
 }
 
 /******************************************************************************
+ * Feed creation functions 
+ ******************************************************************************/
+Feed * create_feed(int id, const char * title) {
+  Feed *feed = calloc(1, sizeof(struct FEED));
+  
+  if (NULL != feed) {
+    feed->id = id;
+    COPY_STRING(feed->title, title);
+  }
+  
+  return feed;
+}
+
+void free_feed(Feed * feed) {
+  if (feed) {
+    FREE_STRING(feed->title);
+    free(feed);
+  }
+}
+
+/******************************************************************************
  * ItemCache functions 
  ******************************************************************************/
 
@@ -180,7 +209,8 @@ static int create_prepared_statements(ItemCache *item_cache) {
       SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ALL_ITEMS_TOKENS_SQL, -1, &(item_cache->fetch_all_item_tokens_stmt), NULL) ||
       SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_RANDOM_BACKGROUND, -1, &(item_cache->random_background_stmt), NULL) ||
       SQLITE_OK != sqlite3_prepare_v2(item_cache->db, INSERT_ENTRY_SQL, -1, &(item_cache->insert_entry_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, DELETE_ENTRY_SQL, -1, &(item_cache->delete_entry_stmt), NULL)) {
+      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, DELETE_ENTRY_SQL, -1, &(item_cache->delete_entry_stmt), NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, INSERT_FEED_SQL, -1, &(item_cache->insert_feed_stmt), NULL)) {
     fatal("Unable to prepare statment: %s", item_cache_errmsg(item_cache));
     rc = CLASSIFIER_FAIL;
   }
@@ -665,6 +695,33 @@ int item_cache_remove_entry(ItemCache *item_cache, int entry_id) {
   
   return rc; 
 }
+
+/** Adds a feed to the item cache
+ */
+int item_cache_add_feed(ItemCache *item_cache, Feed * feed) {
+  int rc = CLASSIFIER_OK;
+  
+  if (item_cache && feed) {
+    pthread_mutex_lock(item_cache->db_access_mutex);
+    sqlite3_bind_int(item_cache->insert_feed_stmt, 1, feed->id);
+    BIND_TEXT(item_cache->insert_feed_stmt, feed->title, 2);
+    
+    if (SQLITE_DONE != sqlite3_step(item_cache->insert_feed_stmt)) {
+      error("Error inserting feed '%s' into item cache", feed->title, item_cache_errmsg(item_cache));
+      rc = CLASSIFIER_FAIL;
+    } else {
+      info("Inserted feed '%s' into item cache", feed->title);
+    }
+
+  end:
+    sqlite3_clear_bindings(item_cache->insert_feed_stmt);
+    sqlite3_reset(item_cache->insert_feed_stmt);
+    pthread_mutex_unlock(item_cache->db_access_mutex);
+  }
+  
+  return rc;
+}
+
 /******************************************************************************
  * Item creation functions 
  ******************************************************************************/

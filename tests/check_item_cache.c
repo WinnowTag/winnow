@@ -338,6 +338,39 @@ START_TEST (test_failed_deletion_doesnt_delete_tokens) {
   sqlite3_close(db);
 } END_TEST
 
+/* Feed addition */
+START_TEST (test_add_feed_to_item_cache) {
+  Feed *feed = create_feed(10, "Feed 10");
+  int rc = item_cache_add_feed(item_cache, feed);
+  assert_equal(CLASSIFIER_OK, rc);
+  
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from feeds where id = 10", -1, &stmt, NULL);
+  rc = sqlite3_step(stmt);
+  assert_equal(SQLITE_ROW, rc);
+  assert_equal_s("Feed 10", sqlite3_column_text(stmt, 1));
+  sqlite3_close(db);
+  free_feed(feed);
+} END_TEST
+
+START_TEST (test_add_feed_that_already_exists_updates_attributes) {
+  Feed *feed = create_feed(141, "Feed 999");
+  int rc = item_cache_add_feed(item_cache, feed);
+  assert_equal(CLASSIFIER_OK, rc);
+  
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from feeds where id = 141", -1, &stmt, NULL);
+  rc = sqlite3_step(stmt);
+  assert_equal(SQLITE_ROW, rc);
+  assert_equal_s("Feed 999", sqlite3_column_text(stmt, 1));
+  sqlite3_close(db);
+  free_feed(feed);
+} END_TEST
+
 Suite *
 item_cache_suite(void) {
   Suite *s = suite_create("ItemCache");  
@@ -388,6 +421,8 @@ item_cache_suite(void) {
   tcase_add_test(modification, test_destroying_an_entry_removes_it_from_the_database_file);
   tcase_add_test(modification, test_cant_delete_an_item_that_is_used_in_the_random_background);
   tcase_add_test(modification, test_failed_deletion_doesnt_delete_tokens);
+  tcase_add_test(modification, test_add_feed_to_item_cache);
+  tcase_add_test(modification, test_add_feed_that_already_exists_updates_attributes);
   
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
@@ -397,4 +432,3 @@ item_cache_suite(void) {
   suite_add_tcase(s, modification);
   return s;
 }
-

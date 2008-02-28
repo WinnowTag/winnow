@@ -19,6 +19,7 @@ typedef struct ITEM Item;
 typedef struct POOL Pool;
 typedef struct ITEM_CACHE ItemCache;
 typedef struct ITEM_CACHE_ENTRY ItemCacheEntry;
+typedef struct FEED Feed;
 
 typedef int (*ItemIterator) (const Item *item, void *memo);
 
@@ -33,6 +34,8 @@ extern int          item_cache_each_item          (const ItemCache *item_cache, 
 extern const Pool * item_cache_random_background  (const ItemCache *item_cache);
 extern int          item_cache_add_entry          (ItemCache *item_cache, ItemCacheEntry *entry);
 extern int          item_cache_remove_entry       (ItemCache *item_cache, int entry_id);
+extern int          item_cache_add_feed           (ItemCache *item_cache, Feed *feed);
+extern int          item_cache_remove_feed        (ItemCache *item_cache, int feed_id);
 extern void         free_item_cache               (ItemCache *is);
 
 extern ItemCacheEntry * create_item_cache_entry(int id, 
@@ -45,6 +48,8 @@ extern ItemCacheEntry * create_item_cache_entry(int id,
                                                  double updated,
                                                  int feed_id,
                                                  double created_at);
+extern Feed * create_feed(int id, const char * title);
+extern void   free_feed(Feed * feed);
 
 extern Item * create_item             (int id);
 extern Item * create_item_with_tokens (int id, int tokens[][2], int num_tokens);
