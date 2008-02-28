@@ -344,6 +344,11 @@ void free_item_cache(ItemCache *item_cache) {
       sqlite3_finalize(item_cache->fetch_item_tokens_stmt);
       sqlite3_finalize(item_cache->fetch_all_items_stmt);
       sqlite3_finalize(item_cache->fetch_all_item_tokens_stmt);
+      sqlite3_finalize(item_cache->random_background_stmt);
+      sqlite3_finalize(item_cache->insert_entry_stmt);
+      sqlite3_finalize(item_cache->delete_entry_stmt);
+      sqlite3_finalize(item_cache->delete_feed_stmt);
+      sqlite3_finalize(item_cache->delete_feed_stmt);
       sqlite3_close(item_cache->db);
     }
     
@@ -355,7 +360,14 @@ void free_item_cache(ItemCache *item_cache) {
         free_item((Item*) (*item_pointer));
         JLN(item_pointer, item_cache->items_by_id, index);
       }
-      JLFA(index, item_cache->items_by_id);  
+      JLFA(index, item_cache->items_by_id);
+      
+      OrderedItemList *current = item_cache->items_in_order;
+      while (current) {
+        OrderedItemList *to_free = current;
+        current = current->next;
+        free(to_free);
+      }
       
       if (item_cache->random_background) {
         free_pool(item_cache->random_background);
