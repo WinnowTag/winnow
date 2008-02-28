@@ -371,6 +371,35 @@ START_TEST (test_add_feed_that_already_exists_updates_attributes) {
   free_feed(feed);
 } END_TEST
 
+/* Feed deletion */
+START_TEST (test_deleting_a_feed_removes_it_from_the_database) {
+  int rc = item_cache_remove_feed(item_cache, 141);
+  assert_equal(CLASSIFIER_OK, rc);
+  
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from feeds where id = 141", -1, &stmt, NULL);
+  rc = sqlite3_step(stmt);
+  assert_equal(SQLITE_DONE, rc);
+  
+  sqlite3_close(db);
+} END_TEST
+
+START_TEST (test_deleting_a_feed_removes_its_entries_from_the_database) {
+  int rc = item_cache_remove_feed(item_cache, 141);
+  assert_equal(CLASSIFIER_OK, rc);
+  
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from entries where feed_id = 141", -1, &stmt, NULL);
+  rc = sqlite3_step(stmt);
+  assert_equal(SQLITE_DONE, rc);
+  
+  sqlite3_close(db);
+} END_TEST
+
 Suite *
 item_cache_suite(void) {
   Suite *s = suite_create("ItemCache");  
@@ -423,6 +452,8 @@ item_cache_suite(void) {
   tcase_add_test(modification, test_failed_deletion_doesnt_delete_tokens);
   tcase_add_test(modification, test_add_feed_to_item_cache);
   tcase_add_test(modification, test_add_feed_that_already_exists_updates_attributes);
+  tcase_add_test(modification, test_deleting_a_feed_removes_it_from_the_database);
+  tcase_add_test(modification, test_deleting_a_feed_removes_its_entries_from_the_database);
   
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);

@@ -52,7 +52,14 @@ create trigger entry_tokens_entry_id
   BEFORE DELETE ON entries
   FOR EACH ROW BEGIN
       DELETE from entry_tokens WHERE entry_id = OLD.id;
-  END;  
+  END;
+
+-- Cascade delete from feeds to entries  
+create trigger entry_feed
+  BEFORE DELETE ON feeds
+  FOR EACH ROW BEGIN
+      DELETE from entries WHERE feed_id = OLD.id;
+  END;
   
 -- Prevent deletion of tokens when there is a matching entry_token
 CREATE TRIGGER entry_tokens_token_id
