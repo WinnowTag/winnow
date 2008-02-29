@@ -26,7 +26,7 @@
 #define FETCH_ALL_ITEMS_TOKENS_SQL "select entry_id, token_id, frequency from entry_tokens order by entry_id"
 #define FETCH_RANDOM_BACKGROUND "select entry_id from random_backgrounds"
 #define INSERT_ENTRY_SQL "insert or replace into entries (id, full_id, title, author, alternate, self, content, updated, feed_id, created_at) \
-                          VALUES (:id, :full_id, :title, :author, :alternate, :self, :content, :updated, :feed_id, :created_at)"
+                          VALUES (:id, :full_id, :title, :author, :alternate, :self, :content, julianday(:updated, 'unixepoch'), :feed_id, julianday(:created_at, 'unixepoch'))"
 #define DELETE_ENTRY_SQL "delete from entries where id = ?"
 #define INSERT_FEED_SQL "insert or replace into feeds VALUES (?, ?)"
 #define DELETE_FEED_SQL "delete from feeds where id = ?"
@@ -61,9 +61,9 @@ struct ITEM_CACHE_ENTRY {
   char * alternate;
   char * self;
   char * content;
-  double updated;
+  time_t updated;
   int feed_id;
-  double created_at;
+  time_t created_at;
 };
 
 /** This is the opaque type for the Item Cache */
@@ -120,9 +120,9 @@ ItemCacheEntry * create_item_cache_entry(int id,
                                           const char * alternate,
                                           const char * self,
                                           const char * content,
-                                          double updated,
+                                          time_t updated,
                                           int feed_id,
-                                          double created_at) {
+                                          time_t created_at) {
   ItemCacheEntry *entry = calloc(1, sizeof(struct ITEM_CACHE_ENTRY));
   
   if (entry) {
@@ -347,7 +347,7 @@ void free_item_cache(ItemCache *item_cache) {
       sqlite3_finalize(item_cache->random_background_stmt);
       sqlite3_finalize(item_cache->insert_entry_stmt);
       sqlite3_finalize(item_cache->delete_entry_stmt);
-      sqlite3_finalize(item_cache->delete_feed_stmt);
+      sqlite3_finalize(item_cache->insert_feed_stmt);
       sqlite3_finalize(item_cache->delete_feed_stmt);
       sqlite3_close(item_cache->db);
     }

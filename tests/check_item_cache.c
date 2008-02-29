@@ -223,7 +223,7 @@ START_TEST (test_adding_an_entry_stores_it_in_the_database) {
                                         "http://example.org/11",
                                         "http://example.org/11.html",
                                         "<p>This is some content</p>",
-                                        2000.0002, 1, 20001.2);
+                                        1178551600, 1, 1178551601);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
   Item *item = item_cache_fetch_item(item_cache, 11);
@@ -236,7 +236,7 @@ START_TEST (adding_an_entry_saves_all_its_attributes) {
                                           "http://example.org/11",
                                           "http://example.org/11.html",
                                           "<p>This is some content</p>",
-                                          2000.0002, 1, 20001.2);
+                                          1178551600, 1, 1178551601);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
   
@@ -251,9 +251,9 @@ START_TEST (adding_an_entry_saves_all_its_attributes) {
     assert_equal_s("http://example.org/11", sqlite3_column_text(stmt, 4));
     assert_equal_s("http://example.org/11.html", sqlite3_column_text(stmt, 5));
     assert_equal_s("<p>This is some content</p>", sqlite3_column_text(stmt, 6));
-    assert_equal_f(2000.0002, sqlite3_column_double(stmt, 7));
+    assert_equal_f(2454228.14351852, sqlite3_column_double(stmt, 7));
     assert_equal(1, sqlite3_column_int(stmt, 8));
-    assert_equal_f(20001.2, sqlite3_column_double(stmt, 9));
+    assert_equal_f(2454228.14353009, sqlite3_column_double(stmt, 9));
   } else {
     fail("Could not get record");
   }
@@ -266,7 +266,7 @@ START_TEST (adding_an_entry_twice_does_not_fail) {
                                           "http://example.org/11",
                                           "http://example.org/11.html",
                                           "<p>This is some content</p>",
-                                        2000.0002, 1, 20001.2);
+                                          1178551600, 1, 1178551601);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
   rc = item_cache_add_entry(item_cache, entry);

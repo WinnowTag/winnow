@@ -45,9 +45,9 @@ extern ItemCacheEntry * create_item_cache_entry(int id,
                                                  const char * alternate,
                                                  const char * self,
                                                  const char * content,
-                                                 double updated,
+                                                 time_t updated,
                                                  int feed_id,
-                                                 double created_at);
+                                                 time_t created_at);
 extern Feed * create_feed(int id, const char * title);
 extern void   free_feed(Feed * feed);
 
