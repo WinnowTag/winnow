@@ -10,6 +10,7 @@
 #define SQLITE_ITEM_SOURCE_H_
 
 #include <time.h>
+
 typedef struct TOKEN {
   int id;
   int frequency;
@@ -36,6 +37,7 @@ extern int          item_cache_add_entry          (ItemCache *item_cache, ItemCa
 extern int          item_cache_remove_entry       (ItemCache *item_cache, int entry_id);
 extern int          item_cache_add_feed           (ItemCache *item_cache, Feed *feed);
 extern int          item_cache_remove_feed        (ItemCache *item_cache, int feed_id);
+extern int          item_cache_add_item           (ItemCache *item_cache, Item *item);
 extern void         free_item_cache               (ItemCache *is);
 
 extern ItemCacheEntry * create_item_cache_entry(int id, 
@@ -53,6 +55,7 @@ extern void   free_feed(Feed * feed);
 
 extern Item * create_item             (int id);
 extern Item * create_item_with_tokens (int id, int tokens[][2], int num_tokens);
+extern Item * create_item_with_tokens_and_time (int id, int tokens[][2], int num_tokens, time_t time);
 extern int    item_get_id             (const Item *item);
 extern int    item_get_total_tokens   (const Item *item);
 extern int    item_get_num_tokens     (const Item *item);

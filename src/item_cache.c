@@ -94,6 +94,11 @@ struct ITEM_CACHE {
   
   /* The Random Background pool. */
   Pool *random_background;
+  
+  /* Queue for entries to get converted into items. */
+  
+  /* Queue for items to get added to the items_by_id and items_in_order lists. */
+  
 };
 
 /******************************************************************************
@@ -761,6 +766,53 @@ int item_cache_remove_feed(ItemCache *item_cache, int feed_id) {
   return rc;  
 }
 
+/** Adds an item to the in memory item cache.
+ * 
+ * This doesn't touch the database at all.
+ * 
+ * TODO Add R/W locks.
+ */
+int item_cache_add_item(ItemCache *item_cache, Item *item) {
+  int rc = CLASSIFIER_OK;
+  
+  if (item_cache && item) {
+    PWord_t item_pointer;
+    JLI(item_pointer, item_cache->items_by_id, item->id);
+    if (item_pointer) {
+      (*item_pointer) = (Word_t) item;
+      OrderedItemList *new_node = calloc(1, sizeof(struct ORDERED_ITEM_LIST));      
+      if (new_node) {        
+        new_node->item = item;
+        // Is it the first one?
+        if (item_cache->items_in_order->item->time < item->time) {
+          new_node->next = item_cache->items_in_order;
+          item_cache->items_in_order = new_node;
+        } else {
+          OrderedItemList *current = item_cache->items_in_order;
+          while (current->next != NULL) {
+            if (current->next->item->time < item->time) {
+              new_node->next = current->next;
+              current->next = new_node;
+              break;
+            } else {
+              current = current->next;
+            }
+          }
+          
+          if (current->next == NULL) {
+            current->next = new_node;
+          }
+        }
+      }
+    } else {
+      fatal("Malloc error inserting into items_by_id");
+      rc = CLASSIFIER_FAIL;
+    }
+  }
+  
+  return rc;
+}
+
 /******************************************************************************
  * Item creation functions 
  ******************************************************************************/
@@ -810,6 +862,26 @@ static int load_tokens_from_array(Item *item, int tokens[][2], int num_tokens) {
 Item * create_item_with_tokens(int id, int tokens[][2], int num_tokens) {
   Item *item = create_item(id);
   if (NULL != item) {  
+    if (load_tokens_from_array(item, tokens, num_tokens)) {
+      free_item(item);
+      item = NULL;
+    }
+  }
+  
+  return item;
+}
+
+/** Create an item from an array of tokens.
+ *
+ *  @param id The id of the item.
+ *  @param tokens A 2D array of tokens where each row is {token_id, frequency}.
+ *  @param num_tokens The length of the token array.
+ *  @returns A new item initialized with the tokens.
+ */
+Item * create_item_with_tokens_and_time(int id, int tokens[][2], int num_tokens, time_t time) {
+  Item *item = create_item(id);
+  if (NULL != item) {  
+    item->time = time;
     if (load_tokens_from_array(item, tokens, num_tokens)) {
       free_item(item);
       item = NULL;

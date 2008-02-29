@@ -206,18 +206,6 @@ static void teardown_modification(void) {
   free_item_cache(item_cache);
 }
 
-//START_TEST (test_wait_with_nothing_changed_returns_ITEM_CACHE_UNCHANGED_immediately) {
-//  int rc = item_cache_wait(item_cache);
-//  assert_equal(ITEM_CACHE_UNCHANGED, rc);
-//} END_TEST
-//
-//START_TEST (test_wait_with_something_in_the_queue_returns_ITEM_CACHE_CHANGED) {
-//  ItemCacheEntry *entry = create_entry();
-//  item_cache_add_entry(item_cache, entry);
-//  int rc = item_cache_wait(item_cache);
-//  assert_equal(ITEM_CACHE_CHANGED, rc);
-//} END_TEST
-
 START_TEST (test_adding_an_entry_stores_it_in_the_database) {
   ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
                                         "http://example.org/11",
@@ -400,6 +388,94 @@ START_TEST (test_deleting_a_feed_removes_its_entries_from_the_database) {
   sqlite3_close(db);
 } END_TEST
 
+#include <sched.h>
+int tokens[][2] = {1, 2, 3, 4, 5, 6, 7, 8};
+Item *item;
+
+static void setup_loaded_modification(void) {
+  system("cp fixtures/valid.db fixtures/valid-copy.db");
+  item_cache_create(&item_cache, "fixtures/valid-copy.db");
+  //item_cache_set_feature_extractor(item_cache, NULL);
+  item_cache_load(item_cache);
+  
+  item = create_item_with_tokens_and_time(9, tokens, 4, (time_t) 1178683198L);
+}
+
+static void teardown_loaded_modification(void) {
+  free_item_cache(item_cache);
+}
+
+START_TEST (test_add_item_to_in_memory_arrays_adds_an_item) {
+  item_cache_add_item(item_cache, item);
+  assert_equal(11, item_cache_cached_size(item_cache));
+} END_TEST
+
+START_TEST (test_add_item_makes_it_fetchable) {
+  item_cache_add_item(item_cache, item);
+  assert_equal(item, item_cache_fetch_item(item_cache, 9));  
+} END_TEST
+
+static int adding_item_iterator(const Item *iter_item, void *memo) {
+  if (iter_item == item) {
+    int *found = (int*) memo;
+    *found = true;
+  }
+  
+  return CLASSIFIER_OK;
+}
+
+START_TEST (test_add_item_makes_it_iteratable) {
+  item_cache_add_item(item_cache, item);
+  int found = false;
+  item_cache_each_item(item_cache, adding_item_iterator, &found);
+  assert_equal(true, found);
+} END_TEST
+
+static int adding_item_position_count(const Item *iter_item, void *memo) {
+  int *position = (int*) memo;
+  (*position)++;
+  
+  if (iter_item == item) {
+    return CLASSIFIER_FAIL;
+  }
+  
+  return CLASSIFIER_OK;
+}
+
+START_TEST (test_add_item_puts_it_in_the_right_position) {
+  item_cache_add_item(item_cache, item);
+  int position = 0;
+  item_cache_each_item(item_cache, adding_item_position_count, &position);
+  assert_equal(4, position);
+} END_TEST
+
+START_TEST (test_add_item_puts_it_in_the_right_position_at_beginning) {
+  item = create_item_with_tokens_and_time(9, tokens, 4, (time_t) 1179051840L);
+  item_cache_add_item(item_cache, item);
+  int position = 0;
+  item_cache_each_item(item_cache, adding_item_position_count, &position);
+  assert_equal(1, position);
+} END_TEST
+
+START_TEST (test_add_item_puts_it_in_the_right_position_at_end) {
+  item = create_item_with_tokens_and_time(9, tokens, 4, (time_t) 1177975519L);
+  item_cache_add_item(item_cache, item);
+  int position = 0;
+  item_cache_each_item(item_cache, adding_item_position_count, &position);
+  assert_equal(11, position);
+} END_TEST
+
+START_TEST (test_adding_entry_causes_it_to_be_tokenized_and_added_to_the_in_memory_arrays) {
+  ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
+                                            "http://example.org/11",
+                                            "http://example.org/11.html",
+                                            "<p>This is some content</p>",
+                                            1178551600, 1, 1178551601);
+  item_cache_add_entry(item_cache, entry);
+  sched_yield();
+  assert_equal(11, item_cache_cached_size(item_cache));
+} END_TEST
+
 Suite *
 item_cache_suite(void) {
   Suite *s = suite_create("ItemCache");  
@@ -455,11 +531,21 @@ item_cache_suite(void) {
   tcase_add_test(modification, test_deleting_a_feed_removes_it_from_the_database);
   tcase_add_test(modification, test_deleting_a_feed_removes_its_entries_from_the_database);
   
+  TCase *loaded_modification = tcase_create("loaded modification");
+  tcase_add_checked_fixture(loaded_modification, setup_loaded_modification, teardown_loaded_modification);
+  tcase_add_test(loaded_modification, test_add_item_to_in_memory_arrays_adds_an_item);
+  tcase_add_test(loaded_modification, test_add_item_makes_it_fetchable);
+  tcase_add_test(loaded_modification, test_add_item_makes_it_iteratable);
+  tcase_add_test(loaded_modification, test_add_item_puts_it_in_the_right_position);
+  tcase_add_test(loaded_modification, test_add_item_puts_it_in_the_right_position_at_beginning);
+  tcase_add_test(loaded_modification, test_add_item_puts_it_in_the_right_position_at_end);
+  
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
   suite_add_tcase(s, load);
   suite_add_tcase(s, iteration);
   suite_add_tcase(s, rndbg);
   suite_add_tcase(s, modification);
+  suite_add_tcase(s, loaded_modification);
   return s;
 }
