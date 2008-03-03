@@ -388,6 +388,16 @@ START_TEST (test_deleting_a_feed_removes_its_entries_from_the_database) {
   sqlite3_close(db);
 } END_TEST
 
+START_TEST (test_adding_entry_causes_it_to_be_added_to_the_tokenization_queue) {
+  ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
+                                            "http://example.org/11",
+                                            "http://example.org/11.html",
+                                            "<p>This is some content</p>",
+                                            1178551600, 1, 1178551601);
+  item_cache_add_entry(item_cache, entry);
+  assert_equal(1, item_cache_feature_extraction_queue_size(item_cache));
+} END_TEST
+
 #include <sched.h>
 int tokens[][2] = {1, 2, 3, 4, 5, 6, 7, 8};
 Item *item;
@@ -465,16 +475,7 @@ START_TEST (test_add_item_puts_it_in_the_right_position_at_end) {
   assert_equal(11, position);
 } END_TEST
 
-START_TEST (test_adding_entry_causes_it_to_be_tokenized_and_added_to_the_in_memory_arrays) {
-  ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
-                                            "http://example.org/11",
-                                            "http://example.org/11.html",
-                                            "<p>This is some content</p>",
-                                            1178551600, 1, 1178551601);
-  item_cache_add_entry(item_cache, entry);
-  sched_yield();
-  assert_equal(11, item_cache_cached_size(item_cache));
-} END_TEST
+
 
 Suite *
 item_cache_suite(void) {
@@ -530,6 +531,7 @@ item_cache_suite(void) {
   tcase_add_test(modification, test_add_feed_that_already_exists_updates_attributes);
   tcase_add_test(modification, test_deleting_a_feed_removes_it_from_the_database);
   tcase_add_test(modification, test_deleting_a_feed_removes_its_entries_from_the_database);
+  tcase_add_test(modification, test_adding_entry_causes_it_to_be_added_to_the_tokenization_queue);
   
   TCase *loaded_modification = tcase_create("loaded modification");
   tcase_add_checked_fixture(loaded_modification, setup_loaded_modification, teardown_loaded_modification);

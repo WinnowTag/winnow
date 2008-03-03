@@ -38,6 +38,7 @@ extern int          item_cache_remove_entry       (ItemCache *item_cache, int en
 extern int          item_cache_add_feed           (ItemCache *item_cache, Feed *feed);
 extern int          item_cache_remove_feed        (ItemCache *item_cache, int feed_id);
 extern int          item_cache_add_item           (ItemCache *item_cache, Item *item);
+extern int          item_cache_feature_extraction_queue_size(const ItemCache *item_cache);
 extern void         free_item_cache               (ItemCache *is);
 
 extern ItemCacheEntry * create_item_cache_entry(int id, 

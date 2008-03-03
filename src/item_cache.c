@@ -18,6 +18,7 @@
 #include "item_cache.h"
 #include "logging.h"
 #include "misc.h"
+#include "job_queue.h"
 
 #define CURRENT_USER_VERSION 1
 #define FETCH_ITEM_SQL "select id, strftime('%s', updated) from entries where id = ?"
@@ -96,6 +97,7 @@ struct ITEM_CACHE {
   Pool *random_background;
   
   /* Queue for entries to get converted into items. */
+  Queue *feature_extraction_queue;
   
   /* Queue for items to get added to the items_by_id and items_in_order lists. */
   
@@ -300,6 +302,7 @@ int item_cache_create(ItemCache **item_cache, const char * db_file) {
   (*item_cache)->items_by_id = NULL;
   (*item_cache)->random_background = NULL;
   (*item_cache)->loaded = false;
+  (*item_cache)->feature_extraction_queue = new_queue();
   
   (*item_cache)->db_access_mutex = calloc(1, sizeof(pthread_mutex_t));
   if (!(*item_cache)->db_access_mutex) {
@@ -683,6 +686,7 @@ end:
     sqlite3_clear_bindings(item_cache->insert_entry_stmt);
     sqlite3_reset(item_cache->insert_entry_stmt);    
     pthread_mutex_unlock(item_cache->db_access_mutex);
+    q_enqueue(item_cache->feature_extraction_queue, entry);
   }
   
   return rc;
@@ -811,6 +815,14 @@ int item_cache_add_item(ItemCache *item_cache, Item *item) {
   }
   
   return rc;
+}
+
+int item_cache_feature_extraction_queue_size(const ItemCache *item_cache) {
+  int size = 0;
+  if (item_cache) {
+    size = q_size(item_cache->feature_extraction_queue);
+  }
+  return size;
 }
 
 /******************************************************************************
