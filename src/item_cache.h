@@ -24,6 +24,7 @@ typedef struct FEED Feed;
 
 typedef int (*ItemIterator) (const Item *item, void *memo);
 typedef Item* (*FeatureExtractor) (const ItemCacheEntry * entry);
+typedef void (*UpdateCallback) (ItemCache * item_cache, void *memo);
 
 extern int          item_cache_initialize         (const char *dbfile, char *error);
 extern int          item_cache_create             (ItemCache **is, const char *db_file);
@@ -44,6 +45,7 @@ extern int          item_cache_feature_extraction_queue_size(const ItemCache *it
 extern int          item_cache_start_feature_extractor (ItemCache *item_cache);
 extern int          item_cache_start_cache_updater     (ItemCache *item_cache);
 extern int          item_cache_update_queue_size  (const ItemCache * item_cache);
+extern int          item_cache_set_update_callback(ItemCache *item_cache, UpdateCallback callback, void *memo);
 extern void         free_item_cache               (ItemCache *is);
 
 extern ItemCacheEntry * create_item_cache_entry(int id, 

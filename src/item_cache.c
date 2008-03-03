@@ -96,17 +96,26 @@ struct ITEM_CACHE {
   int user_version;
   int version_mismatch;
   
+  /************************************
+   *  In-memory cache members
+   */
+  
   /* Flag for whether the item cache has been loaded. */
   int loaded;
+  
   /* The Judy Array that stores each item keyed by their id. */
   Pvoid_t items_by_id;
+  
   /* A linked list of item ids in descending order of updated time. */
   OrderedItemList *items_in_order;
   
   /* The Random Background pool. */
   Pool *random_background;
   
-  /** Feature Extraction Members **/
+  /************************************
+   *  Feature Extraction Members 
+   */
+  
   /* Queue for entries to get converted into items. */
   Queue *feature_extraction_queue;
   
@@ -116,14 +125,24 @@ struct ITEM_CACHE {
   /* Thread which handles the feature extraction */
   pthread_t *feature_extraction_thread;
   
-  /** In-memory cache updating members */  
+  /************************************
+   *  In-memory cache updating members 
+   */
+  
   /* Queue for items to get added to the items_by_id and items_in_order lists. */
   Queue *update_queue;
   
   /* Thread which handles the cache updating */
   pthread_t *cache_updating_thread;
   
+  /* R/W lock for accessing the in-memory item cache. */
   pthread_rwlock_t cache_lock;
+  
+  /* Callback for updates to the item cache */
+  UpdateCallback update_callback;
+  
+  /* Additional arguments to the udpate callback */
+  void *update_callback_memo;  
 };
 
 /******************************************************************************
@@ -971,6 +990,10 @@ void * cache_updating_func(void *memo) {
         job = q_dequeue(item_cache->update_queue);
       } while (job != NULL);
       pthread_rwlock_unlock(&item_cache->cache_lock);
+      
+      if (item_cache->update_callback) {
+        item_cache->update_callback(item_cache, item_cache->update_callback_memo);
+      }
     }    
   }
   
@@ -994,6 +1017,14 @@ int item_cache_start_cache_updater(ItemCache * item_cache) {
   }
   
   return rc;
+}
+
+int item_cache_set_update_callback(ItemCache *item_cache, UpdateCallback callback, void *memo) {
+  if (item_cache) {
+    item_cache->update_callback = callback;
+    item_cache->update_callback_memo = memo;
+  }
+  return CLASSIFIER_OK;
 }
 
 /******************************************************************************

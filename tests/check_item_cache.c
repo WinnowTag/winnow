@@ -573,6 +573,25 @@ START_TEST (test_adding_multiple_entries_causes_item_added_to_cache) {
   assert_equal(12, item_cache_cached_size(item_cache));
 } END_TEST
 
+static int *memo_ref = NULL;
+static void update_callback(ItemCache * item_cache, void *memo) {
+  memo_ref = (int*) memo;
+}
+
+START_TEST (test_update_callback) {
+  int memo = 21;
+  item_cache_set_update_callback(item_cache, update_callback, &memo);
+  ItemCacheEntry *entry1 = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
+                                                    "http://example.org/11",
+                                                    "http://example.org/11.html",
+                                                    "<p>This is some content</p>",
+                                                    1178551600, 1, 1178551601);
+  
+  item_cache_add_entry(item_cache, entry1);  
+  sched_yield();
+  assert_equal(&memo, memo_ref);
+} END_TEST
+
 Suite *
 item_cache_suite(void) {
   Suite *s = suite_create("ItemCache");  
@@ -644,6 +663,7 @@ item_cache_suite(void) {
   tcase_add_checked_fixture(full_update, setup_full_update, teardown_full_update);
   tcase_add_test(full_update, test_adding_entry_causes_item_added_to_cache); 
   tcase_add_test(full_update, test_adding_multiple_entries_causes_item_added_to_cache);
+  tcase_add_test(full_update, test_update_callback);
   
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
