@@ -475,7 +475,39 @@ START_TEST (test_add_item_puts_it_in_the_right_position_at_end) {
   assert_equal(11, position);
 } END_TEST
 
+/* Feature Extraction tests */
+static const ItemCacheEntry *tokenizer_called_with = NULL;
+static Item *tokenized_item;
 
+static Item * mock_feature_extractor(const ItemCacheEntry * entry) {
+  tokenizer_called_with = entry;
+  return tokenized_item;
+}
+
+static void setup_feature_extraction(void) {
+  system("cp fixtures/valid.db fixtures/valid-copy.db");
+  item_cache_create(&item_cache, "fixtures/valid-copy.db");
+  item_cache_set_feature_extractor(item_cache, mock_feature_extractor);
+  item_cache_load(item_cache);
+  item_cache_start_feature_extractor(item_cache);
+    
+  tokenized_item = create_item_with_tokens_and_time(9, tokens, 4, (time_t) 1178683198L);
+}
+
+static void teardown_feature_extraction(void) {
+  free_item_cache(item_cache);
+}
+
+START_TEST (test_adding_entry_results_in_calling_the_tokenizer_with_the_entry) {
+  ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
+                                              "http://example.org/11",
+                                              "http://example.org/11.html",
+                                              "<p>This is some content</p>",
+                                              1178551600, 1, 1178551601);
+  item_cache_add_entry(item_cache, entry);
+  sched_yield();
+  assert_equal(entry, tokenizer_called_with);  
+} END_TEST
 
 Suite *
 item_cache_suite(void) {
@@ -542,6 +574,10 @@ item_cache_suite(void) {
   tcase_add_test(loaded_modification, test_add_item_puts_it_in_the_right_position_at_beginning);
   tcase_add_test(loaded_modification, test_add_item_puts_it_in_the_right_position_at_end);
   
+  TCase *feature_extraction = tcase_create("feature extraction");
+  tcase_add_checked_fixture(feature_extraction, setup_feature_extraction, teardown_feature_extraction);
+  tcase_add_test(feature_extraction, test_adding_entry_results_in_calling_the_tokenizer_with_the_entry);
+  
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
   suite_add_tcase(s, load);
@@ -549,5 +585,6 @@ item_cache_suite(void) {
   suite_add_tcase(s, rndbg);
   suite_add_tcase(s, modification);
   suite_add_tcase(s, loaded_modification);
+  suite_add_tcase(s, feature_extraction);
   return s;
 }

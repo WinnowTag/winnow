@@ -96,8 +96,15 @@ struct ITEM_CACHE {
   /* The Random Background pool. */
   Pool *random_background;
   
+  /** Feature Extraction Members **/
   /* Queue for entries to get converted into items. */
   Queue *feature_extraction_queue;
+  
+  /* Function for feature extraction */
+  FeatureExtractor feature_extractor;
+  
+  /* Thread which handles the feature extraction */
+  pthread_t *feature_extraction_thread;
   
   /* Queue for items to get added to the items_by_id and items_in_order lists. */
   
@@ -520,6 +527,18 @@ int item_cache_cached_size(const ItemCache *item_cache) {
   return count;
 }
 
+/** Set the FeatureExtractor to use for extracting features from an Entry.
+ * 
+ * @param item_cache The item cache to use the feature extractor with.
+ * @param feature_extractor The FeatureExtractor to use to convert ItemCacheEntry instances to Item instances.
+ */
+int item_cache_set_feature_extractor(ItemCache * item_cache, FeatureExtractor feature_extractor) {
+  if (item_cache) {
+    item_cache->feature_extractor = feature_extractor;
+  }
+  return CLASSIFIER_OK;
+}
+
 /** Returns true if the item cache has been loaded into memory.
  */
 int item_cache_loaded(const ItemCache *item_cache) {
@@ -823,6 +842,43 @@ int item_cache_feature_extraction_queue_size(const ItemCache *item_cache) {
     size = q_size(item_cache->feature_extraction_queue);
   }
   return size;
+}
+
+static void * feature_extraction_thread_func(void *memo) {
+  ItemCache * item_cache = (ItemCache*) memo;
+  info("feature extractor thread started");
+  
+  while (true) {
+    ItemCacheEntry *entry = q_dequeue_or_wait(item_cache->feature_extraction_queue);
+    debug("Got entry off feature_extraction_queue");
+    Item *item = item_cache->feature_extractor(entry);
+  }
+  
+  info("feature extractor thread ended");
+  return NULL;
+}
+
+int item_cache_start_feature_extractor(ItemCache *item_cache) {
+  int rc = CLASSIFIER_OK;
+  if (item_cache) {
+    if (item_cache->feature_extraction_thread != NULL) {
+      fatal("Tried to start feature extractor more than once.");
+      rc = CLASSIFIER_FAIL;
+    } else if (item_cache->feature_extractor == NULL) {
+      fatal("Tried to start feature extractor without a feature extractor assigned.");
+      rc = CLASSIFIER_FAIL;
+    } else {
+      item_cache->feature_extraction_thread = malloc(sizeof(pthread_t));
+      if (item_cache->feature_extraction_thread) {
+        if (pthread_create(item_cache->feature_extraction_thread, NULL, feature_extraction_thread_func, item_cache)) {
+          fatal("Error creating feature_extraction_thread");
+          rc = CLASSIFIER_FAIL;
+        }
+      }
+    }
+  }
+  
+  return rc;
 }
 
 /******************************************************************************
