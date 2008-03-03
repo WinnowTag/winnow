@@ -744,8 +744,19 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
   int rc = CLASSIFIER_OK;
   
   if (item_cache && entry) {
+    int is_new_entry = true;
     pthread_mutex_lock(item_cache->db_access_mutex);
     
+    // Is it new?
+    sqlite3_bind_int(item_cache->fetch_item_stmt, 1, entry->id);
+    if (SQLITE_ROW == sqlite3_step(item_cache->fetch_item_stmt)) {
+      is_new_entry = false;
+    }
+    
+    sqlite3_clear_bindings(item_cache->fetch_item_stmt);
+    sqlite3_reset(item_cache->fetch_item_stmt);
+    
+    // Do the insert or replace if it already exists
     sqlite3_bind_int(item_cache->insert_entry_stmt, 1, entry->id);
     BIND_TEXT(item_cache->insert_entry_stmt, entry->full_id, 2);
     BIND_TEXT(item_cache->insert_entry_stmt, entry->title, 3);
@@ -765,7 +776,12 @@ end:
     sqlite3_clear_bindings(item_cache->insert_entry_stmt);
     sqlite3_reset(item_cache->insert_entry_stmt);    
     pthread_mutex_unlock(item_cache->db_access_mutex);
-    q_enqueue(item_cache->feature_extraction_queue, entry);
+    
+    // We don't want to extract features for items we already have.
+    // TODO Handle updates to features for items somehow.
+    if (is_new_entry) {
+      q_enqueue(item_cache->feature_extraction_queue, entry);
+    }
   }
   
   return rc;

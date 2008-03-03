@@ -399,6 +399,17 @@ START_TEST (test_adding_entry_causes_it_to_be_added_to_the_tokenization_queue) {
   assert_equal(1, item_cache_feature_extraction_queue_size(item_cache));
 } END_TEST
 
+START_TEST (test_adding_entry_twice_causes_it_to_be_added_to_the_tokenization_queue_only_once) {
+  ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
+                                            "http://example.org/11",
+                                            "http://example.org/11.html",
+                                            "<p>This is some content</p>",
+                                            1178551600, 1, 1178551601);
+  item_cache_add_entry(item_cache, entry);
+  item_cache_add_entry(item_cache, entry);
+  assert_equal(1, item_cache_feature_extraction_queue_size(item_cache));
+} END_TEST
+
 #include <sched.h>
 int tokens[][2] = {1, 2, 3, 4, 5, 6, 7, 8};
 Item *item;
@@ -506,7 +517,7 @@ START_TEST (test_adding_entry_results_in_calling_the_tokenizer_with_the_entry) {
                                               "<p>This is some content</p>",
                                               1178551600, 1, 1178551601);
   item_cache_add_entry(item_cache, entry);
-  sched_yield();
+  sleep(1);
   assert_equal(entry, tokenizer_called_with);  
 } END_TEST
 
@@ -644,6 +655,7 @@ item_cache_suite(void) {
   tcase_add_test(modification, test_deleting_a_feed_removes_it_from_the_database);
   tcase_add_test(modification, test_deleting_a_feed_removes_its_entries_from_the_database);
   tcase_add_test(modification, test_adding_entry_causes_it_to_be_added_to_the_tokenization_queue);
+  tcase_add_test(modification, test_adding_entry_twice_causes_it_to_be_added_to_the_tokenization_queue_only_once);
   
   TCase *loaded_modification = tcase_create("loaded modification");
   tcase_add_checked_fixture(loaded_modification, setup_loaded_modification, teardown_loaded_modification);
