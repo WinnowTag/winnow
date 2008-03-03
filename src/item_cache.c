@@ -119,6 +119,11 @@ struct ITEM_CACHE {
   /** In-memory cache updating members */  
   /* Queue for items to get added to the items_by_id and items_in_order lists. */
   Queue *update_queue;
+  
+  /* Thread which handles the cache updating */
+  pthread_t *cache_updating_thread;
+  
+  pthread_rwlock_t cache_lock;
 };
 
 /******************************************************************************
@@ -335,7 +340,7 @@ int item_cache_create(ItemCache **item_cache, const char * db_file) {
   (*item_cache)->loaded = false;
   (*item_cache)->feature_extraction_queue = new_queue();
   (*item_cache)->update_queue = new_queue();
-  
+    
   (*item_cache)->db_access_mutex = calloc(1, sizeof(pthread_mutex_t));
   if (!(*item_cache)->db_access_mutex) {
     fatal("MALLOC error for db_access_mutex");
@@ -349,6 +354,13 @@ int item_cache_create(ItemCache **item_cache, const char * db_file) {
       *item_cache = NULL;
       rc = CLASSIFIER_FAIL;
     }
+  }
+  
+  if (pthread_rwlock_init(&(*item_cache)->cache_lock, NULL)) {
+    fatal("Could not allocate item cache");
+    rc = CLASSIFIER_FAIL;
+    free(*item_cache);
+    *item_cache = NULL;
   }
   
   if (*item_cache == NULL) {
@@ -546,9 +558,11 @@ int item_cache_load(ItemCache *item_cache) {
 
 /** Returns the number of items in the in-memory cache.
  */
-int item_cache_cached_size(const ItemCache *item_cache) {
+int item_cache_cached_size(ItemCache *item_cache) {
   int count;
+  pthread_rwlock_rdlock(&item_cache->cache_lock);
   JLC(count, item_cache->items_by_id, 0, -1);
+  pthread_rwlock_unlock(&item_cache->cache_lock);
   return count;
 }
 
@@ -581,7 +595,6 @@ int item_cache_loaded(const ItemCache *item_cache) {
  * @param id The id of the item to get.
  * @returns The Item with the id matching id. It is the responsibility of the
  *          caller to free the item.
- * TODO Add r/w locks around in-memory item cache.
  * TODO Handle SQLITE_BUSY in case another process locks the database.
  */
 Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
@@ -594,11 +607,13 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
   }
   
   if (item_cache->loaded) {
+    pthread_rwlock_rdlock(&item_cache->cache_lock);
     PWord_t item_pointer;
     JLG(item_pointer, item_cache->items_by_id, id);
     if (NULL != item_pointer) {
       item = (Item*)(*item_pointer);
     }
+    pthread_rwlock_unlock(&item_cache->cache_lock);
   }
   
   if (NULL == item) {
@@ -652,10 +667,10 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
 
 /** Iterates over each item.
  * 
- *  TODO Add read locking to item_cache_each_item.
  */
-int item_cache_each_item(const ItemCache *item_cache, ItemIterator iterator, void *memo) {
+int item_cache_each_item(ItemCache *item_cache, ItemIterator iterator, void *memo) {
   if (item_cache->loaded) {    
+    pthread_rwlock_rdlock(&item_cache->cache_lock);
     OrderedItemList *current = item_cache->items_in_order;
         
     while (current) {
@@ -665,6 +680,8 @@ int item_cache_each_item(const ItemCache *item_cache, ItemIterator iterator, voi
       }
       current = current->next;
     }
+    
+    pthread_rwlock_unlock(&item_cache->cache_lock);
   }
   return 0;
 }
@@ -702,7 +719,6 @@ const Pool * item_cache_random_background(const ItemCache * item_cache)  {
  * This immediately stores the item in the database.
  * 
  * TODO Add SQLITE_BUSY handling for add_entry
- * TODO Queue up job to add entry to in-memory queues.
  */
 // :id, :full_id, :title, :author, :alternate, :self, :content, :updated, :feed_id, :created_at
 int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
@@ -818,7 +834,8 @@ int item_cache_remove_feed(ItemCache *item_cache, int feed_id) {
  * 
  * This doesn't touch the database at all.
  * 
- * TODO Add R/W locks.
+ * NO ONE SHOULD CALL THIS: it is available only for testing!!
+ * 
  */
 int item_cache_add_item(ItemCache *item_cache, Item *item) {
   int rc = CLASSIFIER_OK;
@@ -932,6 +949,51 @@ int item_cache_update_queue_size(const ItemCache * item_cache) {
     size = q_size(item_cache->update_queue);
   }
   return size;
+}
+
+void * cache_updating_func(void *memo) {
+  ItemCache *item_cache = (ItemCache*) memo;
+  
+  while (true) {
+    UpdateJob *job = q_dequeue_or_wait(item_cache->update_queue);
+    
+    if (job) {
+      pthread_rwlock_wrlock(&item_cache->cache_lock);
+      do {
+        switch (job->type) {
+          case ADD:
+            item_cache_add_item(item_cache, job->item);
+            break;
+          default:
+            fatal("Got unknown cache updating job type");
+            break;
+        }
+        job = q_dequeue(item_cache->update_queue);
+      } while (job != NULL);
+      pthread_rwlock_unlock(&item_cache->cache_lock);
+    }    
+  }
+  
+  return NULL;
+}
+
+int item_cache_start_cache_updater(ItemCache * item_cache) {
+  int rc = CLASSIFIER_OK;
+  
+  if (item_cache) {
+    if (item_cache->cache_updating_thread) {
+      fatal("Tried to start the updating thread twice");
+      rc = CLASSIFIER_FAIL;      
+    } else {
+      item_cache->cache_updating_thread = malloc(sizeof(pthread_t));
+      if (pthread_create(item_cache->cache_updating_thread, NULL, cache_updating_func, item_cache)) {
+        fatal("Error creating item cache updating thread");
+        rc = CLASSIFIER_FAIL;
+      }
+    }
+  }
+  
+  return rc;
 }
 
 /******************************************************************************

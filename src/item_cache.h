@@ -30,10 +30,10 @@ extern int          item_cache_create             (ItemCache **is, const char *d
 extern int          item_cache_set_feature_extractor (ItemCache * item_cache, FeatureExtractor feature_extractor);
 extern int          item_cache_load               (ItemCache *item_cache);
 extern int          item_cache_loaded             (const ItemCache *item_cache);
-extern int          item_cache_cached_size        (const ItemCache *item_cache);
+extern int          item_cache_cached_size        (ItemCache *item_cache);
 extern Item *       item_cache_fetch_item         (ItemCache *is, int item_id);  
 extern const char * item_cache_errmsg             (const ItemCache *is);
-extern int          item_cache_each_item          (const ItemCache *item_cache, ItemIterator iterator, void *memo);
+extern int          item_cache_each_item          (ItemCache *item_cache, ItemIterator iterator, void *memo);
 extern const Pool * item_cache_random_background  (const ItemCache *item_cache);
 extern int          item_cache_add_entry          (ItemCache *item_cache, ItemCacheEntry *entry);
 extern int          item_cache_remove_entry       (ItemCache *item_cache, int entry_id);
@@ -42,6 +42,7 @@ extern int          item_cache_remove_feed        (ItemCache *item_cache, int fe
 extern int          item_cache_add_item           (ItemCache *item_cache, Item *item);
 extern int          item_cache_feature_extraction_queue_size(const ItemCache *item_cache);
 extern int          item_cache_start_feature_extractor (ItemCache *item_cache);
+extern int          item_cache_start_cache_updater     (ItemCache *item_cache);
 extern int          item_cache_update_queue_size  (const ItemCache * item_cache);
 extern void         free_item_cache               (ItemCache *is);
 

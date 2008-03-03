@@ -149,7 +149,7 @@ static ClassificationJob * create_user_classification_job(int tag_id);
 static void *classification_worker_func(void *engine_vp);
 static void *insertion_worker_func(void *engine_vp);
 //static void *flusher_func(void *engine_vp);
-static void cjob_process(ClassificationJob *job, const ItemCache *is, TagDB *tagdb);
+static void cjob_process(ClassificationJob *job, ItemCache *is, TagDB *tagdb);
 static void cjob_free_taggings(ClassificationJob *job);
 static float tdiff(struct timeval from, struct timeval to);
 
@@ -951,7 +951,7 @@ malloc_error:
 /** Do the actual classification.
  * 
  */
-static int cjob_classify(ClassificationJob *job, const ItemCache *item_cache) {
+static int cjob_classify(ClassificationJob *job, ItemCache *item_cache) {
   
   if (job->taglist->size < 1) {
     return 1;
@@ -1035,7 +1035,7 @@ malloc_error:
   goto exit;
 }
 
-static void cjob_process(ClassificationJob *job, const ItemCache *item_cache, TagDB *tag_db) {
+static void cjob_process(ClassificationJob *job, ItemCache *item_cache, TagDB *tag_db) {
   /* If the job is cancelled bail out before doing anything */
   if (job->state == CJOB_STATE_CANCELLED) return;
   

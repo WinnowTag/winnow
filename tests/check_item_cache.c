@@ -522,18 +522,66 @@ START_TEST (test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_up
   assert_equal(1, item_cache_update_queue_size(item_cache));
 } END_TEST
 
+
+/* Cache updating tests */
+static int item_id = 9; 
+static Item * mock_feature_extractor2(const ItemCacheEntry * entry) {
+  return create_item_with_tokens_and_time(item_id++, tokens, 4, (time_t) 1178683198L);;
+}
+
+static void setup_full_update(void) {
+  system("cp fixtures/valid.db fixtures/valid-copy.db");
+  item_cache_create(&item_cache, "fixtures/valid-copy.db");
+  item_cache_set_feature_extractor(item_cache, mock_feature_extractor2);
+  item_cache_load(item_cache);
+  item_cache_start_feature_extractor(item_cache);
+  item_cache_start_cache_updater(item_cache);
+    
+  tokenized_item = create_item_with_tokens_and_time(9, tokens, 4, (time_t) 1178683198L);
+}
+
+static void teardown_full_update(void) {
+  free_item_cache(item_cache);
+}
+
+START_TEST (test_adding_entry_causes_item_added_to_cache) {
+  ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
+                                                  "http://example.org/11",
+                                                  "http://example.org/11.html",
+                                                  "<p>This is some content</p>",
+                                                  1178551600, 1, 1178551601);
+  item_cache_add_entry(item_cache, entry);
+  sched_yield();
+  assert_equal(11, item_cache_cached_size(item_cache));
+} END_TEST
+
+START_TEST (test_adding_multiple_entries_causes_item_added_to_cache) {
+  ItemCacheEntry *entry1 = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
+                                                  "http://example.org/11",
+                                                  "http://example.org/11.html",
+                                                  "<p>This is some content</p>",
+                                                  1178551600, 1, 1178551601);
+  ItemCacheEntry *entry2 = create_item_cache_entry(12, "id#12", "Entry 12", "Author 12",
+                                                    "http://example.org/12",
+                                                    "http://example.org/12.html",
+                                                    "<p>This is some content</p>",
+                                                    1178551600, 1, 1178551601);
+  
+  item_cache_add_entry(item_cache, entry1);
+  item_cache_add_entry(item_cache, entry2);
+  sched_yield();
+  assert_equal(12, item_cache_cached_size(item_cache));
+} END_TEST
+
 Suite *
 item_cache_suite(void) {
   Suite *s = suite_create("ItemCache");  
   TCase *tc_case = tcase_create("case");
 
-// START_TESTS
   tcase_add_test(tc_case, creating_with_missing_db_file_fails);
   tcase_add_test(tc_case, creating_with_empty_db_file_fails);
   tcase_add_test(tc_case, create_with_valid_db);
-    
-// END_TESTS
-  
+      
   TCase *fetch_item_case = tcase_create("fetch_item");
   tcase_add_checked_fixture(fetch_item_case, setup_cache, teardown_item_cache);
   tcase_add_test(fetch_item_case, test_fetch_item_returns_null_when_item_doesnt_exist);
@@ -592,6 +640,11 @@ item_cache_suite(void) {
   tcase_add_test(feature_extraction, test_adding_entry_results_in_calling_the_tokenizer_with_the_entry);
   tcase_add_test(feature_extraction, test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_update_queue);
   
+  TCase *full_update = tcase_create("full update");
+  tcase_add_checked_fixture(full_update, setup_full_update, teardown_full_update);
+  tcase_add_test(full_update, test_adding_entry_causes_item_added_to_cache); 
+  tcase_add_test(full_update, test_adding_multiple_entries_causes_item_added_to_cache);
+  
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
   suite_add_tcase(s, load);
@@ -600,5 +653,6 @@ item_cache_suite(void) {
   suite_add_tcase(s, modification);
   suite_add_tcase(s, loaded_modification);
   suite_add_tcase(s, feature_extraction);
+  suite_add_tcase(s, full_update);
   return s;
 }
