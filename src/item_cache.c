@@ -54,6 +54,16 @@ struct ITEM {
   Pvoid_t tokens;
 }; 
 
+typedef enum UPDATE_TYPE {
+  ADD,
+  DELETE
+} UpdateType;
+
+typedef struct UPDATE_JOB {
+  UpdateType type;
+  Item *item;
+} UpdateJob;
+
 struct ITEM_CACHE_ENTRY {
   int id; 
   char * full_id;
@@ -106,9 +116,23 @@ struct ITEM_CACHE {
   /* Thread which handles the feature extraction */
   pthread_t *feature_extraction_thread;
   
+  /** In-memory cache updating members */  
   /* Queue for items to get added to the items_by_id and items_in_order lists. */
-  
+  Queue *update_queue;
 };
+
+/******************************************************************************
+ * Update job functions
+ ******************************************************************************/
+static UpdateJob * create_add_job(Item * item) {
+  UpdateJob *job = calloc(1, sizeof(struct UPDATE_JOB));
+  if (job) {
+    job->item = item;
+    job->type = ADD;
+  }
+  return job;
+}
+
 
 /******************************************************************************
  * ItemCacheEntry functions 
@@ -310,6 +334,7 @@ int item_cache_create(ItemCache **item_cache, const char * db_file) {
   (*item_cache)->random_background = NULL;
   (*item_cache)->loaded = false;
   (*item_cache)->feature_extraction_queue = new_queue();
+  (*item_cache)->update_queue = new_queue();
   
   (*item_cache)->db_access_mutex = calloc(1, sizeof(pthread_mutex_t));
   if (!(*item_cache)->db_access_mutex) {
@@ -861,6 +886,9 @@ static void * feature_extraction_thread_func(void *memo) {
     if (entry) {
       debug("Got entry off feature_extraction_queue");
       Item *item = item_cache->feature_extractor(entry);
+      UpdateJob *job = create_add_job(item);
+      q_enqueue(item_cache->update_queue, job);
+      debug("Update added to update_queue");
     }
   }
   
@@ -895,6 +923,15 @@ int item_cache_start_feature_extractor(ItemCache *item_cache) {
   }
   
   return rc;
+}
+
+/** Gets the number of updates to in-memory cache waiting in the update queue. */
+int item_cache_update_queue_size(const ItemCache * item_cache) {
+  int size = -1;
+  if (item_cache) {
+    size = q_size(item_cache->update_queue);
+  }
+  return size;
 }
 
 /******************************************************************************

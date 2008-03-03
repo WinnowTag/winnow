@@ -11,6 +11,7 @@
 #include "../src/item_cache.h"
 #include "../src/misc.h"
 #include "../src/item_cache.h"
+#include "../src/logging.h"
 
 START_TEST (creating_with_missing_db_file_fails) {
   ItemCache *item_cache;
@@ -509,6 +510,18 @@ START_TEST (test_adding_entry_results_in_calling_the_tokenizer_with_the_entry) {
   assert_equal(entry, tokenizer_called_with);  
 } END_TEST
 
+START_TEST (test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_update_queue) {
+  ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
+                                                "http://example.org/11",
+                                                "http://example.org/11.html",
+                                                "<p>This is some content</p>",
+                                                1178551600, 1, 1178551601);
+  item_cache_add_entry(item_cache, entry);  
+  sleep(1);
+  debug("about to check");
+  assert_equal(1, item_cache_update_queue_size(item_cache));
+} END_TEST
+
 Suite *
 item_cache_suite(void) {
   Suite *s = suite_create("ItemCache");  
@@ -577,6 +590,7 @@ item_cache_suite(void) {
   TCase *feature_extraction = tcase_create("feature extraction");
   tcase_add_checked_fixture(feature_extraction, setup_feature_extraction, teardown_feature_extraction);
   tcase_add_test(feature_extraction, test_adding_entry_results_in_calling_the_tokenizer_with_the_entry);
+  tcase_add_test(feature_extraction, test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_update_queue);
   
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
