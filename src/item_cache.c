@@ -836,6 +836,8 @@ int item_cache_add_item(ItemCache *item_cache, Item *item) {
   return rc;
 }
 
+/** Returns the number of ItemCacheEntry instances in the feature extraction queue.
+ */
 int item_cache_feature_extraction_queue_size(const ItemCache *item_cache) {
   int size = 0;
   if (item_cache) {
@@ -844,6 +846,12 @@ int item_cache_feature_extraction_queue_size(const ItemCache *item_cache) {
   return size;
 }
 
+/** Feature extraction thread function.
+ * 
+ * This handles taking an ItemCacheEntry off the feature_extraction queue,
+ * calling the feature_extractor and putting the result on the cache_updating
+ * queue.
+ */
 static void * feature_extraction_thread_func(void *memo) {
   ItemCache * item_cache = (ItemCache*) memo;
   info("feature extractor thread started");
@@ -858,6 +866,12 @@ static void * feature_extraction_thread_func(void *memo) {
   return NULL;
 }
 
+/** Starts the item cache feature extractor.
+ * 
+ *  This requires a feature_extractor to be set on the item cache.
+ *  This can not be called twice.
+ * 
+ */
 int item_cache_start_feature_extractor(ItemCache *item_cache) {
   int rc = CLASSIFIER_OK;
   if (item_cache) {
