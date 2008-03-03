@@ -858,8 +858,10 @@ static void * feature_extraction_thread_func(void *memo) {
   
   while (true) {
     ItemCacheEntry *entry = q_dequeue_or_wait(item_cache->feature_extraction_queue);
-    debug("Got entry off feature_extraction_queue");
-    Item *item = item_cache->feature_extractor(entry);
+    if (entry) {
+      debug("Got entry off feature_extraction_queue");
+      Item *item = item_cache->feature_extractor(entry);
+    }
   }
   
   info("feature extractor thread ended");
