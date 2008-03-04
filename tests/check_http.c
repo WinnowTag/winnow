@@ -11,6 +11,7 @@
 #include <config.h>
 #include <stdio.h>
 #include <string.h>
+#include <sqlite3.h>
 #include "../src/cls_config.h"
 #include "../src/classification_engine.h"
 #include "../src/httpd.h"
@@ -300,15 +301,62 @@ START_TEST(test_error_job_status) {
   xmlFree(doc);
 } END_TEST
 
+/** Item Cache Tests **/
+START_TEST (test_adding_a_feed_returns_201) {
+  char *url = "http://localhost:8008/feeds";
+  char *post_data = "<?xml version=\"1.0\" ?>\n<feed><title>Feed 1337</title><id>urn:peerworks.org:feeds#1337</id></feed>\n";
+  assert_post(url, post_data, 201, data, devnull);
+} END_TEST
+
+START_TEST (test_adding_a_feed_adds_it_to_the_database) {
+  char *url = "http://localhost:8008/feeds";
+  char *post_data = "<?xml version=\"1.0\" ?>\n<feed><title>Feed 1337</title><id>urn:peerworks.org:feeds#1337</id></feed>\n";
+  assert_post(url, post_data, 201, data, devnull);
+  
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from feeds where id = 1337", -1, &stmt, NULL);
+  int rc = sqlite3_step(stmt);
+  assert_equal(SQLITE_ROW, rc);
+  assert_equal_s("Feed 1337", sqlite3_column_text(stmt, 1));  
+  sqlite3_close(db);
+} END_TEST
+
+
+START_TEST (test_removing_a_feed_returns_200) {
+  char *url = "http://localhost:8008/feeds/141";
+  assert_delete(url, 200, devnull);
+} END_TEST
+
+START_TEST (test_removing_a_feed_that_doesnt_exist_returns_404) {
+  char *url = "http://localhost:8008/feeds/141";
+  assert_delete(url, 404, devnull);
+} END_TEST
+
+START_TEST (test_removing_a_feed_removes_it_from_the_database) {
+  char *url = "http://localhost:8008/feeds/141";
+  assert_delete(url, 404, devnull);
+  
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from feeds where id = 1337", -1, &stmt, NULL);
+  int rc = sqlite3_step(stmt);
+  assert_equal(SQLITE_DONE, rc);
+  sqlite3_close(db);
+} END_TEST
+
 #endif
 
 Suite * http_suite(void) {
   Suite *s = suite_create("http");
-  TCase *tc_case = tcase_create("case");
+  TCase *tc_case = tcase_create("classifier engine");
   tcase_add_checked_fixture(tc_case, setup_httpd, teardown_httpd);
+  TCase *tc_item_cache = tcase_create("item cache");
+  tcase_add_checked_fixture(tc_item_cache, setup_httpd, teardown_httpd);
   
 #ifdef HAVE_LIBCURL
-  // START_TESTS
   tcase_add_test(tc_case, test_http_initialization);
   tcase_add_test(tc_case, test_job_status);
   tcase_add_test(tc_case, test_job_status_with_xml_suffix);
@@ -326,9 +374,15 @@ Suite * http_suite(void) {
   tcase_add_test(tc_case, delete_without_job_id_is_405);
   tcase_add_test(tc_case, delete_with_missing_job_id_is_404);
   tcase_add_test(tc_case, deleting_a_completed_job_removes_it_from_the_engine);
-  // END_TESTS
+  
+  tcase_add_test(tc_item_cache, test_adding_a_feed_adds_it_to_the_database);
+  tcase_add_test(tc_item_cache, test_adding_a_feed_returns_201);
+  tcase_add_test(tc_item_cache, test_removing_a_feed_removes_it_from_the_database);
+  tcase_add_test(tc_item_cache, test_removing_a_feed_that_doesnt_exist_returns_404);
+  tcase_add_test(tc_item_cache, test_removing_a_feed_returns_200);
 #endif
   suite_add_tcase(s, tc_case);
+  suite_add_tcase(s, tc_item_cache);
   return s;
 }
 

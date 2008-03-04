@@ -325,7 +325,7 @@ static int process_request(void * ce_vp, struct MHD_Connection * connection,
                            const char * raw_url, const char * method, 
                            const char * version, const char * upload_data,
                            unsigned int * upload_data_size, void **memo) {
-  int ret = 1;
+  int ret = MHD_YES;
   
   char url[1024];
   if (sizeof(url) < snprintf(url, sizeof(url), "%s", raw_url)) {
@@ -352,7 +352,16 @@ static int process_request(void * ce_vp, struct MHD_Connection * connection,
     xmlFree(xml);
   } else {
     info("%s %s size(%i) 404", method, url, *upload_data_size);
-    SEND_404(ret);
+    
+    if (0 == strcmp(MHD_HTTP_METHOD_POST, method)) {
+      if (*upload_data_size == 0) {
+        SEND_404(ret);
+      } else {
+        *upload_data_size = 0;
+      }
+    } else {
+      SEND_404(ret);
+    }
   }
   
   return ret;
