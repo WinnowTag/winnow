@@ -83,7 +83,7 @@ void assert_file_contains_line(char * filename, char * line) {
 }
 
 START_TEST(test_http_initialization) {
-  assert_get("http://localhost:8008/", 404, devnull);
+  assert_get("http://localhost:8008/classifier", 200, devnull);
 } END_TEST
 
 START_TEST(test_missing_job_returns_404) {

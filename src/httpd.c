@@ -11,6 +11,8 @@
 #include <string.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <time.h>
+#include <regex.h>
 #include "httpd.h"
 #include "cls_config.h"
 #include "logging.h"
@@ -28,70 +30,58 @@
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 
-#define LOG_RESPONSE(url, code) \
-  debug("%s resulted in %i", url, code);
+#define HTTP_NOT_FOUND(response)               \
+  response->code = 404;                  \
+  response->content = NOT_FOUND;         \
+  response->content_type = CONTENT_TYPE;
 
-// TODO: Change to 204 when Rails bug #10445 is fixed and released
-#define SEND_204(returncode) \
-   LOG_RESPONSE(url, MHD_HTTP_NO_CONTENT); \
-   struct MHD_Response *response = MHD_create_response_from_data(0, "", MHD_NO, MHD_NO); \
-   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);        \
-   returncode = MHD_queue_response(connection, MHD_HTTP_OK, response);           \
-   MHD_destroy_response(response);
-
-#define SEND_404(returncode) \
-    LOG_RESPONSE(url, MHD_HTTP_NOT_FOUND); \
-   struct MHD_Response *response = MHD_create_response_from_data(strlen(NOT_FOUND), NOT_FOUND, MHD_NO, MHD_NO); \
-   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                               \
-   returncode = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);                                   \
-   MHD_destroy_response(response);
-
-#define SEND_405(returncode, allowed) \
-   LOG_RESPONSE(url, MHD_HTTP_METHOD_NOT_ALLOWED); \
-   struct MHD_Response *response = MHD_create_response_from_data(strlen(METHOD_NOT_ALLOWED), METHOD_NOT_ALLOWED, MHD_NO, MHD_NO); \
-   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                   \
-   MHD_add_response_header(response, MHD_HTTP_HEADER_ALLOW, allowed);                               \
-   returncode = MHD_queue_response(connection, MHD_HTTP_METHOD_NOT_ALLOWED, response);              \
-   MHD_destroy_response(response);
-
-#define SEND_415(returncode) \
-   LOG_RESPONSE(url, MHD_HTTP_UNSUPPORTED_MEDIA_TYPE); \
-   struct MHD_Response *response = MHD_create_response_from_data(strlen(BAD_XML), BAD_XML, MHD_NO, MHD_NO); \
-   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                   \
-   returncode = MHD_queue_response(connection, MHD_HTTP_UNSUPPORTED_MEDIA_TYPE, response);          \
-   MHD_destroy_response(response);
-
-#define SEND_500(returncode) \
-   LOG_RESPONSE(url, MHD_HTTP_INTERNAL_SERVER_ERROR); \
-   struct MHD_Response *response = MHD_create_response_from_data(strlen("Error"), "Error", MHD_NO, MHD_NO); \
-   returncode = MHD_queue_response(connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);                                   \
-   MHD_destroy_response(response);
-
-#define SEND_MISSING_TAG_ID(returncode) \
-   debug("Missing tag_id sending %i", MHD_HTTP_UNPROCESSABLE_ENTITY); \
-   struct MHD_Response *response = MHD_create_response_from_data(strlen(MISSING_TAG_ID), MISSING_TAG_ID, MHD_NO, MHD_NO); \
-   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                   \
-   returncode = MHD_queue_response(connection, MHD_HTTP_UNPROCESSABLE_ENTITY, response);            \
-   MHD_destroy_response(response);
-
-#define SEND_XML_DATA(returncode, httpcode, data, location) \
-  debug("Sending XML: %s", data); \
-  struct MHD_Response *response = MHD_create_response_from_data(strlen(data), data, MHD_YES, MHD_YES); \
-  MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, CONTENT_TYPE);                     \
-  if (location) MHD_add_response_header(response, MHD_HTTP_HEADER_LOCATION, location);               \
-  returncode = MHD_queue_response(connection, httpcode, response);                                   \
-  MHD_destroy_response(response);
+typedef enum HTTP_METHOD {
+  GET,
+  POST,
+  PUT,
+  DELETE
+} HTTPMethod;
 
 struct HTTPD {
   struct MHD_Daemon *mhd;
   Config *config;
   ClassificationEngine *ce;
+  regex_t start_job_regex;
+  regex_t job_status_regex;
+  regex_t about_regex;
 };
 
-struct posted_data {
+typedef struct posted_data {
   int size;
   char *buffer;
-};
+} PostedData;
+
+typedef struct HTTP_REQUEST {
+  HTTPMethod method;
+  char *path;
+  PostedData *data;
+  struct MHD_Connection *connection;
+  ClassificationEngine *ce;
+  struct timeval start_time;
+} HTTPRequest;
+
+typedef struct HTTP_RESPONSE {
+  int code;
+  char *content_type;
+  char *location;
+  char *content;
+  int free_content;
+} HTTPResponse;
+
+static float tdiff(struct timeval from, struct timeval to) {
+  double from_d = from.tv_sec + (from.tv_usec / 1000000.0);
+  double to_d = to.tv_sec + (to.tv_usec / 1000000.0);
+  return to_d - from_d;  
+}
+
+/*************************************************
+ * XML related functions
+ *************************************************/
 
 static xmlNodePtr add_element(xmlNodePtr parent, const char * name, const char * type, const char * fmt, ...) {
   char buffer[32];
@@ -185,183 +175,194 @@ static xmlChar * xml_for_about(const ClassificationEngine *ce) {
 /********************************************************************************
  * HTTP Interface Handlers
  ********************************************************************************/
-static int start_job(ClassificationEngine *ce, struct MHD_Connection *connection, const char * url, const char *xml_input) {
-  int ret;
-  xmlDocPtr doc = xmlParseDoc(BAD_CAST xml_input);
-          
-  if (doc == NULL) {
-    debug("XML was malformed: %s", xml_input);
-    SEND_415(ret);
+static HTTPMethod get_method(const char *method) {
+  if (!strcmp(MHD_HTTP_METHOD_POST, method)) {
+    return POST;
+  } else if (!strcmp(MHD_HTTP_METHOD_PUT, method)) {
+    return PUT;
+  } else if (!strcmp(MHD_HTTP_METHOD_DELETE, method)) {
+    return DELETE;
   } else {
-    ClassificationJob *job = NULL;
-    xmlXPathContextPtr context = xmlXPathNewContext(doc);    
-    xmlXPathObjectPtr result = xmlXPathEvalExpression(BAD_CAST "/job/tag-id/text()", context);
-    
-    if (!xmlXPathNodeSetIsEmpty(result->nodesetval)) {
-      int tag_id = (int) strtol((char *) result->nodesetval->nodeTab[0]->content, NULL, 10);
-      info("Starting classification job for tag %i", tag_id);
-      job = ce_add_classification_job_for_tag(ce, tag_id);
+    return GET;
+  }
+}
+
+
+static int start_job(const HTTPRequest * request, HTTPResponse * response) {
+  int ret = 0;
+  
+  if (request->method != POST) {
+    response->code = MHD_HTTP_METHOD_NOT_ALLOWED;
+    response->content = METHOD_NOT_ALLOWED;
+    response->content_type = CONTENT_TYPE;    
+  } else if (!request->data || request->data->size <= 0) {
+    response->code = MHD_HTTP_UNSUPPORTED_MEDIA_TYPE;
+    response->content = BAD_XML;
+    response->content_type = CONTENT_TYPE;
+  } else {
+    xmlDocPtr doc = xmlParseDoc(BAD_CAST request->data->buffer);
+          
+    if (doc == NULL) {
+      response->code = MHD_HTTP_UNSUPPORTED_MEDIA_TYPE;
+      response->content = BAD_XML;
+      response->content_type = CONTENT_TYPE;
     } else {
-      xmlXPathFreeObject(result);
-      result = xmlXPathEvalExpression(BAD_CAST "/job/user-id/text()", context);
+      ClassificationJob *job = NULL;
+      xmlXPathContextPtr context = xmlXPathNewContext(doc);    
+      xmlXPathObjectPtr result = xmlXPathEvalExpression(BAD_CAST "/job/tag-id/text()", context);
       
       if (!xmlXPathNodeSetIsEmpty(result->nodesetval)) {
-        int user_id = (int) strtol((char *) result->nodesetval->nodeTab[0]->content, NULL, 10);
-        info("Starting classification job for user %i", user_id);
-        job = ce_add_classification_job_for_user(ce, user_id);
+        int tag_id = (int) strtol((char *) result->nodesetval->nodeTab[0]->content, NULL, 10);
+        info("Starting classification job for tag %i", tag_id);
+        job = ce_add_classification_job_for_tag(request->ce, tag_id);
       } else {
-        SEND_MISSING_TAG_ID(ret);        
-      }     
-    }
-            
-    xmlXPathFreeObject(result);
-    xmlXPathFreeContext(context);
-    
-    if (job) {
-      xmlChar *xml = xml_for_job(job);
-      info("XML = %s", (char *) xml);
-      char *url = url_for_job(job);
-      SEND_XML_DATA(ret, 201, (char *) xml, url);
-      xmlFree(xml);
-      free(url);      
+        xmlXPathFreeObject(result);
+        result = xmlXPathEvalExpression(BAD_CAST "/job/user-id/text()", context);
+        
+        if (!xmlXPathNodeSetIsEmpty(result->nodesetval)) {
+          int user_id = (int) strtol((char *) result->nodesetval->nodeTab[0]->content, NULL, 10);
+          info("Starting classification job for user %i", user_id);
+          job = ce_add_classification_job_for_user(request->ce, user_id);
+        } else {
+          response->code = MHD_HTTP_UNPROCESSABLE_ENTITY;
+          response->content = MISSING_TAG_ID;
+          response->content_type = CONTENT_TYPE;
+        }     
+      }
+              
+      xmlXPathFreeObject(result);
+      xmlXPathFreeContext(context);
+      xmlFreeDoc(doc);
+      
+      if (job) {
+        response->code = MHD_HTTP_CREATED;
+        response->content_type = CONTENT_TYPE;
+        response->content = (char*) xml_for_job(job);
+        response->free_content = MHD_YES;
+        response->location = url_for_job(job);
+      }
     }
   }
-          
-  xmlFreeDoc(doc);
   
   return ret;
 }
 
-static int job_handler(void * ce_vp, struct MHD_Connection * connection,
-                        const char * url, const char * method, const char * version) {
-  debug("job_status_handler %s", url);
+static int job_handler(const HTTPRequest * request, HTTPResponse * response) {
   int ret;
-  const char *job_id = extract_job_id(url);
-  ClassificationEngine *ce = (ClassificationEngine*) ce_vp;
+  const char *job_id = extract_job_id(request->path);
   ClassificationJob *job = NULL;
   
   if (job_id == NULL) {
-    SEND_404(ret);
-  } else if (NULL == (job = ce_fetch_classification_job(ce, job_id))) {
-    SEND_404(ret);
+    HTTP_NOT_FOUND(response)
+  } else if (NULL == (job = ce_fetch_classification_job(request->ce, job_id))) {
+    HTTP_NOT_FOUND(response);
   } else if (CJOB_STATE_CANCELLED == cjob_state(job)) {
     // Cancelled jobs are considered deleted to the outside world.
-    SEND_404(ret);
-  } else if (!strcmp("GET", method)) {
+    HTTP_NOT_FOUND(response);
+  } else if (GET == request->method) {
     xmlChar *xml = xml_for_job(job);
-    SEND_XML_DATA(ret, MHD_HTTP_OK, (char*) xml, NULL);
-    xmlFree(xml);
-  } else if (!strcmp("DELETE", method)) {
+    response->code = MHD_HTTP_OK;
+    response->content_type = CONTENT_TYPE;
+    response->content = (char*) xml;
+    response->free_content = MHD_YES;    
+  } else if (DELETE == request->method) {
     if (CJOB_STATE_COMPLETE == cjob_state(job)) {
-      ce_remove_classification_job(ce, job);
+      ce_remove_classification_job(request->ce, job);
       free_classification_job(job);
     } else {
       cjob_cancel(job);
     }
-    SEND_204(ret);
+    response->code = MHD_HTTP_OK; // Should really by 204, but need Rails 2.0.2 first
+    response->content = "";
+    response->content_type = NULL;
   } else {
-    SEND_405(ret, "GET, DELETE");
+    response->code = MHD_HTTP_METHOD_NOT_ALLOWED;
+    response->content = METHOD_NOT_ALLOWED;
+    response->content_type = CONTENT_TYPE;
   }
   
   return ret;
 }
 
-/* This handles collection of the XML document data for
- * starting a classification job.
- * 
- * It calls start_job when all the data is collected.
- */
-static int start_job_handle(void * ce_vp, struct MHD_Connection * connection,
-                             const char * url, const char * method, 
-                             const char * version, const char * upload_data,
-                             unsigned int * upload_data_size, void **memo) {
-  int ret = MHD_NO;
-  const char *clen = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_CONTENT_LENGTH);
-  
-  if (strcmp(MHD_HTTP_METHOD_POST, method)) {
-    SEND_405(ret, "POST");
-  } else if (clen && !strcmp(clen, "0")) {
-    SEND_415(ret);
-  } else {  
-    debug("posted %s", upload_data);
-    // First call, but data is empty
-    int first_call = false;
+static int handle_request(const Httpd * httpd, const HTTPRequest * request, HTTPResponse * response) {
     
-    struct posted_data *pd = *memo;
-    if (!(pd)) {
-      first_call = true;
-      pd = malloc(sizeof(struct posted_data));
-      pd->buffer = NULL;
-      pd->size = 0;
-      *memo = pd;
-    }
-      
-    if (*upload_data_size > 0 && pd->size == 0) {
-      pd->buffer = calloc(*upload_data_size, sizeof(char));
-      pd->size = *upload_data_size;
-      strncpy(pd->buffer, upload_data, pd->size);
-      *upload_data_size = 0;
-      ret = MHD_YES;      
-    } else if (*upload_data_size > 0 && pd->size > 0) {
-      // TODO Need to handle incremental processing of POST'ed data
-      error("Need to handle incremental processing of POST'ed data");      
-    } else if (*upload_data_size == 0 && pd->size > 0) {
-      ret = start_job(ce_vp, connection, url, pd->buffer);
-      free(pd->buffer);
-      free(pd);
-    } else {
-      ret = MHD_YES;
-    }
+  if (0 == regexec(&httpd->start_job_regex, request->path, 0, NULL, 0)) {
+    start_job(request, response);
+  } else if (0 == regexec(&httpd->job_status_regex, request->path, 0, NULL, 0)) {
+    job_handler(request, response);
+  } else if (0 == regexec(&httpd->about_regex, request->path, 0, NULL, 0)) {
+    response->code = MHD_HTTP_OK;
+    response->content_type = CONTENT_TYPE;
+    response->content = (char*) xml_for_about(httpd->ce);
+    response->free_content = MHD_YES;
+  } else {
+    HTTP_NOT_FOUND(response);
   }
   
-  return ret;
+  return 1;
 }
 
 /* This is the base response handler. It just returns a 404. 
  * 
  * TODO Regex matching of URLs would be much more robust
  */
-static int process_request(void * ce_vp, struct MHD_Connection * connection,
+static int process_request(void * httpd_vp, struct MHD_Connection * connection,
                            const char * raw_url, const char * method, 
                            const char * version, const char * upload_data,
                            unsigned int * upload_data_size, void **memo) {
   int ret = MHD_YES;
+  Httpd * httpd = (Httpd*) httpd_vp;
   
-  char url[1024];
-  if (sizeof(url) < snprintf(url, sizeof(url), "%s", raw_url)) {
-    error("URL '%s' is too long", raw_url);
-    return MHD_NO;
-  }
- 
-  /* strip any .xml extensions */
-  char *ext;
-  if ((ext = strstr(url, ".xml"))) {
-    ext[0] = '\0';
-  }  
- 
-  if (0 == strcmp(url, "/classifier/jobs/") || 
-      0 == strcmp(url, "/classifier/jobs")) {
-    info("%s %s size(%i) start_job\n", method, url, *upload_data_size);
-    ret = start_job_handle(ce_vp, connection, url, method, version, upload_data, upload_data_size, memo);
-  } else if (url == strstr(url, "/classifier/jobs/")) {
-    info("%s %s size(%i) job", method, url, *upload_data_size);
-    ret = job_handler(ce_vp, connection, url, method, version);
-  } else if (!strcmp(url, "/classifier")) {
-    xmlChar *xml = xml_for_about((ClassificationEngine*) ce_vp);
-    SEND_XML_DATA(ret, MHD_HTTP_OK, (char *) xml, NULL);
-    xmlFree(xml);
-  } else {
-    info("%s %s size(%i) 404", method, url, *upload_data_size);
+  HTTPRequest *request = (HTTPRequest*) *memo;
+  if (NULL == request) {
+    request = calloc(1, sizeof(HTTPRequest));
+    request->method = get_method(method);
+    request->connection = connection;
+    request->ce = httpd->ce;    
+    request->path = strdup(raw_url);    
+    gettimeofday(&request->start_time, NULL);
     
-    if (0 == strcmp(MHD_HTTP_METHOD_POST, method)) {
-      if (*upload_data_size == 0) {
-        SEND_404(ret);
-      } else {
-        *upload_data_size = 0;
-      }
-    } else {
-      SEND_404(ret);
+    /* strip any .xml extensions */
+    char *ext;
+    if ((ext = strstr(request->path, ".xml"))) ext[0] = '\0';
+    
+    if (*upload_data_size > 0) {
+      request->data = calloc(1, sizeof(PostedData));
     }
+    
+    *memo = request;
+  }
+  
+  if (*upload_data_size > 0 && request->data->size == 0) {
+    request->data->buffer = strdup(upload_data);
+    request->data->size = *upload_data_size;    
+    *upload_data_size = 0;
+    ret = MHD_YES;      
+  } else if (*upload_data_size > 0 && request->data->size > 0) {    
+    error("TODO Need to handle incremental processing of POST'ed data");      
+  } else if (*upload_data_size == 0) {
+    HTTPResponse response;
+    memset(&response, 0, sizeof(HTTPResponse));
+    response.free_content = false;
+    handle_request(httpd, request, &response);
+        
+    struct MHD_Response *mhd_response = MHD_create_response_from_data(strlen(response.content), response.content, response.free_content, MHD_NO);
+    MHD_add_response_header(mhd_response, MHD_HTTP_HEADER_CONTENT_TYPE, response.content_type);
+    MHD_add_response_header(mhd_response, MHD_HTTP_HEADER_LOCATION, response.location);    
+    ret = MHD_queue_response(connection, response.code, mhd_response);
+    MHD_destroy_response(mhd_response);
+    
+    if (response.free_content) {
+      if (response.location) free(response.location);
+    }
+    
+    struct timeval end_time;
+    gettimeofday(&end_time, NULL);    
+    info("%s %s %i %.7fs", method, raw_url, response.code, tdiff(request->start_time, end_time));
+    
+    free(request->path);
+    if (request->data) free(request->data);
+    free(request);
   }
   
   return ret;
@@ -389,12 +390,30 @@ static int access_policy(void *ip_vp, const struct sockaddr * addr, socklen_t ad
   return allow;
 }
 
-
 Httpd * httpd_start(Config *config, ClassificationEngine *ce) {
   Httpd *httpd = malloc(sizeof(Httpd));
   if (httpd) {
+    int regex_error;
     httpd->config = config;
     httpd->ce = ce;
+    
+    if ((regex_error = regcomp(&httpd->start_job_regex, "^/classifier/jobs/?$", REG_EXTENDED | REG_NOSUB)) != 0) {
+      char buffer[1024];
+      regerror(regex_error, &httpd->start_job_regex, buffer, sizeof(buffer));
+      fatal("Error compiling REGEX: %s", buffer);
+    }
+    
+    if ((regex_error = regcomp(&httpd->job_status_regex, "^/classifier/jobs/.*", REG_EXTENDED | REG_NOSUB))) {
+      char buffer[1024];
+      regerror(regex_error, &httpd->job_status_regex, buffer, sizeof(buffer));
+      fatal("Error compiling REGEX: %s", buffer);
+    }
+    
+    if ((regex_error = regcomp(&httpd->about_regex, "^/classifier$", REG_EXTENDED | REG_NOSUB))) {
+      char buffer[1024];
+      regerror(regex_error, &httpd->about_regex, buffer, sizeof(buffer));
+      fatal("Error compiling REGEX: %s", buffer);
+    }
     
     HttpdConfig httpd_config;
     cfg_httpd_config(config, &httpd_config);
@@ -404,7 +423,7 @@ Httpd * httpd_start(Config *config, ClassificationEngine *ce) {
                                   access_policy,
                                   (void*) httpd_config.allowed_ip,
                                   process_request,
-                                  ce,
+                                  httpd,
                                   MHD_OPTION_END);
     if (NULL == httpd->mhd) {
       fatal("Could not start httpd: %s", strerror(errno));
