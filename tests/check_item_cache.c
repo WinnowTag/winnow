@@ -562,7 +562,7 @@ START_TEST (test_adding_entry_causes_item_added_to_cache) {
                                                   "<p>This is some content</p>",
                                                   1178551600, 1, 1178551601);
   item_cache_add_entry(item_cache, entry);
-  sched_yield();
+  sleep(1);
   assert_equal(11, item_cache_cached_size(item_cache));
 } END_TEST
 
@@ -580,7 +580,7 @@ START_TEST (test_adding_multiple_entries_causes_item_added_to_cache) {
   
   item_cache_add_entry(item_cache, entry1);
   item_cache_add_entry(item_cache, entry2);
-  sched_yield();
+  sleep(1);
   assert_equal(12, item_cache_cached_size(item_cache));
 } END_TEST
 
