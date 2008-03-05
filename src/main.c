@@ -115,7 +115,7 @@ static int start_classifier(const char * db_file) {
     return EXIT_FAILURE;
   } else {
     engine = create_classification_engine(item_cache, config);
-    httpd = httpd_start(config, engine);  
+    httpd = httpd_start(config, engine, item_cache);  
     ce_run(engine);
     return EXIT_SUCCESS;
   }

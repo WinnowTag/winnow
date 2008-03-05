@@ -37,10 +37,11 @@ static void setup_httpd() {
   data    = fopen("/tmp/test_data.xml", "w");
   
   setup_fixture_path();
-  item_cache_create(&item_cache, "fixtures/valid.db");
+  system("cp fixtures/valid.db fixtures/valid-copy.db");
+  item_cache_create(&item_cache, "fixtures/valid-copy.db");
   config = load_config("fixtures/real-db.conf");
   ce = create_classification_engine(item_cache, config);  
-  httpd = httpd_start(config, ce);
+  httpd = httpd_start(config, ce, item_cache);
   devnull = fopen("/dev/null", "w");
 }
 
@@ -103,9 +104,9 @@ START_TEST(test_post_to_create_job_with_tag_id_missing_returns_422) {
 } END_TEST
 
 /* Missing XML returns Unsupported media type (415) */
-START_TEST(test_post_to_create_job_with_invalid_xml_returns_415) {
+START_TEST(test_post_to_create_job_with_invalid_xml_returns_400) {
   char *post_data = "xxx";
-  assert_post("http://localhost:8008/classifier/jobs", post_data, 415, devnull, devnull);
+  assert_post("http://localhost:8008/classifier/jobs", post_data, 400, devnull, devnull);
 } END_TEST
 
 START_TEST(test_post_to_create_job_without_xml_returns_415) {
@@ -302,15 +303,21 @@ START_TEST(test_error_job_status) {
 } END_TEST
 
 /** Item Cache Tests **/
+START_TEST (test_adding_a_feed_with_no_content_returns_400) {
+  char *url = "http://localhost:8008/feeds";
+  char *post_data = "";
+  assert_post(url, post_data, 400, data, devnull);
+} END_TEST
+
 START_TEST (test_adding_a_feed_returns_201) {
   char *url = "http://localhost:8008/feeds";
-  char *post_data = "<?xml version=\"1.0\" ?>\n<feed><title>Feed 1337</title><id>urn:peerworks.org:feeds#1337</id></feed>\n";
+  char *post_data = "<?xml version=\"1.0\" ?>\n<entry><title>Feed 1337</title><id>urn:peerworks.org:feeds#1337</id></entry>\n";
   assert_post(url, post_data, 201, data, devnull);
 } END_TEST
 
 START_TEST (test_adding_a_feed_adds_it_to_the_database) {
   char *url = "http://localhost:8008/feeds";
-  char *post_data = "<?xml version=\"1.0\" ?>\n<feed><title>Feed 1337</title><id>urn:peerworks.org:feeds#1337</id></feed>\n";
+  char *post_data = "<?xml version=\"1.0\" ?>\n<entry><title>Feed 1337</title><id>urn:peerworks.org:feeds#1337</id></entry>\n";
   assert_post(url, post_data, 201, data, devnull);
   
   sqlite3 *db;
@@ -319,24 +326,24 @@ START_TEST (test_adding_a_feed_adds_it_to_the_database) {
   sqlite3_prepare_v2(db, "select * from feeds where id = 1337", -1, &stmt, NULL);
   int rc = sqlite3_step(stmt);
   assert_equal(SQLITE_ROW, rc);
-  assert_equal_s("Feed 1337", sqlite3_column_text(stmt, 1));  
+  assert_equal_s("Feed 1337", sqlite3_column_text(stmt, 1));
   sqlite3_close(db);
 } END_TEST
 
 
-START_TEST (test_removing_a_feed_returns_200) {
+START_TEST (test_removing_a_feed_returns_204) {
   char *url = "http://localhost:8008/feeds/141";
-  assert_delete(url, 200, devnull);
+  assert_delete(url, 204, devnull);
 } END_TEST
 
-START_TEST (test_removing_a_feed_that_doesnt_exist_returns_404) {
-  char *url = "http://localhost:8008/feeds/141";
-  assert_delete(url, 404, devnull);
-} END_TEST
+//START_TEST (test_removing_a_feed_that_doesnt_exist_returns_404) {
+//  char *url = "http://localhost:8008/feeds/1337";
+//  assert_delete(url, 404, devnull);
+//} END_TEST
 
 START_TEST (test_removing_a_feed_removes_it_from_the_database) {
   char *url = "http://localhost:8008/feeds/141";
-  assert_delete(url, 404, devnull);
+  assert_delete(url, 204, devnull);
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
@@ -366,7 +373,7 @@ Suite * http_suite(void) {
   tcase_add_test(tc_case, test_missing_job_id_returns_405);
   
   tcase_add_test(tc_case, test_post_to_create_job_without_xml_returns_415);
-  tcase_add_test(tc_case, test_post_to_create_job_with_invalid_xml_returns_415);
+  tcase_add_test(tc_case, test_post_to_create_job_with_invalid_xml_returns_400);
   tcase_add_test(tc_case, test_post_to_create_job_with_tag_id_missing_returns_422);
   tcase_add_test(tc_case, test_post_with_valid_tag_id_queues_job);
   tcase_add_test(tc_case, test_post_with_user_id_queues_job);
@@ -375,11 +382,12 @@ Suite * http_suite(void) {
   tcase_add_test(tc_case, delete_with_missing_job_id_is_404);
   tcase_add_test(tc_case, deleting_a_completed_job_removes_it_from_the_engine);
   
+  tcase_add_test(tc_item_cache, test_adding_a_feed_with_no_content_returns_400);
   tcase_add_test(tc_item_cache, test_adding_a_feed_adds_it_to_the_database);
   tcase_add_test(tc_item_cache, test_adding_a_feed_returns_201);
   tcase_add_test(tc_item_cache, test_removing_a_feed_removes_it_from_the_database);
-  tcase_add_test(tc_item_cache, test_removing_a_feed_that_doesnt_exist_returns_404);
-  tcase_add_test(tc_item_cache, test_removing_a_feed_returns_200);
+  //tcase_add_test(tc_item_cache, test_removing_a_feed_that_doesnt_exist_returns_404);
+  tcase_add_test(tc_item_cache, test_removing_a_feed_returns_204);
 #endif
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, tc_item_cache);

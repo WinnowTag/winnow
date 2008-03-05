@@ -14,6 +14,6 @@
 
 typedef struct HTTPD Httpd;
 
-extern Httpd * httpd_start(Config *config, ClassificationEngine *ce);
+extern Httpd * httpd_start(Config *config, ClassificationEngine *ce, ItemCache *item_cache);
 extern void    httpd_stop (Httpd *httpd);
 #endif /*HTTPD_H_*/

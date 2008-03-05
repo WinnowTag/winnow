@@ -15,6 +15,7 @@
 #include <regex.h>
 #include "httpd.h"
 #include "cls_config.h"
+#include "item_cache.h"
 #include "logging.h"
 #include "misc.h"
 #include "svnversion.h"
@@ -29,11 +30,27 @@
 #include <microhttpd.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
+#include <libxml/uri.h>
 
-#define HTTP_NOT_FOUND(response)               \
+#define HTTP_NOT_FOUND(response)         \
   response->code = 404;                  \
   response->content = NOT_FOUND;         \
   response->content_type = CONTENT_TYPE;
+
+#define HTTP_BAD_XML(response) \
+  response->code = MHD_HTTP_BAD_REQUEST; \
+  response->content = BAD_XML; \
+  response->content_type = CONTENT_TYPE;
+
+#define HTTP_BAD_FEED(response) \
+  response->code = MHD_HTTP_UNPROCESSABLE_ENTITY; \
+  response->content = "Bad Feed"; \
+  response->content_type = "text/plain";
+
+#define HTTP_ITEM_CACHE_ERROR(response, item_cache) \
+  response->code = MHD_HTTP_INTERNAL_SERVER_ERROR; \
+  response->content = (char*) item_cache_errmsg(item_cache); \
+  response->content_type = "text/plain";
 
 typedef enum HTTP_METHOD {
   GET,
@@ -46,9 +63,11 @@ struct HTTPD {
   struct MHD_Daemon *mhd;
   Config *config;
   ClassificationEngine *ce;
+  ItemCache *item_cache;
   regex_t start_job_regex;
   regex_t job_status_regex;
   regex_t about_regex;
+  regex_t item_cache_feeds_regex;
 };
 
 typedef struct posted_data {
@@ -62,6 +81,7 @@ typedef struct HTTP_REQUEST {
   PostedData *data;
   struct MHD_Connection *connection;
   ClassificationEngine *ce;
+  ItemCache *item_cache;
   struct timeval start_time;
 } HTTPRequest;
 
@@ -195,6 +215,115 @@ static HTTPMethod get_method(const char *method) {
   }
 }
 
+static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
+  regex_t regex;
+  
+  if (regcomp(&regex, "^/feeds/?$", REG_EXTENDED)) {
+    fatal("Error compiling regex");
+    return 1;
+  }
+  
+  if (0 == regexec(&regex, request->path, 0, NULL, 0)) {
+    xmlDocPtr doc = NULL;
+    
+    if (NULL == request->data) {
+      HTTP_BAD_XML(response);
+    } else if (NULL == (doc = xmlParseDoc(BAD_CAST request->data->buffer))) {              
+      HTTP_BAD_XML(response);
+    } else {
+      xmlXPathContextPtr context = xmlXPathNewContext(doc);    
+      xmlXPathObjectPtr id = xmlXPathEvalExpression(BAD_CAST "/entry/id/text()", context);
+      xmlXPathObjectPtr title = xmlXPathEvalExpression(BAD_CAST "/entry/title/text()", context);
+            
+      if (xmlXPathNodeSetIsEmpty(id->nodesetval) || xmlXPathNodeSetIsEmpty(title->nodesetval)) {
+        HTTP_BAD_FEED(response);
+      } else {
+        char *title_s = (char*) title->nodesetval->nodeTab[0]->content;
+        char *id_s = (char*) id->nodesetval->nodeTab[0]->content;
+        xmlURIPtr id_uri = xmlParseURI(id_s);
+        
+        if (!id_uri->fragment) {
+          HTTP_BAD_FEED(response);
+        } else {
+          int id_i = strtol(id_uri->fragment, NULL, 10);
+          if (id_i <= 0) {
+            HTTP_BAD_FEED(response);
+          } else {
+            Feed *feed = create_feed(id_i, title_s);
+            if (CLASSIFIER_OK == item_cache_add_feed(request->item_cache, feed)) {
+              response->code = MHD_HTTP_CREATED;
+              response->content = strdup(request->data->buffer);
+              response->content_type = CONTENT_TYPE;
+              response->free_content = MHD_YES;
+            } else {
+              HTTP_ITEM_CACHE_ERROR(response, request->item_cache);
+            }
+            free_feed(feed);
+          }
+        }
+        
+        xmlFreeURI(id_uri);
+      }
+      
+      xmlXPathFreeObject(id);
+      xmlXPathFreeObject(title);
+      xmlXPathFreeContext(context);
+      xmlFreeDoc(doc);
+    }
+  } else {
+    response->code = MHD_HTTP_METHOD_NOT_ALLOWED;
+    response->content = "POST not allowed";
+    response->content_type = "text/plain";
+  }
+  
+  return 1;
+}
+
+static int delete_feed(const HTTPRequest * request, HTTPResponse * response) {  
+  regex_t regex;
+  regmatch_t matches[2];
+  
+  if (regcomp(&regex, "^/feeds/([0-9]+)", REG_EXTENDED)) {
+    fatal("Error compiling regex");
+    return 1;
+  }
+  
+  if (0 == regexec(&regex, request->path, 2, matches, 0)) {
+    regmatch_t match = matches[1];
+    char *id_s = calloc(match.rm_eo - match.rm_so + 1, sizeof(char));
+    strncpy(id_s, &request->path[match.rm_so], match.rm_eo - match.rm_so);
+    
+    if (CLASSIFIER_FAIL == item_cache_remove_feed(request->item_cache, strtol(id_s, NULL, 10))) {
+      HTTP_ITEM_CACHE_ERROR(response, request->item_cache);
+    } else {
+      response->code = MHD_HTTP_NO_CONTENT;
+      response->content = "";
+    }
+  } else {
+    HTTP_NOT_FOUND(response);
+  }
+  
+  regfree(&regex);
+  
+  return 0;
+}
+
+static int feed_handler(const HTTPRequest * request, HTTPResponse * response) {
+  switch (request->method) {
+    case DELETE:
+      delete_feed(request, response);
+      break;
+    case POST:
+      add_feed(request, response);
+      break;
+    default:
+      response->code = MHD_HTTP_METHOD_NOT_ALLOWED;
+      response->content = "Only POST, PUT or DELETE allowed";
+      break;
+  }
+  
+  return 0;
+}
 
 static int start_job(const HTTPRequest * request, HTTPResponse * response) {
   int ret = 0;
@@ -211,9 +340,7 @@ static int start_job(const HTTPRequest * request, HTTPResponse * response) {
     xmlDocPtr doc = xmlParseDoc(BAD_CAST request->data->buffer);
           
     if (doc == NULL) {
-      response->code = MHD_HTTP_UNSUPPORTED_MEDIA_TYPE;
-      response->content = BAD_XML;
-      response->content_type = CONTENT_TYPE;
+      HTTP_BAD_XML(response);
     } else {
       ClassificationJob *job = NULL;
       xmlXPathContextPtr context = xmlXPathNewContext(doc);    
@@ -307,6 +434,8 @@ static int handle_request(const Httpd * httpd, const HTTPRequest * request, HTTP
     response->content_type = CONTENT_TYPE;
     response->content = (char*) xml_for_about(httpd->ce);
     response->free_content = MHD_YES;
+  } else if (0 == regexec(&httpd->item_cache_feeds_regex, request->path, 0, NULL, 0)) {
+    feed_handler(request, response);
   } else {
     HTTP_NOT_FOUND(response);
   }
@@ -329,7 +458,8 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     request = calloc(1, sizeof(HTTPRequest));
     request->method = get_method(method);
     request->connection = connection;
-    request->ce = httpd->ce;    
+    request->ce = httpd->ce;
+    request->item_cache = httpd->item_cache;
     request->path = strdup(raw_url);    
     gettimeofday(&request->start_time, NULL);
         
@@ -397,12 +527,13 @@ static int access_policy(void *ip_vp, const struct sockaddr * addr, socklen_t ad
   return allow;
 }
 
-Httpd * httpd_start(Config *config, ClassificationEngine *ce) {
+Httpd * httpd_start(Config *config, ClassificationEngine *ce, ItemCache *item_cache) {
   Httpd *httpd = malloc(sizeof(Httpd));
   if (httpd) {
     int regex_error;
     httpd->config = config;
     httpd->ce = ce;
+    httpd->item_cache = item_cache;
     
     if ((regex_error = regcomp(&httpd->start_job_regex, "^/classifier/jobs/?$", REG_EXTENDED | REG_NOSUB)) != 0) {
       char buffer[1024];
@@ -417,6 +548,12 @@ Httpd * httpd_start(Config *config, ClassificationEngine *ce) {
     }
     
     if ((regex_error = regcomp(&httpd->about_regex, "^/classifier$", REG_EXTENDED | REG_NOSUB))) {
+      char buffer[1024];
+      regerror(regex_error, &httpd->about_regex, buffer, sizeof(buffer));
+      fatal("Error compiling REGEX: %s", buffer);
+    }
+    
+    if ((regex_error = regcomp(&httpd->item_cache_feeds_regex, "^/feeds/?([0-9]+)?$", REG_EXTENDED | REG_NOSUB))) {
       char buffer[1024];
       regerror(regex_error, &httpd->about_regex, buffer, sizeof(buffer));
       fatal("Error compiling REGEX: %s", buffer);
