@@ -31,6 +31,19 @@ static FILE *devnull;
 static FILE *data;
 static FILE *headers;
 
+static void read_file(const char * file_name, char * data) {
+  FILE *file;
+
+  if (NULL != (file = fopen(file_name, "r"))) {
+    fseek(file, 0, SEEK_END);
+    int size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    fread(data, sizeof(char), size, file);
+    data[size] = 0;
+    fclose(file);
+  }  
+}
+
 static void setup_httpd() {
   test_data = fopen("http_test_data.log", "a");
   headers = fopen("/tmp/headers.txt", "w");
@@ -354,6 +367,56 @@ START_TEST (test_removing_a_feed_removes_it_from_the_database) {
   sqlite3_close(db);
 } END_TEST
 
+START_TEST (test_adding_an_entry_using_get_returns_405) {
+  char *url = "http://localhost:8008/feeds/1/feed_items";
+  assert_get(url, 405, devnull);
+} END_TEST
+
+START_TEST (test_adding_an_empty_entry_returns_400) {
+  char *url = "http://localhost:8008/feeds/141/feed_items";
+  assert_post(url, "", 400, data, devnull);
+} END_TEST
+
+START_TEST (test_adding_an_entry_to_nonexistant_feed_returns_400) {
+  char *url = "http://localhost:8008/feeds/1/feed_items";
+  char xml[2048];
+  read_file("fixtures/entry.atom", xml);
+  assert_post(url, xml, 400, data, devnull);
+} END_TEST
+
+START_TEST (test_adding_an_entry_returns_201) {
+  char *url = "http://localhost:8008/feeds/141/feed_items";
+  char xml[2048];
+  read_file("fixtures/entry.atom", xml);
+  assert_post(url, xml, 201, data, devnull);
+} END_TEST
+
+START_TEST (test_adding_an_entry_saves_it_in_the_database) {
+  char *url = "http://localhost:8008/feeds/141/feed_items";
+  char xml[2048];
+  read_file("fixtures/entry.atom", xml);
+  assert_post(url, xml, 201, data, devnull);
+  
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from entries where id = 1", -1, &stmt, NULL);
+  int rc = sqlite3_step(stmt);
+  assert_equal(SQLITE_ROW, rc);
+  assert_equal_s("urn:peerworks.org:entry#1", sqlite3_column_text(stmt, 1));
+  assert_equal_s("Entry 1", sqlite3_column_text(stmt, 2));
+  assert_equal_s("Sean Geoghegan", sqlite3_column_text(stmt, 3));
+  assert_not_null(sqlite3_column_text(stmt, 4));
+  assert_equal_s("http://example.org/entry.html", sqlite3_column_text(stmt, 4));
+  assert_not_null(sqlite3_column_text(stmt, 5));
+  assert_equal_s("http://example.org/entry.atom", sqlite3_column_text(stmt, 5));
+  assert_not_null(sqlite3_column_text(stmt, 6));
+  assert_equal_s("<p><i>This is an example</i></p>", sqlite3_column_text(stmt, 6));
+  assert_equal_f(2453583.02047454, sqlite3_column_double(stmt, 7));
+  assert_equal(141, sqlite3_column_int(stmt, 8));
+  sqlite3_close(db);
+} END_TEST
+
 #endif
 
 Suite * http_suite(void) {
@@ -388,6 +451,12 @@ Suite * http_suite(void) {
   tcase_add_test(tc_item_cache, test_removing_a_feed_removes_it_from_the_database);
   //tcase_add_test(tc_item_cache, test_removing_a_feed_that_doesnt_exist_returns_404);
   tcase_add_test(tc_item_cache, test_removing_a_feed_returns_204);
+  tcase_add_test(tc_item_cache, test_adding_an_entry_using_get_returns_405);
+  tcase_add_test(tc_item_cache, test_adding_an_entry_returns_201);
+  tcase_add_test(tc_item_cache, test_adding_an_entry_saves_it_in_the_database);
+  tcase_add_test(tc_item_cache, test_adding_an_empty_entry_returns_400);
+  tcase_add_test(tc_item_cache, test_adding_an_entry_to_nonexistant_feed_returns_400);
+  
 #endif
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, tc_item_cache);

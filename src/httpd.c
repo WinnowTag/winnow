@@ -30,6 +30,7 @@
 #include <microhttpd.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
+#include <libxml/xpathinternals.h>
 #include <libxml/uri.h>
 
 #define HTTP_NOT_FOUND(response)         \
@@ -45,6 +46,11 @@
 #define HTTP_BAD_FEED(response) \
   response->code = MHD_HTTP_UNPROCESSABLE_ENTITY; \
   response->content = "Bad Feed"; \
+  response->content_type = "text/plain";
+
+#define HTTP_BAD_ENTRY(response) \
+  response->code = MHD_HTTP_UNPROCESSABLE_ENTITY; \
+  response->content = "Bad Entry"; \
   response->content_type = "text/plain";
 
 #define HTTP_ITEM_CACHE_ERROR(response, item_cache) \
@@ -68,6 +74,7 @@ struct HTTPD {
   regex_t job_status_regex;
   regex_t about_regex;
   regex_t item_cache_feeds_regex;
+  regex_t item_cache_create_feed_items_regex;
 };
 
 typedef struct posted_data {
@@ -200,6 +207,83 @@ static xmlChar * xml_for_about(const ClassificationEngine *ce) {
   return buffer;
 }
 
+static int get_atom_id(const char *uri) {
+  int id = 0;
+  xmlURIPtr id_uri = xmlParseURI(uri);
+          
+  if (id_uri && id_uri->fragment) {
+    id = strtol(id_uri->fragment, NULL, 10);
+  }
+  
+  xmlFreeURI(id_uri);
+  return id;
+}
+
+static char * get_element_value(xmlXPathContextPtr context, const char * path) {
+  char *value = NULL;
+  
+  xmlXPathObjectPtr xp = xmlXPathEvalExpression(BAD_CAST path, context);
+  if (!xmlXPathNodeSetIsEmpty(xp->nodesetval)) {
+    value = strdup((char*) xp->nodesetval->nodeTab[0]->content);
+  }
+  
+  xmlXPathFreeObject(xp);
+  return value;
+}
+
+static char * get_attribute_value(xmlXPathContextPtr context, const char * path, const char * attr) {
+  char *value = NULL;
+  
+  xmlXPathObjectPtr xp = xmlXPathEvalExpression(BAD_CAST path, context);
+  if (!xmlXPathNodeSetIsEmpty(xp->nodesetval)) {
+    value = (char*) xmlGetProp(xp->nodesetval->nodeTab[0], BAD_CAST "href");;
+  }
+  
+  xmlXPathFreeObject(xp);
+  return value;
+}
+
+static ItemCacheEntry * entry_from_xml(int feed_id, xmlDocPtr doc) {  
+  ItemCacheEntry *entry = NULL;
+  xmlXPathContextPtr context = xmlXPathNewContext(doc);    
+  xmlXPathRegisterNs(context, BAD_CAST "atom", BAD_CAST "http://www.w3.org/2005/Atom");
+  
+  char *id = get_element_value(context, "/atom:entry/atom:id/text()");
+  char *title = get_element_value(context, "/atom:entry/atom:title/text()");
+  char *updated = get_element_value(context, "/atom:entry/atom:updated/text()");
+  char *content = get_element_value(context, "/atom:entry/atom:content/text()");
+  char *author = get_element_value(context, "/atom:entry/atom:author/atom:name/text()");
+  char *alternate = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'alternate']", "href");;
+  char *self = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'self']", "href");  
+  
+  // Must have all of these to create the item
+  if (id && title && updated && content) {
+    int id_i = get_atom_id(id);
+    struct tm updated_tm;
+    memset(&updated_tm, 0, sizeof(updated_tm));
+    time_t updated_time = time(NULL);
+    
+    if (NULL != strptime(updated, "%Y-%m-%dT%H:%M:%S%z", &updated_tm)) {
+      updated_time = timegm(&updated_tm);
+    }
+   
+    if (id_i > 0) {      
+      entry = create_item_cache_entry(id_i, id, title, author, alternate, self, content, updated_time, feed_id, time(NULL));
+    }
+  }
+   
+  if (alternate) xmlFree(alternate);
+  if (self) xmlFree(self);
+  if (author) free(author);
+  if (content) free(content);
+  if (id) free(id);
+  if (title) free(title);
+  if (updated) free(updated);
+  xmlXPathFreeContext(context);
+  
+  return entry;
+}
+
 /********************************************************************************
  * HTTP Interface Handlers
  ********************************************************************************/
@@ -213,6 +297,66 @@ static HTTPMethod get_method(const char *method) {
   } else {
     return GET;
   }
+}
+
+static int get_feed_id(const char * path) {
+  int feed_id = 0;
+  regex_t regex;
+  regmatch_t matches[2];
+  
+  if (regcomp(&regex, "^/feeds/([0-9]+)", REG_EXTENDED)) {
+    fatal("Error compiling regex");
+    return -1;
+  }
+  
+  if (0 == regexec(&regex, path, 2, matches, 0)) {
+    regmatch_t match = matches[1];
+    char *id_s = calloc(match.rm_eo - match.rm_so + 1, sizeof(char));
+    strncpy(id_s, &path[match.rm_so], match.rm_eo - match.rm_so);
+    feed_id = strtol(id_s, NULL, 0);
+    free(id_s);
+  }
+  
+  regfree(&regex);
+  
+  return feed_id;
+}
+
+static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
+  xmlDocPtr doc = NULL;
+  
+  if (POST != request->method) {
+    response->code = MHD_HTTP_METHOD_NOT_ALLOWED;
+    response->content = "<error>Only POST or PUT allowed</error>";
+    response->content_type = "application/xml";
+  } else if (NULL == request->data) {
+    info("NO DATA");
+    HTTP_BAD_XML(response);
+  } else if (NULL == (doc = xmlParseDoc(BAD_CAST request->data->buffer))) {
+    info("BAD DATA: %s", request->data->buffer);
+    HTTP_BAD_XML(response);
+  } else {
+    int feed_id = get_feed_id(request->path);
+     
+    if (feed_id <= 0) {
+      HTTP_BAD_ENTRY(response);
+    } else {
+      ItemCacheEntry *entry = entry_from_xml(feed_id, doc);
+        
+      if (CLASSIFIER_OK == item_cache_add_entry(request->item_cache, entry)) {
+        response->code = MHD_HTTP_CREATED;
+        response->content = request->data->buffer;
+        response->content_type = CONTENT_TYPE;
+      } else {
+        response->code = 500;
+        response->content = "";
+      }
+    }       
+    
+    xmlFreeDoc(doc);
+  }
+  
+  return 0;
 }
 
 static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
@@ -280,20 +424,10 @@ static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
 }
 
 static int delete_feed(const HTTPRequest * request, HTTPResponse * response) {  
-  regex_t regex;
-  regmatch_t matches[2];
+  int feed_id = get_feed_id(request->path);
   
-  if (regcomp(&regex, "^/feeds/([0-9]+)", REG_EXTENDED)) {
-    fatal("Error compiling regex");
-    return 1;
-  }
-  
-  if (0 == regexec(&regex, request->path, 2, matches, 0)) {
-    regmatch_t match = matches[1];
-    char *id_s = calloc(match.rm_eo - match.rm_so + 1, sizeof(char));
-    strncpy(id_s, &request->path[match.rm_so], match.rm_eo - match.rm_so);
-    
-    if (CLASSIFIER_FAIL == item_cache_remove_feed(request->item_cache, strtol(id_s, NULL, 10))) {
+  if (feed_id > 0) {    
+    if (CLASSIFIER_FAIL == item_cache_remove_feed(request->item_cache, feed_id)) {
       HTTP_ITEM_CACHE_ERROR(response, request->item_cache);
     } else {
       response->code = MHD_HTTP_NO_CONTENT;
@@ -302,9 +436,7 @@ static int delete_feed(const HTTPRequest * request, HTTPResponse * response) {
   } else {
     HTTP_NOT_FOUND(response);
   }
-  
-  regfree(&regex);
-  
+    
   return 0;
 }
 
@@ -436,6 +568,8 @@ static int handle_request(const Httpd * httpd, const HTTPRequest * request, HTTP
     response->free_content = MHD_YES;
   } else if (0 == regexec(&httpd->item_cache_feeds_regex, request->path, 0, NULL, 0)) {
     feed_handler(request, response);
+  } else if (0 == regexec(&httpd->item_cache_create_feed_items_regex, request->path, 0, NULL, 0)) {
+    add_entry(request, response);
   } else {
     HTTP_NOT_FOUND(response);
   }
@@ -555,7 +689,13 @@ Httpd * httpd_start(Config *config, ClassificationEngine *ce, ItemCache *item_ca
     
     if ((regex_error = regcomp(&httpd->item_cache_feeds_regex, "^/feeds/?([0-9]+)?$", REG_EXTENDED | REG_NOSUB))) {
       char buffer[1024];
-      regerror(regex_error, &httpd->about_regex, buffer, sizeof(buffer));
+      regerror(regex_error, &httpd->item_cache_feeds_regex, buffer, sizeof(buffer));
+      fatal("Error compiling REGEX: %s", buffer);
+    }
+    
+    if ((regex_error = regcomp(&httpd->item_cache_create_feed_items_regex, "^/feeds/([0-9]+)/feed_items/?$", REG_EXTENDED | REG_NOSUB))) {
+      char buffer[1024];
+      regerror(regex_error, &httpd->item_cache_create_feed_items_regex, buffer, sizeof(buffer));
       fatal("Error compiling REGEX: %s", buffer);
     }
     
