@@ -143,15 +143,23 @@ static char * url_for_job(const ClassificationJob *job) {
   return url;
 }
 
-static const char * extract_job_id(const char * url) {
+static char * extract_job_id(const char * url) {
   char *job_id = NULL;
-  char *last_slash = rindex(url, '/');
-  char *string_end = rindex(url, '\0');
+  regex_t regex;
+  regmatch_t matches[3];
   
-  if (last_slash && (string_end - last_slash) > sizeof(char)) {
-    job_id = last_slash + sizeof(char);
+  if (regcomp(&regex, "^/classifier/jobs/([A-Za-z0-9-]*)(.xml)?$", REG_EXTENDED)) {
+    fatal("Error compiling regex");
+    return NULL;
   }
   
+  if (0 == regexec(&regex, url, 3, matches, 0)) {
+    regmatch_t match = matches[1];
+    job_id = calloc(match.rm_eo - match.rm_so + 1, sizeof(char));
+    strncpy(job_id, &url[match.rm_so], match.rm_eo - match.rm_so);
+  }
+  
+  regfree(&regex);
   return job_id;
 }
 
@@ -249,7 +257,7 @@ static int start_job(const HTTPRequest * request, HTTPResponse * response) {
 
 static int job_handler(const HTTPRequest * request, HTTPResponse * response) {
   int ret;
-  const char *job_id = extract_job_id(request->path);
+  char *job_id = extract_job_id(request->path);
   ClassificationJob *job = NULL;
   
   if (job_id == NULL) {
@@ -281,6 +289,10 @@ static int job_handler(const HTTPRequest * request, HTTPResponse * response) {
     response->content_type = CONTENT_TYPE;
   }
   
+  if (job_id) {
+    free(job_id);
+  }
+  
   return ret;
 }
 
@@ -304,7 +316,6 @@ static int handle_request(const Httpd * httpd, const HTTPRequest * request, HTTP
 
 /* This is the base response handler. It just returns a 404. 
  * 
- * TODO Regex matching of URLs would be much more robust
  */
 static int process_request(void * httpd_vp, struct MHD_Connection * connection,
                            const char * raw_url, const char * method, 
@@ -321,11 +332,7 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     request->ce = httpd->ce;    
     request->path = strdup(raw_url);    
     gettimeofday(&request->start_time, NULL);
-    
-    /* strip any .xml extensions */
-    char *ext;
-    if ((ext = strstr(request->path, ".xml"))) ext[0] = '\0';
-    
+        
     if (*upload_data_size > 0) {
       request->data = calloc(1, sizeof(PostedData));
     }
@@ -403,7 +410,7 @@ Httpd * httpd_start(Config *config, ClassificationEngine *ce) {
       fatal("Error compiling REGEX: %s", buffer);
     }
     
-    if ((regex_error = regcomp(&httpd->job_status_regex, "^/classifier/jobs/.*", REG_EXTENDED | REG_NOSUB))) {
+    if ((regex_error = regcomp(&httpd->job_status_regex, "^/classifier/jobs/.+(.xml)*$", REG_EXTENDED | REG_NOSUB))) {
       char buffer[1024];
       regerror(regex_error, &httpd->job_status_regex, buffer, sizeof(buffer));
       fatal("Error compiling REGEX: %s", buffer);
