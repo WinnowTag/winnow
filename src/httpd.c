@@ -379,9 +379,14 @@ static int entry_handler(const HTTPRequest * request, HTTPResponse * response) {
   if (entry_id <= 0) {
     HTTP_NOT_FOUND(response);
   } else if (DELETE == request->method) {
-    if (CLASSIFIER_OK == item_cache_remove_entry(request->item_cache, entry_id)) {
+    int rc = item_cache_remove_entry(request->item_cache, entry_id);
+    if (CLASSIFIER_OK == rc) {
       response->code = MHD_HTTP_NO_CONTENT;
-      response->content = "<error>Entry removed successfully.</error>";
+      response->content = "<info>Entry removed successfully.</info>";
+      response->content_type = CONTENT_TYPE;
+    } else if (ITEM_CACHE_ENTRY_PROTECTED == rc) {
+      response->code = MHD_HTTP_ACCEPTED;
+      response->content = "<info>Entry removed successfully.</info>";
       response->content_type = CONTENT_TYPE;
     } else {
       HTTP_ISE(response);

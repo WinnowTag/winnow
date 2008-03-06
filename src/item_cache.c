@@ -797,12 +797,18 @@ int item_cache_remove_entry(ItemCache *item_cache, int entry_id) {
   
   if (item_cache) {
     pthread_mutex_lock(item_cache->db_access_mutex);
-    
+    int sqlite3_rc;
     sqlite3_bind_int(item_cache->delete_entry_stmt, 1, entry_id);
+    sqlite3_rc = sqlite3_step(item_cache->delete_entry_stmt);
     
-    if (SQLITE_DONE != sqlite3_step(item_cache->delete_entry_stmt)) {
-      error("Error deleteing ItemCache entry %i: %s", entry_id, item_cache_errmsg(item_cache));
-      rc = CLASSIFIER_FAIL;      
+    if (SQLITE_DONE != sqlite3_rc) {
+      if (SQLITE_CONSTRAINT == sqlite3_rc) {
+        info("Constraint violated");
+        rc = ITEM_CACHE_ENTRY_PROTECTED;
+      } else {
+        error("Error deleting ItemCache entry %i: %s", entry_id, item_cache_errmsg(item_cache));
+        rc = CLASSIFIER_FAIL;        
+      }      
     } else {
       info("Deleted ItemCache entry %i", entry_id);
     }

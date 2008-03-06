@@ -435,6 +435,11 @@ START_TEST (test_removing_an_entry_removes_it_from_the_database) {
   sqlite3_close(db);
 } END_TEST
 
+START_TEST (test_removing_a_random_background_entry_returns_202) {
+  char *url = "http://localhost:8008/feed_items/890806";
+  assert_delete(url, 202, devnull);
+} END_TEST
+
 #endif
 
 Suite * http_suite(void) {
@@ -476,6 +481,8 @@ Suite * http_suite(void) {
   tcase_add_test(tc_item_cache, test_adding_an_entry_to_nonexistant_feed_returns_422);
   tcase_add_test(tc_item_cache, test_removing_an_entry_returns_204);
   tcase_add_test(tc_item_cache, test_removing_an_entry_removes_it_from_the_database);
+  tcase_add_test(tc_item_cache, test_removing_a_random_background_entry_returns_202);
+  
 
 #endif
   suite_add_tcase(s, tc_case);

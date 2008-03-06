@@ -303,7 +303,7 @@ START_TEST (test_destroying_an_entry_removes_tokens_from_the_database_file) {
 
 START_TEST (test_cant_delete_an_item_that_is_used_in_the_random_background) {
   int rc = item_cache_remove_entry(item_cache, 890806);
-  assert_equal(CLASSIFIER_FAIL, rc);
+  assert_equal(ITEM_CACHE_ENTRY_PROTECTED, rc);
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
@@ -316,7 +316,7 @@ START_TEST (test_cant_delete_an_item_that_is_used_in_the_random_background) {
 
 START_TEST (test_failed_deletion_doesnt_delete_tokens) {
   int rc = item_cache_remove_entry(item_cache, 890806);
-  assert_equal(CLASSIFIER_FAIL, rc); 
+  assert_equal(ITEM_CACHE_ENTRY_PROTECTED, rc); 
     
   sqlite3 *db;
   sqlite3_stmt *stmt;

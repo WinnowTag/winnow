@@ -11,6 +11,8 @@
 
 #include <time.h>
 
+#define ITEM_CACHE_ENTRY_PROTECTED 2
+
 typedef struct TOKEN {
   int id;
   int frequency;
