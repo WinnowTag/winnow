@@ -57,6 +57,12 @@
   response->code = MHD_HTTP_INTERNAL_SERVER_ERROR; \
   response->content = (char*) item_cache_errmsg(item_cache); \
   response->content_type = "text/plain";
+  
+#define HTTP_ISE(response) \
+  response->code = MHD_HTTP_INTERNAL_SERVER_ERROR; \
+  response->content = "Internal Server Error"; \
+  response->content_type = "text/plain";
+
 
 typedef enum HTTP_METHOD {
   GET,
@@ -75,6 +81,7 @@ struct HTTPD {
   regex_t about_regex;
   regex_t item_cache_feeds_regex;
   regex_t item_cache_create_feed_items_regex;
+  regex_t item_cache_feed_items_regex;
 };
 
 typedef struct posted_data {
@@ -299,12 +306,12 @@ static HTTPMethod get_method(const char *method) {
   }
 }
 
-static int get_feed_id(const char * path) {
-  int feed_id = 0;
+static int get_path_id(const char * pattern, const char * path) {
+  int id = 0;
   regex_t regex;
   regmatch_t matches[2];
   
-  if (regcomp(&regex, "^/feeds/([0-9]+)", REG_EXTENDED)) {
+  if (regcomp(&regex, pattern, REG_EXTENDED)) {
     fatal("Error compiling regex");
     return -1;
   }
@@ -313,13 +320,21 @@ static int get_feed_id(const char * path) {
     regmatch_t match = matches[1];
     char *id_s = calloc(match.rm_eo - match.rm_so + 1, sizeof(char));
     strncpy(id_s, &path[match.rm_so], match.rm_eo - match.rm_so);
-    feed_id = strtol(id_s, NULL, 0);
+    id = strtol(id_s, NULL, 0);
     free(id_s);
   }
   
   regfree(&regex);
   
-  return feed_id;
+  return id;  
+}
+
+static int get_entry_id(const char * path) {
+  return get_path_id("^/feed_items/([0-9]+)$", path);
+}
+
+static int get_feed_id(const char * path) {
+  return get_path_id("^/feeds/([0-9]+)", path);
 }
 
 static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
@@ -353,6 +368,26 @@ static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
     }       
     
     xmlFreeDoc(doc);
+  }
+  
+  return 0;
+}
+
+static int entry_handler(const HTTPRequest * request, HTTPResponse * response) {
+  int entry_id = get_entry_id(request->path);
+  
+  if (entry_id <= 0) {
+    HTTP_NOT_FOUND(response);
+  } else if (DELETE == request->method) {
+    if (CLASSIFIER_OK == item_cache_remove_entry(request->item_cache, entry_id)) {
+      response->code = MHD_HTTP_NO_CONTENT;
+      response->content = "<error>Entry removed successfully.</error>";
+      response->content_type = CONTENT_TYPE;
+    } else {
+      HTTP_ISE(response);
+    }
+  } else {
+    HTTP_ISE(response);
   }
   
   return 0;
@@ -569,6 +604,8 @@ static int handle_request(const Httpd * httpd, const HTTPRequest * request, HTTP
     feed_handler(request, response);
   } else if (0 == regexec(&httpd->item_cache_create_feed_items_regex, request->path, 0, NULL, 0)) {
     add_entry(request, response);
+  } else if (0 == regexec(&httpd->item_cache_feed_items_regex, request->path, 0, NULL, 0)) {
+    entry_handler(request, response);  
   } else {
     HTTP_NOT_FOUND(response);
   }
@@ -695,6 +732,12 @@ Httpd * httpd_start(Config *config, ClassificationEngine *ce, ItemCache *item_ca
     if ((regex_error = regcomp(&httpd->item_cache_create_feed_items_regex, "^/feeds/([0-9]+)/feed_items/?$", REG_EXTENDED | REG_NOSUB))) {
       char buffer[1024];
       regerror(regex_error, &httpd->item_cache_create_feed_items_regex, buffer, sizeof(buffer));
+      fatal("Error compiling REGEX: %s", buffer);
+    }
+    
+    if ((regex_error = regcomp(&httpd->item_cache_feed_items_regex, "^/feed_items/([0-9]+)$", REG_EXTENDED | REG_NOSUB))) {
+      char buffer[1024];
+      regerror(regex_error, &httpd->item_cache_feed_items_regex, buffer, sizeof(buffer));
       fatal("Error compiling REGEX: %s", buffer);
     }
     

@@ -417,6 +417,24 @@ START_TEST (test_adding_an_entry_saves_it_in_the_database) {
   sqlite3_close(db);
 } END_TEST
 
+START_TEST (test_removing_an_entry_returns_204) {
+  char *url = "http://localhost:8008/feed_items/753459";
+  assert_delete(url, 204, devnull);
+} END_TEST
+
+START_TEST (test_removing_an_entry_removes_it_from_the_database) {
+  char *url = "http://localhost:8008/feed_items/753459";
+  assert_delete(url, 204, devnull);
+  
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from entries where id = 753459", -1, &stmt, NULL);
+  int rc = sqlite3_step(stmt);
+  assert_equal(SQLITE_DONE, rc);
+  sqlite3_close(db);
+} END_TEST
+
 #endif
 
 Suite * http_suite(void) {
@@ -456,7 +474,9 @@ Suite * http_suite(void) {
   tcase_add_test(tc_item_cache, test_adding_an_entry_saves_it_in_the_database);
   tcase_add_test(tc_item_cache, test_adding_an_empty_entry_returns_400);
   tcase_add_test(tc_item_cache, test_adding_an_entry_to_nonexistant_feed_returns_422);
-  
+  tcase_add_test(tc_item_cache, test_removing_an_entry_returns_204);
+  tcase_add_test(tc_item_cache, test_removing_an_entry_removes_it_from_the_database);
+
 #endif
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, tc_item_cache);
