@@ -42,8 +42,8 @@ bin_PROGRAMS = classifier
 classifier_SOURCES = svnversion.h main.c 
 classifier_LDADD = libclassifier.la
 
-cls_bench_SOURCES = bench.c
-cls_bench_LDADD = libclassifier.la
+#cls_bench_SOURCES = bench.c
+#cls_bench_LDADD = libclassifier.la
 
 if DEBUG
 classifier_CFLAGS = -g -DDEBUG
@@ -51,7 +51,7 @@ classifier_LDFLAGS = -static
 libclassifier_la_CFLAGS = -g -DDEBUG
 endif
 
-noinst_PROGRAMS = cls_bench
+# noinst_PROGRAMS = cls_bench
 
 svnversion.h:
 	echo "static const char *svn_version = \"`svnversion`\";" > svnversion.h
