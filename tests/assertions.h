@@ -115,4 +115,28 @@
     assert_equal_s("application/xml", content_type);                      \
     curl_easy_cleanup(curl);                                              \
 }
+
+#define assert_put(url, data, size, response_code, store_output, store_headers) { \
+    mark_point();\
+    int code;                                                             \
+    char curlerr[CURL_ERROR_SIZE];                                        \
+    char *content_type;                                                   \
+    CURL *curl = curl_easy_init();                                        \
+    curl_easy_setopt(curl, CURLOPT_URL, url);                             \
+    curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);  \
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);                 \
+    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1);                              \
+    curl_easy_setopt(curl, CURLOPT_READDATA, data);                    \
+    curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t) size);                    \
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, store_output);              \
+    curl_easy_setopt(curl, CURLOPT_WRITEHEADER, store_headers);           \
+    if (curl_easy_perform(curl)) fail("HTTP server not accessible: %s", curlerr); \
+    _mark_point("assertions.h", 88);\
+    if (CURLE_OK != curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code)) fail("Could not get response code"); \
+    if (curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type)) fail("Could not get content type"); \
+    assert_equal(response_code, code);                                              \
+    assert_not_null(content_type);                                        \
+    assert_equal_s("application/xml", content_type);                      \
+    curl_easy_cleanup(curl);                                              \
+}
 #endif

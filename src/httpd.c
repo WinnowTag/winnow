@@ -487,9 +487,16 @@ static int feed_handler(const HTTPRequest * request, HTTPResponse * response) {
     case POST:
       add_feed(request, response);
       break;
+    case PUT:
+      // TODO Decide if we ever need to actually update a feed. For now it is a no-op
+      response->code = MHD_HTTP_ACCEPTED;
+      response->content = "<info>Feed updates ignored.</info>";
+      response->content_type = CONTENT_TYPE;
+      break;
     default:
       response->code = MHD_HTTP_METHOD_NOT_ALLOWED;
       response->content = "Only POST, PUT or DELETE allowed";
+      response->content_type = "text/plain";
       break;
   }
   
@@ -625,11 +632,13 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
                            const char * raw_url, const char * method, 
                            const char * version, const char * upload_data,
                            unsigned int * upload_data_size, void **memo) {
+  int new_request = false;
   int ret = MHD_YES;
   Httpd * httpd = (Httpd*) httpd_vp;
   
   HTTPRequest *request = (HTTPRequest*) *memo;
   if (NULL == request) {
+    new_request = true;
     request = calloc(1, sizeof(HTTPRequest));
     request->method = get_method(method);
     request->connection = connection;
@@ -638,7 +647,7 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     request->path = strdup(raw_url);    
     gettimeofday(&request->start_time, NULL);
         
-    if (*upload_data_size > 0) {
+    if (request->method == PUT || request->method == POST) {      
       request->data = calloc(1, sizeof(PostedData));
     }
     
@@ -649,7 +658,10 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     request->data->buffer = strdup(upload_data);
     request->data->size = *upload_data_size;    
     *upload_data_size = 0;
-    ret = MHD_YES;      
+    ret = MHD_YES;
+  } else if (new_request && *upload_data_size == 0 && request->data) {
+    // Data hasn't arrived yet
+    ret = MHD_YES;
   } else if (*upload_data_size > 0 && request->data->size > 0) {    
     error("TODO Need to handle incremental processing of POST'ed data");      
   } else if (*upload_data_size == 0) {
@@ -670,7 +682,7 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     
     struct timeval end_time;
     gettimeofday(&end_time, NULL);    
-    info("%s %s %i %.7fs", method, raw_url, response.code, tdiff(request->start_time, end_time));
+    info("%s %s %i %.7fs %i", method, raw_url, response.code, tdiff(request->start_time, end_time), ret);
     
     free(request->path);
     if (request->data) free(request->data);

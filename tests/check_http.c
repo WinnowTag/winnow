@@ -343,6 +343,15 @@ START_TEST (test_adding_a_feed_adds_it_to_the_database) {
   sqlite3_close(db);
 } END_TEST
 
+START_TEST (test_updating_a_feed_returns_202) {
+  char *url = "http://localhost:8008/feeds/1337";
+  FILE *file = fopen("fixtures/entry.atom", "r");
+  fseek(file, 0, SEEK_END);
+  int size = ftell(file);
+  fseek(file, 0, SEEK_SET);
+
+  assert_put(url, file, size, 202, data, devnull);
+} END_TEST
 
 START_TEST (test_removing_a_feed_returns_204) {
   char *url = "http://localhost:8008/feeds/141";
@@ -482,7 +491,7 @@ Suite * http_suite(void) {
   tcase_add_test(tc_item_cache, test_removing_an_entry_returns_204);
   tcase_add_test(tc_item_cache, test_removing_an_entry_removes_it_from_the_database);
   tcase_add_test(tc_item_cache, test_removing_a_random_background_entry_returns_202);
-  
+  tcase_add_test(tc_item_cache, test_updating_a_feed_returns_202);
 
 #endif
   suite_add_tcase(s, tc_case);
