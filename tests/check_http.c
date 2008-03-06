@@ -324,13 +324,13 @@ START_TEST (test_adding_a_feed_with_no_content_returns_400) {
 
 START_TEST (test_adding_a_feed_returns_201) {
   char *url = "http://localhost:8008/feeds";
-  char *post_data = "<?xml version=\"1.0\" ?>\n<entry><title>Feed 1337</title><id>urn:peerworks.org:feeds#1337</id></entry>\n";
+  char *post_data = "<?xml version=\"1.0\" ?>\n<entry xmlns=\"http://www.w3.org/2005/Atom\"><title>Feed 1337</title><id>urn:peerworks.org:feeds#1337</id></entry>\n";
   assert_post(url, post_data, 201, data, devnull);
 } END_TEST
 
 START_TEST (test_adding_a_feed_adds_it_to_the_database) {
   char *url = "http://localhost:8008/feeds";
-  char *post_data = "<?xml version=\"1.0\" ?>\n<entry><title>Feed 1337</title><id>urn:peerworks.org:feeds#1337</id></entry>\n";
+  char *post_data = "<?xml version=\"1.0\" ?>\n<entry xmlns=\"http://www.w3.org/2005/Atom\"><title>Feed 1337</title><id>urn:peerworks.org:feeds#1337</id></entry>\n";
   assert_post(url, post_data, 201, data, devnull);
   
   sqlite3 *db;

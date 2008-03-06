@@ -414,42 +414,32 @@ static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
     } else if (NULL == (doc = xmlParseDoc(BAD_CAST request->data->buffer))) {              
       HTTP_BAD_XML(response);
     } else {
-      xmlXPathContextPtr context = xmlXPathNewContext(doc);    
-      xmlXPathObjectPtr id = xmlXPathEvalExpression(BAD_CAST "/entry/id/text()", context);
-      xmlXPathObjectPtr title = xmlXPathEvalExpression(BAD_CAST "/entry/title/text()", context);
+      xmlXPathContextPtr context = xmlXPathNewContext(doc);
+      xmlXPathRegisterNs(context, BAD_CAST "atom", BAD_CAST "http://www.w3.org/2005/Atom");
+      char *title = get_element_value(context, "/atom:entry/atom:title/text()");
+      char *id = get_element_value(context, "/atom:entry/atom:id/text()");
             
-      if (xmlXPathNodeSetIsEmpty(id->nodesetval) || xmlXPathNodeSetIsEmpty(title->nodesetval)) {
+      if (!title || !id) {
         HTTP_BAD_FEED(response);
       } else {
-        char *title_s = (char*) title->nodesetval->nodeTab[0]->content;
-        char *id_s = (char*) id->nodesetval->nodeTab[0]->content;
-        xmlURIPtr id_uri = xmlParseURI(id_s);
+        int feed_id = get_atom_id(id);
         
-        if (!id_uri->fragment) {
+        if (feed_id <= 0) {
           HTTP_BAD_FEED(response);
         } else {
-          int id_i = strtol(id_uri->fragment, NULL, 10);
-          if (id_i <= 0) {
-            HTTP_BAD_FEED(response);
+          Feed *feed = create_feed(feed_id, title);
+          if (CLASSIFIER_OK == item_cache_add_feed(request->item_cache, feed)) {
+            response->code = MHD_HTTP_CREATED;
+            response->content = strdup(request->data->buffer);
+            response->content_type = CONTENT_TYPE;
+            response->free_content = MHD_YES;
           } else {
-            Feed *feed = create_feed(id_i, title_s);
-            if (CLASSIFIER_OK == item_cache_add_feed(request->item_cache, feed)) {
-              response->code = MHD_HTTP_CREATED;
-              response->content = strdup(request->data->buffer);
-              response->content_type = CONTENT_TYPE;
-              response->free_content = MHD_YES;
-            } else {
-              HTTP_ITEM_CACHE_ERROR(response, request->item_cache);
-            }
-            free_feed(feed);
+            HTTP_ITEM_CACHE_ERROR(response, request->item_cache);
           }
-        }
-        
-        xmlFreeURI(id_uri);
+          free_feed(feed);
+        }        
       }
       
-      xmlXPathFreeObject(id);
-      xmlXPathFreeObject(title);
       xmlXPathFreeContext(context);
       xmlFreeDoc(doc);
     }
