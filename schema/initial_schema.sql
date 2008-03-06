@@ -54,8 +54,17 @@ create trigger entry_tokens_entry_id
       DELETE from entry_tokens WHERE entry_id = OLD.id;
   END;
 
+-- Prevent insertion of entries without feeds
+CREATE TRIGGER entry_feed_insert
+  BEFORE INSERT ON entries
+  FOR EACH ROW BEGIN
+      SELECT RAISE(ROLLBACK, 'insert on table "entries" violates foreign key constraint "entry_feed"')
+      WHERE  NEW.feed_id IS NOT NULL
+             AND (SELECT id FROM feeds WHERE id = new.feed_id) IS NULL;
+  END;
+  
 -- Cascade delete from feeds to entries  
-create trigger entry_feed
+create trigger entry_feed_delete
   BEFORE DELETE ON feeds
   FOR EACH ROW BEGIN
       DELETE from entries WHERE feed_id = OLD.id;

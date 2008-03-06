@@ -212,7 +212,7 @@ START_TEST (test_adding_an_entry_stores_it_in_the_database) {
                                         "http://example.org/11",
                                         "http://example.org/11.html",
                                         "<p>This is some content</p>",
-                                        1178551600, 1, 1178551601);
+                                        1178551600, 141, 1178551601);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
   Item *item = item_cache_fetch_item(item_cache, 11);
@@ -225,7 +225,7 @@ START_TEST (adding_an_entry_saves_all_its_attributes) {
                                           "http://example.org/11",
                                           "http://example.org/11.html",
                                           "<p>This is some content</p>",
-                                          1178551600, 1, 1178551601);
+                                          1178551600, 141, 1178551601);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
   
@@ -241,7 +241,7 @@ START_TEST (adding_an_entry_saves_all_its_attributes) {
     assert_equal_s("http://example.org/11.html", sqlite3_column_text(stmt, 5));
     assert_equal_s("<p>This is some content</p>", sqlite3_column_text(stmt, 6));
     assert_equal_f(2454228.14351852, sqlite3_column_double(stmt, 7));
-    assert_equal(1, sqlite3_column_int(stmt, 8));
+    assert_equal(141, sqlite3_column_int(stmt, 8));
     assert_equal_f(2454228.14353009, sqlite3_column_double(stmt, 9));
   } else {
     fail("Could not get record");
@@ -255,7 +255,7 @@ START_TEST (adding_an_entry_twice_does_not_fail) {
                                           "http://example.org/11",
                                           "http://example.org/11.html",
                                           "<p>This is some content</p>",
-                                          1178551600, 1, 1178551601);
+                                          1178551600, 141, 1178551601);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
   rc = item_cache_add_entry(item_cache, entry);
@@ -394,7 +394,7 @@ START_TEST (test_adding_entry_causes_it_to_be_added_to_the_tokenization_queue) {
                                             "http://example.org/11",
                                             "http://example.org/11.html",
                                             "<p>This is some content</p>",
-                                            1178551600, 1, 1178551601);
+                                            1178551600, 141, 1178551601);
   item_cache_add_entry(item_cache, entry);
   assert_equal(1, item_cache_feature_extraction_queue_size(item_cache));
 } END_TEST
@@ -404,7 +404,7 @@ START_TEST (test_adding_entry_twice_causes_it_to_be_added_to_the_tokenization_qu
                                             "http://example.org/11",
                                             "http://example.org/11.html",
                                             "<p>This is some content</p>",
-                                            1178551600, 1, 1178551601);
+                                            1178551600, 141, 1178551601);
   item_cache_add_entry(item_cache, entry);
   item_cache_add_entry(item_cache, entry);
   assert_equal(1, item_cache_feature_extraction_queue_size(item_cache));
@@ -599,7 +599,7 @@ START_TEST (test_update_callback) {
                                                     1178551600, 1, 1178551601);
   
   item_cache_add_entry(item_cache, entry1);  
-  sched_yield();
+  sleep(1);
   assert_equal(&memo, memo_ref);
 } END_TEST
 

@@ -377,11 +377,11 @@ START_TEST (test_adding_an_empty_entry_returns_400) {
   assert_post(url, "", 400, data, devnull);
 } END_TEST
 
-START_TEST (test_adding_an_entry_to_nonexistant_feed_returns_400) {
+START_TEST (test_adding_an_entry_to_nonexistant_feed_returns_422) {
   char *url = "http://localhost:8008/feeds/1/feed_items";
   char xml[2048];
   read_file("fixtures/entry.atom", xml);
-  assert_post(url, xml, 400, data, devnull);
+  assert_post(url, xml, 422, data, devnull);
 } END_TEST
 
 START_TEST (test_adding_an_entry_returns_201) {
@@ -455,7 +455,7 @@ Suite * http_suite(void) {
   tcase_add_test(tc_item_cache, test_adding_an_entry_returns_201);
   tcase_add_test(tc_item_cache, test_adding_an_entry_saves_it_in_the_database);
   tcase_add_test(tc_item_cache, test_adding_an_empty_entry_returns_400);
-  tcase_add_test(tc_item_cache, test_adding_an_entry_to_nonexistant_feed_returns_400);
+  tcase_add_test(tc_item_cache, test_adding_an_entry_to_nonexistant_feed_returns_422);
   
 #endif
   suite_add_tcase(s, tc_case);

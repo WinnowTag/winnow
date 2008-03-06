@@ -50,8 +50,8 @@
 
 #define HTTP_BAD_ENTRY(response) \
   response->code = MHD_HTTP_UNPROCESSABLE_ENTITY; \
-  response->content = "Bad Entry"; \
-  response->content_type = "text/plain";
+  response->content = "<error>Bad Entry</error>"; \
+  response->content_type = CONTENT_TYPE;
 
 #define HTTP_ITEM_CACHE_ERROR(response, item_cache) \
   response->code = MHD_HTTP_INTERNAL_SERVER_ERROR; \
@@ -348,8 +348,7 @@ static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
         response->content = request->data->buffer;
         response->content_type = CONTENT_TYPE;
       } else {
-        response->code = 500;
-        response->content = "";
+        HTTP_BAD_ENTRY(response);
       }
     }       
     
