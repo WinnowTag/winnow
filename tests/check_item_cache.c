@@ -529,8 +529,38 @@ START_TEST (test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_up
                                                 1178551600, 1, 1178551601);
   item_cache_add_entry(item_cache, entry);  
   sleep(1);
-  debug("about to check");
   assert_equal(1, item_cache_update_queue_size(item_cache));
+} END_TEST
+
+/* NULL feature extractor */
+
+static Item * null_feature_extractor(ItemCache *item_cache, const ItemCacheEntry * entry, void *ignore) {
+  return NULL;
+}
+
+static void setup_null_feature_extraction(void) {
+  system("cp fixtures/valid.db fixtures/valid-copy.db");
+  item_cache_create(&item_cache, "fixtures/valid-copy.db");
+  item_cache_set_feature_extractor(item_cache, null_feature_extractor, NULL);
+  item_cache_load(item_cache);
+  item_cache_start_feature_extractor(item_cache);
+
+  tokenized_item = create_item_with_tokens_and_time(9, tokens, 4, (time_t) 1178683198L);
+}
+
+static void teardown_null_feature_extraction(void) {
+  free_item_cache(item_cache);
+}
+
+START_TEST (test_null_feature_extraction) {
+  ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
+                                                "http://example.org/11",
+                                                "http://example.org/11.html",
+                                                "<p>This is some content</p>",
+                                                1178551600, 1, 1178551601);
+  item_cache_add_entry(item_cache, entry);  
+  sleep(1);
+  assert_equal(0, item_cache_update_queue_size(item_cache));
 } END_TEST
 
 
@@ -671,6 +701,10 @@ item_cache_suite(void) {
   tcase_add_test(feature_extraction, test_adding_entry_results_in_calling_the_tokenizer_with_the_entry);
   tcase_add_test(feature_extraction, test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_update_queue);
   
+  TCase *null_feature_extraction = tcase_create("null feature extraction");
+  tcase_add_checked_fixture(null_feature_extraction, setup_null_feature_extraction, teardown_null_feature_extraction);
+  tcase_add_test(null_feature_extraction, test_null_feature_extraction);
+     
   TCase *full_update = tcase_create("full update");
   tcase_add_checked_fixture(full_update, setup_full_update, teardown_full_update);
   tcase_add_test(full_update, test_adding_entry_causes_item_added_to_cache); 
@@ -685,6 +719,7 @@ item_cache_suite(void) {
   suite_add_tcase(s, modification);
   suite_add_tcase(s, loaded_modification);
   suite_add_tcase(s, feature_extraction);
+  suite_add_tcase(s, null_feature_extraction);
   suite_add_tcase(s, full_update);
   return s;
 }

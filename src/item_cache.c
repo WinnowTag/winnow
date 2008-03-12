@@ -948,9 +948,11 @@ static void * feature_extraction_thread_func(void *memo) {
     if (entry) {
       debug("Got entry off feature_extraction_queue");
       Item *item = item_cache->feature_extractor(item_cache, entry, item_cache->feature_extractor_memo);
-      UpdateJob *job = create_add_job(item);
-      q_enqueue(item_cache->update_queue, job);
-      debug("Update added to update_queue");
+      if (item) {
+        UpdateJob *job = create_add_job(item);
+        q_enqueue(item_cache->update_queue, job);
+        debug("Update added to update_queue");  
+      }       
     }
   }
   
