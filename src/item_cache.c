@@ -943,7 +943,7 @@ static void * feature_extraction_thread_func(void *memo) {
     ItemCacheEntry *entry = q_dequeue_or_wait(item_cache->feature_extraction_queue);
     if (entry) {
       debug("Got entry off feature_extraction_queue");
-      Item *item = item_cache->feature_extractor(entry);
+      Item *item = item_cache->feature_extractor(item_cache, entry);
       UpdateJob *job = create_add_job(item);
       q_enqueue(item_cache->update_queue, job);
       debug("Update added to update_queue");

@@ -491,7 +491,7 @@ START_TEST (test_add_item_puts_it_in_the_right_position_at_end) {
 static const ItemCacheEntry *tokenizer_called_with = NULL;
 static Item *tokenized_item;
 
-static Item * mock_feature_extractor(const ItemCacheEntry * entry) {
+static Item * mock_feature_extractor(ItemCache * item_cache, const ItemCacheEntry * entry) {
   tokenizer_called_with = entry;
   return tokenized_item;
 }
@@ -536,7 +536,7 @@ START_TEST (test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_up
 
 /* Cache updating tests */
 static int item_id = 9; 
-static Item * mock_feature_extractor2(const ItemCacheEntry * entry) {
+static Item * mock_feature_extractor2(ItemCache *item_cache, const ItemCacheEntry * entry) {
   return create_item_with_tokens_and_time(item_id++, tokens, 4, (time_t) 1178683198L);;
 }
 
