@@ -66,6 +66,7 @@ static void teardown_httpd() {
   free_config(config);
   fclose(test_data);
   fclose(devnull);
+  fclose(headers);
 }
 
 #ifdef HAVE_LIBCURL
@@ -154,7 +155,7 @@ START_TEST(test_post_with_valid_tag_id_queues_job) {
   assert_equal(48, cjob_tag_id(job));
   
   char line[1024];
-  sprintf(line, "Location: /classifier/jobs/%s", id);
+  sprintf(line, "Location: http://localhost:8008/classifier/jobs/%s", id);
   assert_file_contains_line("/tmp/headers.txt", line);
 
   xmlXPathFreeObject(result);  
@@ -328,6 +329,14 @@ START_TEST (test_adding_a_feed_returns_201) {
   assert_post(url, post_data, 201, data, devnull);
 } END_TEST
 
+START_TEST (test_adding_a_feed_responds_with_the_location_in_the_header) {
+  char *url = "http://localhost:8008/feeds";
+  char *post_data = "<?xml version=\"1.0\" ?>\n<entry xmlns=\"http://www.w3.org/2005/Atom\"><title>Feed 1337</title><id>urn:peerworks.org:feeds#1337</id></entry>\n";
+  assert_post(url, post_data, 201, data, headers);
+  fclose(headers);
+  assert_file_contains_line("/tmp/headers.txt", "Location: http://localhost:8008/feeds/1337");
+} END_TEST
+
 START_TEST (test_adding_a_feed_adds_it_to_the_database) {
   char *url = "http://localhost:8008/feeds";
   char *post_data = "<?xml version=\"1.0\" ?>\n<entry xmlns=\"http://www.w3.org/2005/Atom\"><title>Feed 1337</title><id>urn:peerworks.org:feeds#1337</id></entry>\n";
@@ -480,6 +489,7 @@ Suite * http_suite(void) {
   tcase_add_test(tc_item_cache, test_adding_a_feed_with_no_content_returns_400);
   tcase_add_test(tc_item_cache, test_adding_a_feed_adds_it_to_the_database);
   tcase_add_test(tc_item_cache, test_adding_a_feed_returns_201);
+  tcase_add_test(tc_item_cache, test_adding_a_feed_responds_with_the_location_in_the_header);
   tcase_add_test(tc_item_cache, test_removing_a_feed_removes_it_from_the_database);
   //tcase_add_test(tc_item_cache, test_removing_a_feed_that_doesnt_exist_returns_404);
   tcase_add_test(tc_item_cache, test_removing_a_feed_returns_204);

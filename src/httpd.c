@@ -433,6 +433,8 @@ static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
             response->content = strdup(request->data->buffer);
             response->content_type = CONTENT_TYPE;
             response->free_content = MHD_YES;
+            response->location = calloc(48, sizeof(char));
+            snprintf(response->location, 48, "/feeds/%i", feed_id);
           } else {
             HTTP_ITEM_CACHE_ERROR(response, request->item_cache);
           }
@@ -662,7 +664,14 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
         
     struct MHD_Response *mhd_response = MHD_create_response_from_data(strlen(response.content), response.content, response.free_content, MHD_NO);
     MHD_add_response_header(mhd_response, MHD_HTTP_HEADER_CONTENT_TYPE, response.content_type);
-    MHD_add_response_header(mhd_response, MHD_HTTP_HEADER_LOCATION, response.location);    
+    
+    if (response.location) {
+      char buff[256];
+      char *host = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_HOST);
+      snprintf(buff, 256, "http://%s%s", host, response.location);
+      MHD_add_response_header(mhd_response, MHD_HTTP_HEADER_LOCATION, buff);    
+      
+    }
     ret = MHD_queue_response(connection, response.code, mhd_response);
     MHD_destroy_response(mhd_response);
     
