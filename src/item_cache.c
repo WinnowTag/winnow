@@ -122,6 +122,9 @@ struct ITEM_CACHE {
   /* Function for feature extraction */
   FeatureExtractor feature_extractor;
   
+  /* Additional data for the feature extractor */
+  void *feature_extractor_memo;
+  
   /* Thread which handles the feature extraction */
   pthread_t *feature_extraction_thread;
   
@@ -590,9 +593,10 @@ int item_cache_cached_size(ItemCache *item_cache) {
  * @param item_cache The item cache to use the feature extractor with.
  * @param feature_extractor The FeatureExtractor to use to convert ItemCacheEntry instances to Item instances.
  */
-int item_cache_set_feature_extractor(ItemCache * item_cache, FeatureExtractor feature_extractor) {
+int item_cache_set_feature_extractor(ItemCache * item_cache, FeatureExtractor feature_extractor, void *memo) {
   if (item_cache) {
     item_cache->feature_extractor = feature_extractor;
+    item_cache->feature_extractor_memo = memo;
   }
   return CLASSIFIER_OK;
 }
@@ -943,7 +947,7 @@ static void * feature_extraction_thread_func(void *memo) {
     ItemCacheEntry *entry = q_dequeue_or_wait(item_cache->feature_extraction_queue);
     if (entry) {
       debug("Got entry off feature_extraction_queue");
-      Item *item = item_cache->feature_extractor(item_cache, entry);
+      Item *item = item_cache->feature_extractor(item_cache, entry, item_cache->feature_extractor_memo);
       UpdateJob *job = create_add_job(item);
       q_enqueue(item_cache->update_queue, job);
       debug("Update added to update_queue");

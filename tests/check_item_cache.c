@@ -491,7 +491,7 @@ START_TEST (test_add_item_puts_it_in_the_right_position_at_end) {
 static const ItemCacheEntry *tokenizer_called_with = NULL;
 static Item *tokenized_item;
 
-static Item * mock_feature_extractor(ItemCache * item_cache, const ItemCacheEntry * entry) {
+static Item * mock_feature_extractor(ItemCache * item_cache, const ItemCacheEntry * entry, void *ignore) {
   tokenizer_called_with = entry;
   return tokenized_item;
 }
@@ -499,7 +499,7 @@ static Item * mock_feature_extractor(ItemCache * item_cache, const ItemCacheEntr
 static void setup_feature_extraction(void) {
   system("cp fixtures/valid.db fixtures/valid-copy.db");
   item_cache_create(&item_cache, "fixtures/valid-copy.db");
-  item_cache_set_feature_extractor(item_cache, mock_feature_extractor);
+  item_cache_set_feature_extractor(item_cache, mock_feature_extractor, NULL);
   item_cache_load(item_cache);
   item_cache_start_feature_extractor(item_cache);
     
@@ -536,14 +536,14 @@ START_TEST (test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_up
 
 /* Cache updating tests */
 static int item_id = 9; 
-static Item * mock_feature_extractor2(ItemCache *item_cache, const ItemCacheEntry * entry) {
+static Item * mock_feature_extractor2(ItemCache *item_cache, const ItemCacheEntry * entry, void *ignore) {
   return create_item_with_tokens_and_time(item_id++, tokens, 4, (time_t) 1178683198L);;
 }
 
 static void setup_full_update(void) {
   system("cp fixtures/valid.db fixtures/valid-copy.db");
   item_cache_create(&item_cache, "fixtures/valid-copy.db");
-  item_cache_set_feature_extractor(item_cache, mock_feature_extractor2);
+  item_cache_set_feature_extractor(item_cache, mock_feature_extractor2, NULL);
   item_cache_load(item_cache);
   item_cache_start_feature_extractor(item_cache);
   item_cache_start_cache_updater(item_cache);

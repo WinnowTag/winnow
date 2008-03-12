@@ -25,12 +25,12 @@ typedef struct ITEM_CACHE_ENTRY ItemCacheEntry;
 typedef struct FEED Feed;
 
 typedef int (*ItemIterator) (const Item *item, void *memo);
-typedef Item* (*FeatureExtractor) (ItemCache *item_cache, const ItemCacheEntry * entry);
+typedef Item* (*FeatureExtractor) (ItemCache *item_cache, const ItemCacheEntry * entry, void *memo);
 typedef void (*UpdateCallback) (ItemCache * item_cache, void *memo);
 
 extern int          item_cache_initialize         (const char *dbfile, char *error);
 extern int          item_cache_create             (ItemCache **is, const char *db_file);
-extern int          item_cache_set_feature_extractor (ItemCache * item_cache, FeatureExtractor feature_extractor);
+extern int          item_cache_set_feature_extractor (ItemCache * item_cache, FeatureExtractor feature_extractor, void *memo);
 extern int          item_cache_load               (ItemCache *item_cache);
 extern int          item_cache_loaded             (const ItemCache *item_cache);
 extern int          item_cache_cached_size        (ItemCache *item_cache);
