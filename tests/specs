@@ -6,5 +6,5 @@
 # to use, modify, or create derivate works.
 # Please contact info@peerworks.org for further information.
 #
-
-exit(system("spec #{Dir.glob(File.join(File.dirname(__FILE__), '*_spec.rb')).join(' ')}"))
+dir = File.dirname(__FILE__)
+exit(system("spec -o #{File.join(dir, 'spec.opts')} #{Dir.glob(File.join(dir, '*_spec.rb')).join(' ')}"))

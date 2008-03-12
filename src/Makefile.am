@@ -32,8 +32,10 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            item_cache.c      				 \
                            item_cache.h				       \
                            uuid.h                    \
-                           svnversion.h
-                           
+                           svnversion.h              \
+                           feature_extractor.c       \
+                           feature_extractor.h
+
 libclassifier_la_LIBADD = @LTLIBOBJS@
        
 BUILT_SOURCES=svnversion.h
