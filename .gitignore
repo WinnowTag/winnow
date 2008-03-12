@@ -26,3 +26,5 @@ stamp-h1
 .gdb_history
 database
 tests/fixtures/valid-copy.db
+tests/fixtures/copy.db
+classifier.pid
