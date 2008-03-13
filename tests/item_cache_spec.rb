@@ -24,15 +24,6 @@ CLASSIFIER_URL = "http://localhost:8008"
 ROOT = File.expand_path(File.dirname(__FILE__))
 Database = File.join(ROOT, 'fixtures/copy.db')
 
-def start_the_world
-  system("cp #{File.join(ROOT, 'fixtures/valid.db')} #{Database}")
-  system("#{File.join(ROOT, "../src/classifier")} -d --pid classifier.pid " +
-                                                 "-l classifier-item_cache_spec.log " +
-                                                 "-c #{File.join(ROOT, "fixtures/real-db.conf")} " +
-                                                 "--db #{Database} 2> /dev/null")
-  sleep(0.0001)
-end
-
 require 'active_record'
 require 'active_resource'
 class Tagging < ActiveRecord::Base; end
@@ -46,13 +37,13 @@ describe "The Classifier's Item Cache" do
   end
   
   before(:each) do
-    start_the_world
+    system("cp #{File.join(ROOT, 'fixtures/valid.db')} #{Database}")
+    start_classifier
     @sqlite = SQLite3::Database.open(Database)
   end
   
   after(:each) do
     system("kill `cat classifier.pid`")
-    system("tokenizer_control stop")
     @sqlite.close
   end
   
@@ -91,8 +82,11 @@ describe "The Classifier's Item Cache" do
   
   describe "entry tokenization" do
     before(:each) do
-      system("tokenizer_control start -- -p8009 #{Database}")
-      sleep(1)
+      start_tokenizer
+    end
+    
+    after(:each) do
+      system("tokenizer_control stop")
     end
     
     it "should tokenize the item" do
@@ -132,6 +126,27 @@ describe "The Classifier's Item Cache" do
       
       Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
     end
+    
+    describe "after item addition" do
+      before(:each) do
+        start_tokenizer
+      end
+      
+      after(:each) do
+        system("tokenizer_control stop")
+      end
+      
+      it "should include the added item" do
+        create_entry
+        sleep(1) # let the item get into the cache
+        job = Job.create(:tag_id => 48)
+        while job.progress < 100
+          job.reload
+        end
+
+        Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 1)        
+      end
+    end
   end
   
   def create_feed(opts)
@@ -158,5 +173,18 @@ describe "The Classifier's Item Cache" do
     Atom::Entry.new do |e|
       e.links << Atom::Link.new(:href => CLASSIFIER_URL + "/feed_items/#{id}", :rel => 'edit')
     end.destroy!
+  end
+  
+  def start_classifier    
+    system("#{File.join(ROOT, "../src/classifier")} -d --pid classifier.pid " +
+                                                   "-l classifier-item_cache_spec.log " +
+                                                   "-c #{File.join(ROOT, "fixtures/real-db.conf")} " +
+                                                   "--db #{Database} 2> /dev/null")
+    sleep(0.0001)
+  end
+  
+  def start_tokenizer
+    system("tokenizer_control start -- -p8009 #{Database}")
+    sleep(1)
   end
 end

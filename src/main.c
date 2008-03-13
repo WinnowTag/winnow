@@ -118,6 +118,7 @@ static int start_classifier(const char * db_file) {
     item_cache_load(item_cache);
     item_cache_set_feature_extractor(item_cache, tokenize_entry, "http://localhost:8009/tokenize");
     item_cache_start_feature_extractor(item_cache);
+    item_cache_start_cache_updater(item_cache);
     engine = create_classification_engine(item_cache, config);
     httpd = httpd_start(config, engine, item_cache);  
     ce_run(engine);
