@@ -23,6 +23,7 @@
 #include "httpd.h"
 #include "misc.h"
 #include "svnversion.h"
+#include "feature_extractor.h"
 
 #define DEFAULT_CONFIG_FILE "config/classifier.conf"
 #define DEFAULT_LOG_FILE "log/classifier.log"
@@ -114,6 +115,8 @@ static int start_classifier(const char * db_file) {
     free_item_cache(item_cache);
     return EXIT_FAILURE;
   } else {
+    item_cache_set_feature_extractor(item_cache, tokenize_entry, "http://localhost:8009/tokenize");
+    item_cache_start_feature_extractor(item_cache);
     engine = create_classification_engine(item_cache, config);
     httpd = httpd_start(config, engine, item_cache);  
     ce_run(engine);

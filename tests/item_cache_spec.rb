@@ -22,24 +22,26 @@ require 'sqlite3'
 
 CLASSIFIER_URL = "http://localhost:8008"
 ROOT = File.expand_path(File.dirname(__FILE__))
+Database = File.join(ROOT, 'fixtures/copy.db')
 
 def start_the_world
-  system("cp #{File.join(ROOT, 'fixtures/valid.db')} #{File.join(ROOT, 'fixtures/copy.db')}")
+  system("cp #{File.join(ROOT, 'fixtures/valid.db')} #{Database}")
   system("#{File.join(ROOT, "../src/classifier")} -d --pid classifier.pid " +
                                                  "-l classifier-item_cache_spec.log " +
                                                  "-c #{File.join(ROOT, "fixtures/real-db.conf")} " +
-                                                 "--db #{File.join(ROOT, 'fixtures/copy.db')} 2> /dev/null")
+                                                 "--db #{Database} 2> /dev/null")
   sleep(0.0001)
 end
 
 describe "The Classifier's Item Cache" do
   before(:each) do
     start_the_world
-    @sqlite = SQLite3::Database.open(File.join(ROOT, "fixtures/copy.db"))
+    @sqlite = SQLite3::Database.open(Database)
   end
   
   after(:each) do
     system("kill `cat classifier.pid`")
+    system("tokenizer_control stop")
     @sqlite.close
   end
   
@@ -74,10 +76,17 @@ describe "The Classifier's Item Cache" do
       create_entry
       @sqlite.get_first_value("select count(*) from entries where id = 1111").should == "1"
     end
+  end
+  
+  describe "entry tokenization" do
+    before(:each) do
+      system("tokenizer_control start -- -p8009 #{Database}")
+      sleep(1)
+    end
     
     it "should tokenize the item" do
       create_entry
-      sleep(0.5)
+      sleep(1)
       @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = 1111").to_i.should > 0
     end
   end
