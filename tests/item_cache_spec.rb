@@ -33,7 +33,18 @@ def start_the_world
   sleep(0.0001)
 end
 
+require 'active_record'
+require 'active_resource'
+class Tagging < ActiveRecord::Base; end
+class Job < ActiveResource::Base 
+  self.site = CLASSIFIER_URL + "/classifier"
+end
+
 describe "The Classifier's Item Cache" do
+  before(:all) do
+    Tagging.establish_connection(:adapter => 'mysql', :database => 'classifier_test', :username => 'seangeo', :password => 'seangeo')
+  end
+  
   before(:each) do
     start_the_world
     @sqlite = SQLite3::Database.open(Database)
@@ -105,6 +116,21 @@ describe "The Classifier's Item Cache" do
       @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = 888769").to_i.should > 0
       destroy_entry(888769)
       @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = 888769").to_i.should == 0
+    end
+  end
+  
+  describe "number of items classified" do
+    before(:each) do
+      @item_count = @sqlite.get_first_value("select count(*) from entries;").to_i
+    end
+    
+    it "should be equal to the number of items in the cache" do
+      job = Job.create(:tag_id => 48)
+      while job.progress < 100
+        job.reload
+      end
+      
+      Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
     end
   end
   

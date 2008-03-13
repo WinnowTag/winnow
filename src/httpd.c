@@ -723,7 +723,7 @@ Httpd * httpd_start(Config *config, ClassificationEngine *ce, ItemCache *item_ca
     httpd->ce = ce;
     httpd->item_cache = item_cache;
     
-    if ((regex_error = regcomp(&httpd->start_job_regex, "^/classifier/jobs/?$", REG_EXTENDED | REG_NOSUB)) != 0) {
+    if ((regex_error = regcomp(&httpd->start_job_regex, "^/classifier/jobs/?(.xml)?$", REG_EXTENDED | REG_NOSUB)) != 0) {
       char buffer[1024];
       regerror(regex_error, &httpd->start_job_regex, buffer, sizeof(buffer));
       fatal("Error compiling REGEX: %s", buffer);
