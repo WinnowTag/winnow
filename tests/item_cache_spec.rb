@@ -146,6 +146,19 @@ describe "The Classifier's Item Cache" do
 
         Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 1)        
       end
+      
+      it "should automatically classify the new item" do
+        job = Job.create(:tag_id => 48)
+        while job.progress < 100
+          job.reload
+        end
+        
+        Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
+        
+        create_entry
+        sleep(1) # wait for it to be classified
+        Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 1)
+      end
     end
   end
   

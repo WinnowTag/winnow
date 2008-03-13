@@ -152,6 +152,7 @@ static void *insertion_worker_func(void *engine_vp);
 static void cjob_process(ClassificationJob *job, ItemCache *is, TagDB *tagdb);
 static void cjob_free_taggings(ClassificationJob *job);
 static float tdiff(struct timeval from, struct timeval to);
+static void item_cache_updated_hook(ItemCache * item_cache, void * memo);
 
 /* Creates but doesn't start a classification engine.
  * 
@@ -164,6 +165,7 @@ ClassificationEngine * create_classification_engine(ItemCache *item_cache, const
   if (engine) {
     engine->config = config;
     engine->item_cache = item_cache;
+    item_cache_set_update_callback(item_cache, item_cache_updated_hook, engine);
     cfg_engine_config(config, &(engine->engine_config));
     engine->is_running = false;
     engine->is_inserting = false;
@@ -656,29 +658,36 @@ void *insertion_worker_func(void *engine_vp) {
   return EXIT_SUCCESS;
 }
 
-//static void create_classify_new_item_jobs_for_all_tags(ClassificationEngine *ce) {
-//  if (ce) {
-//    DBConfig dbConfig;
-//    cfg_tag_db_config(ce->config, &dbConfig);
-//    TagDB *tag_db = create_tag_db(&dbConfig);
-//    if (tag_db) {
-//      int i;
-//      int size;
-//      int *ids = tag_db_get_all_tag_ids(tag_db, &size);
-//      
-//      for (i = 0; i < size; i++) {
-//        ce_add_classify_new_items_job_for_tag(ce, ids[i]);
-//      }
-//      
-//      free(ids);
-//      info("Created %i classify new items jobs", size);
-//    } else {
-//      error("Could not create tag_db in create_classify_new_item_jobs_for_all_tags");
-//    }
-//    
-//    free_tag_db(tag_db);
-//  }
-//}
+static void create_classify_new_item_jobs_for_all_tags(ClassificationEngine *ce) {
+ if (ce) {
+   DBConfig dbConfig;
+   cfg_tag_db_config(ce->config, &dbConfig);
+   TagDB *tag_db = create_tag_db(&dbConfig);
+   if (tag_db) {
+     int i;
+     int size;
+     int *ids = tag_db_get_all_tag_ids(tag_db, &size);
+     
+     for (i = 0; i < size; i++) {
+       ce_add_classify_new_items_job_for_tag(ce, ids[i]);
+     }
+     
+     free(ids);
+     info("Created %i classify new items jobs", size);
+   } else {
+     error("Could not create tag_db in create_classify_new_item_jobs_for_all_tags");
+   }
+   
+   free_tag_db(tag_db);
+ }
+}
+
+void item_cache_updated_hook(ItemCache * item_cache, void *memo) {
+  ClassificationEngine *ce = memo;
+  if (ce) {
+    create_classify_new_item_jobs_for_all_tags(ce);
+  }
+}
 
 //void *flusher_func(void *engine_vp) {
 //  ClassificationEngine *engine = (ClassificationEngine*) engine_vp;
