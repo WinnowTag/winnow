@@ -65,9 +65,63 @@ describe "The Classifier's Item Cache" do
     end
   end
   
+  describe "entry creation" do
+    it "should create an entry without error" do
+      lambda { create_entry }.should_not raise_error
+    end
+    
+    it "should store entry in the database" do
+      create_entry
+      @sqlite.get_first_value("select count(*) from entries where id = 1111").should == "1"
+    end
+    
+    it "should tokenize the item" do
+      create_entry
+      sleep(0.5)
+      @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = 1111").to_i.should > 0
+    end
+  end
+  
+  describe "entry deletion" do
+    it "should delete the entry without error" do
+      lambda { create_entry.destroy! }.should_not raise_error
+    end
+    
+    it "should remove the entry from the database" do
+      create_entry.destroy!
+      @sqlite.get_first_value("select count(*) from entries where id = 1111").should == "0"
+    end
+    
+    it "should remove the tokens from the database" do
+      @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = 888769").to_i.should > 0
+      destroy_entry(888769)
+      @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = 888769").to_i.should == 0
+    end
+  end
+  
   def create_feed(opts)
     collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feeds')
     feed_entry = Atom::Entry.new(opts)
     collection.publish(feed_entry)
+  end
+  
+  def create_entry
+    collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feeds/426/feed_items')
+    entry = Atom::Entry.new do |entry|
+      entry.title = 'My Feed'
+      entry.id = "urn:peerworks.org:entries#1111"
+      entry.links << Atom::Link.new(:href => 'http://example.org/1111.html', :rel => 'alternate')
+      entry.links << Atom::Link.new(:href => 'http://example.org/1111.atom', :rel => 'self')
+      entry.updated = Time.now
+      entry.content = Atom::Content::Html.new("this is the html content for entry 1111 there should be enough to tokenize")
+    end
+    
+    collection.publish(entry)
+  end
+  
+  def destroy_entry(id)
+    Atom::Entry.new do |e|
+      e.links << Atom::Link.new(:href => CLASSIFIER_URL + "/feed_items/#{id}", :rel => 'edit')
+    end.destroy!
   end
 end

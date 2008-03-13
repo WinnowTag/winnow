@@ -362,6 +362,8 @@ static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
         response->code = MHD_HTTP_CREATED;
         response->content = request->data->buffer;
         response->content_type = CONTENT_TYPE;
+        response->location = calloc(64, sizeof(char));
+        snprintf(response->location, 64, "/feed_items/%i", item_cache_entry_id(entry));
       } else {
         HTTP_BAD_ENTRY(response);
       }

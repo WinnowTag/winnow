@@ -208,6 +208,10 @@ ItemCacheEntry * create_item_cache_entry(int id,
   return entry;
 }
 
+int item_cache_entry_id(const ItemCacheEntry * entry) {
+  return entry->id;
+}
+
 void free_entry(ItemCacheEntry *entry) {
   if (entry) {
     FREE_STRING(entry->full_id);
