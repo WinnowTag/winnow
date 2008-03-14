@@ -26,8 +26,8 @@
 #define FETCH_ALL_ITEMS_SQL "select id, strftime('%s', updated) from entries order by updated desc"
 #define FETCH_ALL_ITEMS_TOKENS_SQL "select entry_id, token_id, frequency from entry_tokens order by entry_id"
 #define FETCH_RANDOM_BACKGROUND "select entry_id from random_backgrounds"
-#define INSERT_ENTRY_SQL "insert or replace into entries (id, full_id, title, author, alternate, self, content, updated, feed_id, created_at) \
-                          VALUES (:id, :full_id, :title, :author, :alternate, :self, :content, julianday(:updated, 'unixepoch'), :feed_id, julianday(:created_at, 'unixepoch'))"
+#define INSERT_ENTRY_SQL "insert or replace into entries (id, full_id, title, author, alternate, self, spider, content, updated, feed_id, created_at) \
+                          VALUES (:id, :full_id, :title, :author, :alternate, :self, :spider, :content, julianday(:updated, 'unixepoch'), :feed_id, julianday(:created_at, 'unixepoch'))"
 #define DELETE_ENTRY_SQL "delete from entries where id = ?"
 #define INSERT_FEED_SQL "insert or replace into feeds VALUES (?, ?)"
 #define DELETE_FEED_SQL "delete from feeds where id = ?"
@@ -71,6 +71,7 @@ struct ITEM_CACHE_ENTRY {
   char * author;
   char * alternate;
   char * self;
+  char * spider;
   char * content;
   time_t updated;
   int feed_id;
@@ -165,9 +166,10 @@ static UpdateJob * create_add_job(Item * item) {
  * ItemCacheEntry functions 
  ******************************************************************************/
 #define COPY_STRING(dest, s) if (s) {   \
-  int size = strlen(s);                 \
-  dest = calloc(size + 1, sizeof(char));\
-  strncpy(dest, s, size);               \
+ dest = strdup(s);                      \
+ if (!dest) {                           \ 
+   fatal("Malloc error copying string");\
+ }                                      \
 }
 
 #define FREE_STRING(s) if (s) { \
@@ -184,6 +186,7 @@ ItemCacheEntry * create_item_cache_entry(int id,
                                           const char * author,
                                           const char * alternate,
                                           const char * self,
+                                          const char * spider,
                                           const char * content,
                                           time_t updated,
                                           int feed_id,
@@ -200,6 +203,7 @@ ItemCacheEntry * create_item_cache_entry(int id,
     COPY_STRING(entry->author, author);
     COPY_STRING(entry->alternate, alternate);
     COPY_STRING(entry->self, self);
+    COPY_STRING(entry->spider, spider);
     COPY_STRING(entry->content, content);
   } else {
     fatal("Malloc failed in create_item_cache_entry");
@@ -220,6 +224,7 @@ void free_entry(ItemCacheEntry *entry) {
     FREE_STRING(entry->alternate);
     FREE_STRING(entry->self);
     FREE_STRING(entry->content);
+    FREE_STRING(entry->spider);
     free(entry);
   }
 }
@@ -747,7 +752,7 @@ const Pool * item_cache_random_background(const ItemCache * item_cache)  {
  * 
  * TODO Add SQLITE_BUSY handling for add_entry
  */
-// :id, :full_id, :title, :author, :alternate, :self, :content, :updated, :feed_id, :created_at
+// :id, :full_id, :title, :author, :alternate, :self, :spider, :content, :updated, :feed_id, :created_at
 int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
   int rc = CLASSIFIER_OK;
   
@@ -771,10 +776,11 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
     BIND_TEXT(item_cache->insert_entry_stmt, entry->author, 4);
     BIND_TEXT(item_cache->insert_entry_stmt, entry->alternate, 5);
     BIND_TEXT(item_cache->insert_entry_stmt, entry->self, 6);
-    BIND_TEXT(item_cache->insert_entry_stmt, entry->content, 7);
-    sqlite3_bind_double(item_cache->insert_entry_stmt, 8, entry->updated);
-    sqlite3_bind_int(item_cache->insert_entry_stmt, 9, entry->feed_id);
-    sqlite3_bind_double(item_cache->insert_entry_stmt, 10, entry->created_at);
+    BIND_TEXT(item_cache->insert_entry_stmt, entry->spider, 7);
+    BIND_TEXT(item_cache->insert_entry_stmt, entry->content, 8);
+    sqlite3_bind_double(item_cache->insert_entry_stmt, 9, entry->updated);
+    sqlite3_bind_int(item_cache->insert_entry_stmt, 10, entry->feed_id);
+    sqlite3_bind_double(item_cache->insert_entry_stmt, 11, entry->created_at);
     
     if (SQLITE_DONE != sqlite3_step(item_cache->insert_entry_stmt)) {
       error("Error inserting item %i: %s", entry->id, item_cache_errmsg(item_cache));

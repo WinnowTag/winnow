@@ -429,9 +429,11 @@ START_TEST (test_adding_an_entry_saves_it_in_the_database) {
   assert_not_null(sqlite3_column_text(stmt, 5));
   assert_equal_s("http://example.org/entry.atom", sqlite3_column_text(stmt, 5));
   assert_not_null(sqlite3_column_text(stmt, 6));
-  assert_equal_s("<p><i>This is an example</i></p>", sqlite3_column_text(stmt, 6));
-  assert_equal_f(2453583.02047454, sqlite3_column_double(stmt, 7));
-  assert_equal(141, sqlite3_column_int(stmt, 8));
+  assert_equal_s("http://example.org/entry/spider", sqlite3_column_text(stmt, 6));
+  assert_not_null(sqlite3_column_text(stmt, 7));
+  assert_equal_s("<p><i>This is an example</i></p>", sqlite3_column_text(stmt, 7));
+  assert_equal_f(2453583.02047454, sqlite3_column_double(stmt, 8));
+  assert_equal(141, sqlite3_column_int(stmt, 9));
   sqlite3_close(db);
 } END_TEST
 

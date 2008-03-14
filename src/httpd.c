@@ -261,7 +261,8 @@ static ItemCacheEntry * entry_from_xml(int feed_id, xmlDocPtr doc) {
   char *content = get_element_value(context, "/atom:entry/atom:content/text()");
   char *author = get_element_value(context, "/atom:entry/atom:author/atom:name/text()");
   char *alternate = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'alternate']", "href");;
-  char *self = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'self']", "href");  
+  char *self = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'self']", "href");
+  char *spider = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'http://peerworks.org/rel/spider']", "href");
   
   // Must have all of these to create the item
   if (id && title && updated && content) {
@@ -275,7 +276,7 @@ static ItemCacheEntry * entry_from_xml(int feed_id, xmlDocPtr doc) {
     }
    
     if (id_i > 0) {      
-      entry = create_item_cache_entry(id_i, id, title, author, alternate, self, content, updated_time, feed_id, time(NULL));
+      entry = create_item_cache_entry(id_i, id, title, author, alternate, self, spider, content, updated_time, feed_id, time(NULL));
     }
   }
    

@@ -15,6 +15,7 @@ create table "entries" (
   "author"      text,
   "alternate"   text,
   "self"        text,
+  "spider"      text,
   "content"     text,
   "updated"     real,
   "feed_id"     integer NOT NULL,

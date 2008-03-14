@@ -211,6 +211,7 @@ START_TEST (test_adding_an_entry_stores_it_in_the_database) {
   ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
                                         "http://example.org/11",
                                         "http://example.org/11.html",
+                                        "http://example.org/11/spider",
                                         "<p>This is some content</p>",
                                         1178551600, 141, 1178551601);
   int rc = item_cache_add_entry(item_cache, entry);
@@ -224,6 +225,7 @@ START_TEST (adding_an_entry_saves_all_its_attributes) {
   ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
                                           "http://example.org/11",
                                           "http://example.org/11.html",
+                                          "http://example.org/11/spider",
                                           "<p>This is some content</p>",
                                           1178551600, 141, 1178551601);
   int rc = item_cache_add_entry(item_cache, entry);
@@ -239,10 +241,11 @@ START_TEST (adding_an_entry_saves_all_its_attributes) {
     assert_equal_s("Author 11", sqlite3_column_text(stmt, 3));
     assert_equal_s("http://example.org/11", sqlite3_column_text(stmt, 4));
     assert_equal_s("http://example.org/11.html", sqlite3_column_text(stmt, 5));
-    assert_equal_s("<p>This is some content</p>", sqlite3_column_text(stmt, 6));
-    assert_equal_f(2454228.14351852, sqlite3_column_double(stmt, 7));
-    assert_equal(141, sqlite3_column_int(stmt, 8));
-    assert_equal_f(2454228.14353009, sqlite3_column_double(stmt, 9));
+    assert_equal_s("http://example.org/11/spider", sqlite3_column_text(stmt, 6));
+    assert_equal_s("<p>This is some content</p>", sqlite3_column_text(stmt, 7));
+    assert_equal_f(2454228.14351852, sqlite3_column_double(stmt, 8));
+    assert_equal(141, sqlite3_column_int(stmt, 9));
+    assert_equal_f(2454228.14353009, sqlite3_column_double(stmt, 10));
   } else {
     fail("Could not get record");
   }
@@ -254,6 +257,7 @@ START_TEST (adding_an_entry_twice_does_not_fail) {
   ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
                                           "http://example.org/11",
                                           "http://example.org/11.html",
+                                          "http://example.org/11/spider",
                                           "<p>This is some content</p>",
                                           1178551600, 141, 1178551601);
   int rc = item_cache_add_entry(item_cache, entry);
@@ -393,6 +397,7 @@ START_TEST (test_adding_entry_causes_it_to_be_added_to_the_tokenization_queue) {
   ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
                                             "http://example.org/11",
                                             "http://example.org/11.html",
+                                            "http://example.org/11/spider",
                                             "<p>This is some content</p>",
                                             1178551600, 141, 1178551601);
   item_cache_add_entry(item_cache, entry);
@@ -403,6 +408,7 @@ START_TEST (test_adding_entry_twice_causes_it_to_be_added_to_the_tokenization_qu
   ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
                                             "http://example.org/11",
                                             "http://example.org/11.html",
+                                            "http://example.org/11/spider",
                                             "<p>This is some content</p>",
                                             1178551600, 141, 1178551601);
   item_cache_add_entry(item_cache, entry);
@@ -514,6 +520,7 @@ START_TEST (test_adding_entry_results_in_calling_the_tokenizer_with_the_entry) {
   ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
                                               "http://example.org/11",
                                               "http://example.org/11.html",
+                                              "http://example.org/11/spider",
                                               "<p>This is some content</p>",
                                               1178551600, 1, 1178551601);
   item_cache_add_entry(item_cache, entry);
@@ -525,6 +532,7 @@ START_TEST (test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_up
   ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
                                                 "http://example.org/11",
                                                 "http://example.org/11.html",
+                                                "http://example.org/11/spider",
                                                 "<p>This is some content</p>",
                                                 1178551600, 1, 1178551601);
   item_cache_add_entry(item_cache, entry);  
@@ -556,6 +564,7 @@ START_TEST (test_null_feature_extraction) {
   ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
                                                 "http://example.org/11",
                                                 "http://example.org/11.html",
+                                                "http://example.org/11/spider",
                                                 "<p>This is some content</p>",
                                                 1178551600, 1, 1178551601);
   item_cache_add_entry(item_cache, entry);  
@@ -589,6 +598,7 @@ START_TEST (test_adding_entry_causes_item_added_to_cache) {
   ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
                                                   "http://example.org/11",
                                                   "http://example.org/11.html",
+                                                  "http://example.org/11/spider",
                                                   "<p>This is some content</p>",
                                                   1178551600, 1, 1178551601);
   item_cache_add_entry(item_cache, entry);
@@ -600,11 +610,13 @@ START_TEST (test_adding_multiple_entries_causes_item_added_to_cache) {
   ItemCacheEntry *entry1 = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
                                                   "http://example.org/11",
                                                   "http://example.org/11.html",
+                                                  "http://example.org/11/spider",
                                                   "<p>This is some content</p>",
                                                   1178551600, 1, 1178551601);
   ItemCacheEntry *entry2 = create_item_cache_entry(12, "id#12", "Entry 12", "Author 12",
                                                     "http://example.org/12",
                                                     "http://example.org/12.html",
+                                                    "http://example.org/11/spider",
                                                     "<p>This is some content</p>",
                                                     1178551600, 1, 1178551601);
   
@@ -625,6 +637,7 @@ START_TEST (test_update_callback) {
   ItemCacheEntry *entry1 = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
                                                     "http://example.org/11",
                                                     "http://example.org/11.html",
+                                                    "http://example.org/11/spider",
                                                     "<p>This is some content</p>",
                                                     1178551600, 1, 1178551601);
   
