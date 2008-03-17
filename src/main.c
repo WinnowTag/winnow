@@ -29,12 +29,13 @@
 #define DEFAULT_LOG_FILE "log/classifier.log"
 #define DEFAULT_PID_FILE "log/classifier.pid"
 #define DEFAULT_DB_FILE "log/classifier.db"
+#define DEFAULT_TOKENIZER_URL "http://localhost"
 
 #define PID_VAL 512
 #define DB_VAL  513
 #define CREATE_DB_VAL 514
-#define SHORT_OPTS "hvdc:l:"
-#define USAGE "Usage: classifier [-dvh] [-c CONFIGFILE] [-l LOGFILE] [--db DATABASE_FILE] [--pid PIDFILE] [--create-db]\n"
+#define SHORT_OPTS "hvdc:l:t:"
+#define USAGE "Usage: classifier [-dvh] [-c CONFIGFILE] [-l LOGFILE] [--db DATABASE_FILE] [--pid PIDFILE] [-t tokenizer_url] [--create-db]\n"
 
 static Config *config;
 static ItemCache *item_cache;
@@ -109,16 +110,17 @@ static void _daemonize(const char * pid_file) {
   }
 }
 
-static int start_classifier(const char * db_file) {  
+static int start_classifier(const char * db_file, const char * tokenizer_url) {  
   if (CLASSIFIER_OK != item_cache_create(&item_cache, db_file)) {
     fprintf(stderr, "Error opening classifier database file at %s: %s\n", db_file, item_cache_errmsg(item_cache));
     free_item_cache(item_cache);
     return EXIT_FAILURE;
   } else {
     item_cache_load(item_cache);
-    item_cache_set_feature_extractor(item_cache, tokenize_entry, "http://localhost:8009/tokenize");
+    item_cache_set_feature_extractor(item_cache, tokenize_entry, tokenizer_url);
     item_cache_start_feature_extractor(item_cache);
     item_cache_start_cache_updater(item_cache);
+    item_cache_start_purger(item_cache, 60 * 60 * 24);
     engine = create_classification_engine(item_cache, config);
     httpd = httpd_start(config, engine, item_cache);  
     ce_run(engine);
@@ -129,12 +131,14 @@ static int start_classifier(const char * db_file) {
 int main(int argc, char **argv) {
   int create_database = false;
   int daemonize = false;
+  char *tokenizer_url = DEFAULT_TOKENIZER_URL;
   char *config_file = DEFAULT_CONFIG_FILE;
   char *log_file = DEFAULT_LOG_FILE;
   char *pid_file = DEFAULT_PID_FILE;
   char *db_file = DEFAULT_DB_FILE;
   char real_config_file[MAXPATHLEN];
   char real_log_file[MAXPATHLEN];
+  char real_db_file[MAXPATHLEN];
   
   int longindex;
   int opt;
@@ -143,8 +147,9 @@ int main(int argc, char **argv) {
       {"help", no_argument, 0, 'h'},
       {"config-file", required_argument, 0, 'c'},
       {"log-file", required_argument, 0, 'l'},
+      {"tokenizer-url", required_argument, 0, 't'},
       {"pid", required_argument, 0, PID_VAL},
-      {"db", required_argument, 0, DB_VAL},
+      {"db", required_argument, 0, DB_VAL},      
       {"create-db", no_argument, 0, CREATE_DB_VAL},
       {0, 0, 0, 0}
   };
@@ -169,6 +174,9 @@ int main(int argc, char **argv) {
       break;
       case CREATE_DB_VAL:
         create_database = true;
+      break;
+      case 't':
+        tokenizer_url = optarg;
       break;
       case 'd':
         daemonize = true;
@@ -209,6 +217,11 @@ int main(int argc, char **argv) {
       exit(EXIT_FAILURE);
     }
     
+    if (NULL == realpath(db_file, real_db_file)) {
+      fprintf(stderr, "Could not find %s: %s\n", real_db_file, strerror(errno));
+      exit(EXIT_FAILURE);
+    }
+    
     /* Load config before we daemonize to allow us to pick
      * up and relative paths defined in the config file.
      */
@@ -223,7 +236,7 @@ int main(int argc, char **argv) {
     if (signal(SIGTERM, termination_handler) == SIG_IGN) signal(SIGTERM, SIG_IGN);
     
     initialize_logging(real_log_file);
-    rc = start_classifier(db_file);
+    rc = start_classifier(real_db_file, tokenizer_url);
   }
   
   return rc;

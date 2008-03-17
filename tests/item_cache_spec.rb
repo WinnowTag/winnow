@@ -190,6 +190,7 @@ describe "The Classifier's Item Cache" do
   
   def start_classifier    
     system("#{File.join(ROOT, "../src/classifier")} -d --pid classifier.pid " +
+                                                   "-t http://localhost:8010/tokenize " +
                                                    "-l classifier-item_cache_spec.log " +
                                                    "-c #{File.join(ROOT, "fixtures/real-db.conf")} " +
                                                    "--db #{Database} 2> /dev/null")
@@ -197,7 +198,7 @@ describe "The Classifier's Item Cache" do
   end
   
   def start_tokenizer
-    system("tokenizer_control start -- -p8009 #{Database}")
+    system("tokenizer_control start -- -p8010 #{Database}")
     sleep(1)
   end
 end
