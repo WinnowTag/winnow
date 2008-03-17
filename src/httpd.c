@@ -30,7 +30,7 @@
 #include <microhttpd.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
-#include <libxml/xpathinternals.h>
+#include <libxml/xpathInternals.h>
 #include <libxml/uri.h>
 
 #define HTTP_NOT_FOUND(response)         \
