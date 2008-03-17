@@ -7,6 +7,7 @@
  */
 
 #include <check.h>
+#include "fixtures.h"
 #include <stdio.h>
 #include "assertions.h"
 #include "../src/item_cache.h"
@@ -16,34 +17,40 @@
 
 START_TEST (creating_with_missing_db_file_fails) {
   ItemCache *item_cache;
-  int rc = item_cache_create(&item_cache, "missing.db");
+  int rc = item_cache_create(&item_cache, "/tmp/missing.db");
   assert_equal(CLASSIFIER_FAIL, rc);
   const char *msg = item_cache_errmsg(item_cache);
   assert_equal_s("unable to open database file", msg);
 } END_TEST
 
 START_TEST (creating_with_empty_db_file_fails) {
+  setup_fixture_path();
   ItemCache *item_cache;
   int rc = item_cache_create(&item_cache, "fixtures/empty.db");
   assert_equal(CLASSIFIER_FAIL, rc);
   const char *msg = item_cache_errmsg(item_cache); 
-  assert_equal_s("Database file's user version does not match classifier version. Trying running classifier-db-migrate.", msg);           
+  assert_equal_s("Database file's user version does not match classifier version. Trying running classifier-db-migrate.", msg);
+  teardown_fixture_path();
 } END_TEST
 
 START_TEST (create_with_valid_db) {
+  setup_fixture_path();
   ItemCache *item_cache;
   int rc = item_cache_create(&item_cache, "fixtures/valid.db");
   assert_equal(CLASSIFIER_OK, rc);
+  teardown_fixture_path();
 } END_TEST
 
 /* Tests for fetching an item */
 ItemCache *item_cache;
 
 static void setup_cache(void) {
+  setup_fixture_path();
   item_cache_create(&item_cache, "fixtures/valid.db");
 }
 
 static void teardown_item_cache(void) {
+  teardown_fixture_path();
   free_item_cache(item_cache);
 }
 
@@ -111,11 +118,13 @@ START_TEST (test_load_sets_cache_loaded_to_true) {
 
 /* Test iteration */
 void setup_iteration(void) {
+  setup_fixture_path();
   item_cache_create(&item_cache, "fixtures/valid.db");
   item_cache_load(item_cache);
 }
 
 void teardown_iteration(void) {
+  teardown_fixture_path();
   free_item_cache(item_cache);
 }
 
@@ -200,11 +209,13 @@ START_TEST (test_random_background_has_right_count_for_a_token) {
 #include <sqlite3.h>
 
 static void setup_modification(void) {
-  system("cp fixtures/valid.db fixtures/valid-copy.db");
-  item_cache_create(&item_cache, "fixtures/valid-copy.db");
+  setup_fixture_path();
+  system("cp fixtures/valid.db /tmp/valid-copy.db");
+  item_cache_create(&item_cache, "/tmp/valid-copy.db");
 }
 
 static void teardown_modification(void) {
+  teardown_fixture_path();
   free_item_cache(item_cache);
 }
 
@@ -234,7 +245,7 @@ START_TEST (adding_an_entry_saves_all_its_attributes) {
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from entries where id = 11", -1, &stmt, NULL);
   if (SQLITE_ROW == sqlite3_step(stmt)) {
     assert_equal_s("id#11", sqlite3_column_text(stmt, 1));
@@ -286,7 +297,7 @@ START_TEST (test_destroying_an_entry_removes_it_from_the_database_file) {
     
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from entries where id = 753459", -1, &stmt, NULL);
   rc = sqlite3_step(stmt);
   assert_equal(SQLITE_DONE, rc);
@@ -299,7 +310,7 @@ START_TEST (test_destroying_an_entry_removes_tokens_from_the_database_file) {
     
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from entry_tokens where entry_id = 753459", -1, &stmt, NULL);
   rc = sqlite3_step(stmt);
   assert_equal(SQLITE_DONE, rc);
@@ -312,7 +323,7 @@ START_TEST (test_cant_delete_an_item_that_is_used_in_the_random_background) {
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from entries where id = 890806", -1, &stmt, NULL);
   rc = sqlite3_step(stmt);
   assert_equal(SQLITE_ROW, rc); 
@@ -325,7 +336,7 @@ START_TEST (test_failed_deletion_doesnt_delete_tokens) {
     
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from entry_tokens where entry_id = 890806", -1, &stmt, NULL);
   rc = sqlite3_step(stmt);
   assert_equal(SQLITE_ROW, rc);
@@ -340,7 +351,7 @@ START_TEST (test_add_feed_to_item_cache) {
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from feeds where id = 10", -1, &stmt, NULL);
   rc = sqlite3_step(stmt);
   assert_equal(SQLITE_ROW, rc);
@@ -356,7 +367,7 @@ START_TEST (test_add_feed_that_already_exists_updates_attributes) {
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from feeds where id = 141", -1, &stmt, NULL);
   rc = sqlite3_step(stmt);
   assert_equal(SQLITE_ROW, rc);
@@ -372,7 +383,7 @@ START_TEST (test_deleting_a_feed_removes_it_from_the_database) {
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from feeds where id = 141", -1, &stmt, NULL);
   rc = sqlite3_step(stmt);
   assert_equal(SQLITE_DONE, rc);
@@ -386,7 +397,7 @@ START_TEST (test_deleting_a_feed_removes_its_entries_from_the_database) {
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from entries where feed_id = 141", -1, &stmt, NULL);
   rc = sqlite3_step(stmt);
   assert_equal(SQLITE_DONE, rc);
@@ -422,8 +433,9 @@ int tokens[][2] = {1, 2, 3, 4, 5, 6, 7, 8};
 Item *item;
 
 static void setup_loaded_modification(void) {
-  system("cp fixtures/valid.db fixtures/valid-copy.db");
-  item_cache_create(&item_cache, "fixtures/valid-copy.db");
+  setup_fixture_path();
+  system("cp fixtures/valid.db /tmp/valid-copy.db");
+  item_cache_create(&item_cache, "/tmp/valid-copy.db");
   //item_cache_set_feature_extractor(item_cache, NULL);
   item_cache_load(item_cache);
   
@@ -431,6 +443,7 @@ static void setup_loaded_modification(void) {
 }
 
 static void teardown_loaded_modification(void) {
+  teardown_fixture_path();
   free_item_cache(item_cache);
 }
 
@@ -504,8 +517,9 @@ static Item * mock_feature_extractor(ItemCache * item_cache, const ItemCacheEntr
 }
 
 static void setup_feature_extraction(void) {
-  system("cp fixtures/valid.db fixtures/valid-copy.db");
-  item_cache_create(&item_cache, "fixtures/valid-copy.db");
+  setup_fixture_path();
+  system("cp fixtures/valid.db /tmp/valid-copy.db");
+  item_cache_create(&item_cache, "/tmp/valid-copy.db");
   item_cache_set_feature_extractor(item_cache, mock_feature_extractor, NULL);
   item_cache_load(item_cache);
   item_cache_start_feature_extractor(item_cache);
@@ -514,6 +528,7 @@ static void setup_feature_extraction(void) {
 }
 
 static void teardown_feature_extraction(void) {
+  teardown_fixture_path();
   free_item_cache(item_cache);
 }
 
@@ -548,8 +563,9 @@ static Item * null_feature_extractor(ItemCache *item_cache, const ItemCacheEntry
 }
 
 static void setup_null_feature_extraction(void) {
-  system("cp fixtures/valid.db fixtures/valid-copy.db");
-  item_cache_create(&item_cache, "fixtures/valid-copy.db");
+  setup_fixture_path();
+  system("cp fixtures/valid.db /tmp/valid-copy.db");
+  item_cache_create(&item_cache, "/tmp/valid-copy.db");
   item_cache_set_feature_extractor(item_cache, null_feature_extractor, NULL);
   item_cache_load(item_cache);
   item_cache_start_feature_extractor(item_cache);
@@ -558,6 +574,7 @@ static void setup_null_feature_extraction(void) {
 }
 
 static void teardown_null_feature_extraction(void) {
+  teardown_fixture_path();
   free_item_cache(item_cache);
 }
 
@@ -581,8 +598,9 @@ static Item * mock_feature_extractor2(ItemCache *item_cache, const ItemCacheEntr
 }
 
 static void setup_full_update(void) {
-  system("cp fixtures/valid.db fixtures/valid-copy.db");
-  item_cache_create(&item_cache, "fixtures/valid-copy.db");
+  setup_fixture_path();
+  system("cp fixtures/valid.db /tmp/valid-copy.db");
+  item_cache_create(&item_cache, "/tmp/valid-copy.db");
   item_cache_set_feature_extractor(item_cache, mock_feature_extractor2, NULL);
   item_cache_load(item_cache);
   item_cache_start_feature_extractor(item_cache);
@@ -592,6 +610,7 @@ static void setup_full_update(void) {
 }
 
 static void teardown_full_update(void) {
+  teardown_fixture_path();
   free_item_cache(item_cache);
 }
 
@@ -651,8 +670,9 @@ START_TEST (test_update_callback) {
 time_t purge_time;
 
 static void setup_purging(void) {
-  system("cp fixtures/valid.db fixtures/valid-copy.db");
-  item_cache_create(&item_cache, "fixtures/valid-copy.db");
+  setup_fixture_path();
+  system("cp fixtures/valid.db /tmp/valid-copy.db");
+  item_cache_create(&item_cache, "/tmp/valid-copy.db");
   
   time_t now = time(NULL);
   struct tm item_time;
@@ -663,6 +683,7 @@ static void setup_purging(void) {
 }
 
 static void teardown_purging(void) {
+  teardown_fixture_path();
   free_item_cache(item_cache);
 }
 

@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <check.h>
+#include "fixtures.h"
 #include "../src/item_cache.h"
 #include "../src/misc.h"
 #include "assertions.h"
@@ -15,11 +16,13 @@
 ItemCache *item_cache;
 
 static void setup(void) {
+  setup_fixture_path();
   item_cache_create(&item_cache, "fixtures/valid.db"); 
   item_cache_load(item_cache);
 }
 
 static void teardown(void) {
+  teardown_fixture_path();
   free_item_cache(item_cache);
 }
 

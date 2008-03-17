@@ -19,6 +19,7 @@
 #include "../src/logging.h"
 #include "fixtures.h"
 #include "../src/item_cache.h"
+#include "fixtures.h"
 
 #define PORT 8008
 
@@ -50,8 +51,8 @@ static void setup_httpd() {
   data    = fopen("/tmp/test_data.xml", "w");
   
   setup_fixture_path();
-  system("cp fixtures/valid.db fixtures/valid-copy.db");
-  item_cache_create(&item_cache, "fixtures/valid-copy.db");
+  system("cp fixtures/valid.db /tmp/valid-copy.db");
+  item_cache_create(&item_cache, "/tmp/valid-copy.db");
   config = load_config("fixtures/real-db.conf");
   ce = create_classification_engine(item_cache, config);  
   httpd = httpd_start(config, ce, item_cache);
@@ -344,7 +345,7 @@ START_TEST (test_adding_a_feed_adds_it_to_the_database) {
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from feeds where id = 1337", -1, &stmt, NULL);
   int rc = sqlite3_step(stmt);
   assert_equal(SQLITE_ROW, rc);
@@ -378,7 +379,7 @@ START_TEST (test_removing_a_feed_removes_it_from_the_database) {
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from feeds where id = 1337", -1, &stmt, NULL);
   int rc = sqlite3_step(stmt);
   assert_equal(SQLITE_DONE, rc);
@@ -417,7 +418,7 @@ START_TEST (test_adding_an_entry_saves_it_in_the_database) {
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from entries where id = 1", -1, &stmt, NULL);
   int rc = sqlite3_step(stmt);
   assert_equal(SQLITE_ROW, rc);
@@ -448,7 +449,7 @@ START_TEST (test_removing_an_entry_removes_it_from_the_database) {
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("fixtures/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from entries where id = 753459", -1, &stmt, NULL);
   int rc = sqlite3_step(stmt);
   assert_equal(SQLITE_DONE, rc);

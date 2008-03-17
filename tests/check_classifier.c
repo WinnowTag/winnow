@@ -13,6 +13,7 @@
 #include "../src/clue.h"
 #include "assertions.h"
 #include "mock_items.h"
+#include "fixtures.h"
 
 /*************************************************************
  *   Unit tests for trainer
@@ -22,10 +23,12 @@
 ItemCache *item_cache;
 
 void setup_train(void) {
+  setup_fixture_path();
   item_cache_create(&item_cache, "fixtures/valid.db");
 }
 
 void teardown_train(void) {
+  teardown_fixture_path();
   free_item_cache(item_cache);
 }
 

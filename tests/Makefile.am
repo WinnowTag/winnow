@@ -18,9 +18,9 @@ check_all_SOURCES = check_all.c \
                 check_item_cache.c $(top_builddir)/src/item_cache.h \
                 $(top_builddir)/src/tagging.h \
                 assertions.h  \
-                mock_item_source.h \
                 tagging_store_fixtures.h \
-                fixtures.h
+                fixtures.h \
+                mock_items.h
                 
                 
 check_all_CFLAGS = @CHECK_CFLAGS@
@@ -32,8 +32,6 @@ check_db_SOURCES = check_db.c                    \
             check_tagging_store.c                \
             check_classification_engine.c        \
             $(top_builddir)/src/classification_engine.h \
-            $(top_builddir)/src/item.h           \
-            $(top_builddir)/src/item_source.h    \
             $(top_builddir)/src/tag.h            \
             $(top_builddir)/src/tagging.h
               
@@ -42,4 +40,5 @@ check_db_LDADD = @CHECK_LIBS@  \
             $(top_builddir)/src/libclassifier.la 
 
 
-dist_check_DATA = fixtures conf
+dist_check_DATA = fixtures conf spec.opts
+dist_check_SCRIPTS = specs item_cache_spec.rb

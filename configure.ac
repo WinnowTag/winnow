@@ -1,4 +1,4 @@
-AC_INIT([classifier], [1.0], [info@peerworks.org])
+AC_INIT([classifier], [1.1.0], [info@peerworks.org])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_CONFIG_LIBOBJ_DIR(src)
 AC_DEFINE_DIR([DATADIR], [datadir], [The place where data is installed])

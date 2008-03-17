@@ -22,7 +22,7 @@ require 'sqlite3'
 
 CLASSIFIER_URL = "http://localhost:8008"
 ROOT = File.expand_path(File.dirname(__FILE__))
-Database = File.join(ROOT, 'fixtures/copy.db')
+Database = '/tmp/classifier-copy.db'
 
 require 'active_record'
 require 'active_resource'
@@ -37,14 +37,15 @@ describe "The Classifier's Item Cache" do
   end
   
   before(:each) do
-    system("cp #{File.join(ROOT, 'fixtures/valid.db')} #{Database}")
+    system("cp -f #{File.join(ROOT, 'fixtures/valid.db')} #{Database}")
+    system("chmod 644 #{Database}")
     start_classifier
     @sqlite = SQLite3::Database.open(Database)
   end
   
   after(:each) do
-    system("kill `cat classifier.pid`")
     @sqlite.close
+    system("kill `cat /tmp/classifier-test.pid`")
   end
   
   describe "feed creation" do    
@@ -188,12 +189,18 @@ describe "The Classifier's Item Cache" do
     end.destroy!
   end
   
-  def start_classifier    
-    system("#{File.join(ROOT, "../src/classifier")} -d --pid classifier.pid " +
+  def start_classifier   
+    classifier = File.join(ROOT, "../src/classifier")
+    
+    if ENV['srcdir']
+      classifier = File.join(ENV['PWD'], '../src/classifier')
+    end
+    classifier_cmd = "#{classifier} -d --pid /tmp/classifier-test.pid " +
                                                    "-t http://localhost:8010/tokenize " +
-                                                   "-l classifier-item_cache_spec.log " +
+                                                   "-l /tmp/classifier-item_cache_spec.log " +
                                                    "-c #{File.join(ROOT, "fixtures/real-db.conf")} " +
-                                                   "--db #{Database} 2> /dev/null")
+                                                   "--db #{Database} 2> /dev/null" 
+    system(classifier_cmd)
     sleep(0.0001)
   end
   
