@@ -7,6 +7,7 @@
  */
 
 #include <check.h>
+#include <stdio.h>
 #include "assertions.h"
 #include "../src/item_cache.h"
 #include "../src/misc.h"
@@ -646,6 +647,62 @@ START_TEST (test_update_callback) {
   assert_equal(&memo, memo_ref);
 } END_TEST
 
+/* Cache pruning */
+time_t purge_time;
+
+static void setup_purging(void) {
+  system("cp fixtures/valid.db fixtures/valid-copy.db");
+  item_cache_create(&item_cache, "fixtures/valid-copy.db");
+  
+  time_t now = time(NULL);
+  struct tm item_time;
+  gmtime_r(&now, &item_time);
+  item_time.tm_mday--;
+  item_time.tm_mon--;
+  purge_time = timegm(&item_time);
+}
+
+static void teardown_purging(void) {
+  free_item_cache(item_cache);
+}
+
+START_TEST (test_purging_cache_does_nothing_with_no_items) {
+  item_cache_purge_old_items(item_cache);
+} END_TEST
+
+START_TEST (test_purging_cache_of_one_old_item) {
+  Item *old_item = create_item_with_tokens_and_time(23, tokens, 4, purge_time - 2);
+  mark_point();
+  item_cache_add_item(item_cache, old_item);
+  assert_not_null(item_cache_fetch_item(item_cache, 23));
+  item_cache_purge_old_items(item_cache);
+  assert_null(item_cache_fetch_item(item_cache, 23));
+} END_TEST
+
+START_TEST (test_purging_cache_does_nothing_with_one_new_item) {
+  Item *non_purged_item = create_item_with_tokens_and_time(23, tokens, 4, purge_time + 2);
+  item_cache_add_item(item_cache, non_purged_item);
+  assert_not_null(item_cache_fetch_item(item_cache, 23));
+  item_cache_purge_old_items(item_cache);
+  assert_not_null(item_cache_fetch_item(item_cache, 23));
+} END_TEST
+
+START_TEST (test_purging_half_of_the_cache) {
+  Item *non_purged_item = create_item_with_tokens_and_time(23, tokens, 4, purge_time + 2);
+  Item *purged_item = create_item_with_tokens_and_time(24, tokens, 4, purge_time - 2);
+  
+  item_cache_add_item(item_cache, non_purged_item);
+  item_cache_add_item(item_cache, purged_item);
+  
+  assert_not_null(item_cache_fetch_item(item_cache, 23));
+  assert_not_null(item_cache_fetch_item(item_cache, 24));
+  
+  item_cache_purge_old_items(item_cache);
+  
+  assert_not_null(item_cache_fetch_item(item_cache, 23));
+  assert_null(item_cache_fetch_item(item_cache, 24));
+} END_TEST
+
 Suite *
 item_cache_suite(void) {
   Suite *s = suite_create("ItemCache");  
@@ -708,6 +765,7 @@ item_cache_suite(void) {
   tcase_add_test(loaded_modification, test_add_item_puts_it_in_the_right_position);
   tcase_add_test(loaded_modification, test_add_item_puts_it_in_the_right_position_at_beginning);
   tcase_add_test(loaded_modification, test_add_item_puts_it_in_the_right_position_at_end);
+
   
   TCase *feature_extraction = tcase_create("feature extraction");
   tcase_add_checked_fixture(feature_extraction, setup_feature_extraction, teardown_feature_extraction);
@@ -724,6 +782,13 @@ item_cache_suite(void) {
   tcase_add_test(full_update, test_adding_multiple_entries_causes_item_added_to_cache);
   tcase_add_test(full_update, test_update_callback);
   
+  TCase *purging = tcase_create("purging");
+  tcase_add_checked_fixture(purging, setup_purging, teardown_purging);
+  tcase_add_test(purging, test_purging_cache_does_nothing_with_one_new_item);
+  tcase_add_test(purging, test_purging_cache_of_one_old_item);
+  tcase_add_test(purging, test_purging_cache_does_nothing_with_no_items);
+  tcase_add_test(purging, test_purging_half_of_the_cache);
+  
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
   suite_add_tcase(s, load);
@@ -734,5 +799,6 @@ item_cache_suite(void) {
   suite_add_tcase(s, feature_extraction);
   suite_add_tcase(s, null_feature_extraction);
   suite_add_tcase(s, full_update);
+  suite_add_tcase(s, purging);
   return s;
 }

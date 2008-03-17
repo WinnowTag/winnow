@@ -167,7 +167,7 @@ static UpdateJob * create_add_job(Item * item) {
  ******************************************************************************/
 #define COPY_STRING(dest, s) if (s) {   \
  dest = strdup(s);                      \
- if (!dest) {                           \ 
+ if (!dest) {                           \
    fatal("Malloc error copying string");\
  }                                      \
 }
@@ -638,15 +638,14 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
     return item;
   }
   
-  if (item_cache->loaded) {
-    pthread_rwlock_rdlock(&item_cache->cache_lock);
-    PWord_t item_pointer;
-    JLG(item_pointer, item_cache->items_by_id, id);
-    if (NULL != item_pointer) {
-      item = (Item*)(*item_pointer);
-    }
-    pthread_rwlock_unlock(&item_cache->cache_lock);
+  pthread_rwlock_rdlock(&item_cache->cache_lock);
+  PWord_t item_pointer;
+  JLG(item_pointer, item_cache->items_by_id, id);
+  if (NULL != item_pointer) {
+    item = (Item*)(*item_pointer);
   }
+  pthread_rwlock_unlock(&item_cache->cache_lock);
+  
   
   if (NULL == item) {
     pthread_mutex_lock(item_cache->db_access_mutex);
@@ -904,7 +903,9 @@ int item_cache_add_item(ItemCache *item_cache, Item *item) {
       if (new_node) {        
         new_node->item = item;
         // Is it the first one?
-        if (item_cache->items_in_order->item->time < item->time) {
+        if (item_cache->items_in_order == NULL) {
+          item_cache->items_in_order = new_node;
+        } else if (item_cache->items_in_order->item->time < item->time) {
           new_node->next = item_cache->items_in_order;
           item_cache->items_in_order = new_node;
         } else {
@@ -929,6 +930,56 @@ int item_cache_add_item(ItemCache *item_cache, Item *item) {
       rc = CLASSIFIER_FAIL;
     }
   }
+  
+  return rc;
+}
+
+static time_t get_purge_time(void) {
+  time_t now = time(NULL);
+  struct tm purge_time_tm;
+  gmtime_r(&now, &purge_time_tm);
+  purge_time_tm.tm_mon--;
+  purge_time_tm.tm_mday--;
+  return timegm(&purge_time_tm);
+}
+
+int item_cache_purge_old_items(ItemCache *item_cache) {
+  int rc = CLASSIFIER_OK;
+  
+  if (item_cache) {
+    int number_purged;
+    int number_left;
+    pthread_rwlock_wrlock(&item_cache->cache_lock);
+    time_t purge_time = get_purge_time();
+        
+    OrderedItemList *previous, *current;
+    
+    /* Find the point in the list where items are older than purge_time and remove them. */
+    for (current = item_cache->items_in_order; current != NULL; previous = current, current = current->next) {
+      if (current->item->time <= purge_time) {
+        number_purged++;
+        
+        if (!previous) {
+          item_cache->items_in_order = NULL;         
+        }
+        
+        while (current) {
+          OrderedItemList *next = current->next;
+          JLD(rc, item_cache->items_by_id, current->item->id);
+          free_item(current->item);
+          free(current);
+          current = next;
+        }
+        
+        break;
+      }
+      
+      number_left++;
+    }
+     
+    info("Purged %i items, %i items left", number_purged, number_left);   
+    pthread_rwlock_unlock(&item_cache->cache_lock);
+  } 
   
   return rc;
 }
