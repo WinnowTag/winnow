@@ -43,6 +43,7 @@ extern int          item_cache_remove_entry       (ItemCache *item_cache, int en
 extern int          item_cache_add_feed           (ItemCache *item_cache, Feed *feed);
 extern int          item_cache_remove_feed        (ItemCache *item_cache, int feed_id);
 extern int          item_cache_add_item           (ItemCache *item_cache, Item *item);
+extern int          item_cache_start_purger       (ItemCache *item_cache, int purge_interval);
 extern int          item_cache_purge_old_items    (ItemCache *item_cache);
 extern int          item_cache_feature_extraction_queue_size(const ItemCache *item_cache);
 extern int          item_cache_start_feature_extractor (ItemCache *item_cache);

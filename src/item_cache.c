@@ -12,6 +12,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <errno.h>
+#include <unistd.h>
 #if HAVE_JUDY_H
 #include <Judy.h>
 #endif
@@ -92,7 +93,7 @@ struct ITEM_CACHE {
   sqlite3_stmt *insert_feed_stmt;
   sqlite3_stmt *delete_feed_stmt;
   
-  pthread_mutex_t *db_access_mutex; 
+  pthread_mutex_t db_access_mutex; 
   
   int user_version;
   int version_mismatch;
@@ -147,6 +148,12 @@ struct ITEM_CACHE {
   
   /* Additional arguments to the udpate callback */
   void *update_callback_memo;  
+  
+  /* Thread that purges the item cache */
+  pthread_t *purge_thread;
+  
+  /* Cache purging interval in seconds */
+  int purge_interval;
 };
 
 /******************************************************************************
@@ -367,24 +374,17 @@ int item_cache_create(ItemCache **item_cache, const char * db_file) {
   
   (*item_cache)->version_mismatch = 0;
   (*item_cache)->items_by_id = NULL;
+  (*item_cache)->items_in_order = NULL;
   (*item_cache)->random_background = NULL;
   (*item_cache)->loaded = false;
   (*item_cache)->feature_extraction_queue = new_queue();
   (*item_cache)->update_queue = new_queue();
     
-  (*item_cache)->db_access_mutex = calloc(1, sizeof(pthread_mutex_t));
-  if (!(*item_cache)->db_access_mutex) {
-    fatal("MALLOC error for db_access_mutex");
+  if (pthread_mutex_init(&(*item_cache)->db_access_mutex, NULL)) {
+    fatal("pthread_mutex_init error for db_access_mutex");
     free(*item_cache);
     *item_cache = NULL;
     rc = CLASSIFIER_FAIL;
-  } else {
-    if (pthread_mutex_init((*item_cache)->db_access_mutex, NULL)) {
-      fatal("pthread_mutex_init error for db_access_mutex");
-      free(*item_cache);
-      *item_cache = NULL;
-      rc = CLASSIFIER_FAIL;
-    }
   }
   
   if (pthread_rwlock_init(&(*item_cache)->cache_lock, NULL)) {
@@ -435,7 +435,7 @@ void free_item_cache(ItemCache *item_cache) {
       sqlite3_close(item_cache->db);
     }
     
-    if (item_cache->loaded) {
+    if (item_cache->items_in_order) {
       Word_t index = 0;
       PWord_t item_pointer;
       JLF(item_pointer, item_cache->items_by_id, index);
@@ -444,7 +444,7 @@ void free_item_cache(ItemCache *item_cache) {
         JLN(item_pointer, item_cache->items_by_id, index);
       }
       JLFA(index, item_cache->items_by_id);
-      
+          
       OrderedItemList *current = item_cache->items_in_order;
       while (current) {
         OrderedItemList *to_free = current;
@@ -456,11 +456,11 @@ void free_item_cache(ItemCache *item_cache) {
         free_pool(item_cache->random_background);
       }
     }
-    
-    if (item_cache->db_access_mutex) {
-      pthread_mutex_destroy(item_cache->db_access_mutex);
-      free(item_cache->db_access_mutex);
-    }
+      
+    pthread_mutex_destroy(&item_cache->db_access_mutex);
+    pthread_rwlock_destroy(&item_cache->cache_lock);
+    free_queue(item_cache->feature_extraction_queue);
+    free_queue(item_cache->update_queue);    
     
     memset(item_cache, 0, sizeof(struct ITEM_CACHE));
     free(item_cache);
@@ -648,7 +648,7 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
   
   
   if (NULL == item) {
-    pthread_mutex_lock(item_cache->db_access_mutex);
+    pthread_mutex_lock(&item_cache->db_access_mutex);
     debug("thread(%i) has locked db_access_mutex to fetch %i", pthread_self(), id);
     
     sqlite3_rc = sqlite3_bind_int(item_cache->fetch_item_stmt, 1, id);
@@ -689,7 +689,7 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
       sqlite3_reset(item_cache->fetch_item_tokens_stmt);
     }
     
-    pthread_mutex_unlock(item_cache->db_access_mutex);
+    pthread_mutex_unlock(&item_cache->db_access_mutex);
     debug("thread(%i) has unlocked db_access_mutex after fetching %i", pthread_self(), id);
   }
   
@@ -757,7 +757,7 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
   
   if (item_cache && entry) {
     int is_new_entry = true;
-    pthread_mutex_lock(item_cache->db_access_mutex);
+    pthread_mutex_lock(&item_cache->db_access_mutex);
     
     // Is it new?
     sqlite3_bind_int(item_cache->fetch_item_stmt, 1, entry->id);
@@ -788,7 +788,7 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
 end:
     sqlite3_clear_bindings(item_cache->insert_entry_stmt);
     sqlite3_reset(item_cache->insert_entry_stmt);    
-    pthread_mutex_unlock(item_cache->db_access_mutex);
+    pthread_mutex_unlock(&item_cache->db_access_mutex);
     
     // We don't want to extract features for items we already have.
     // TODO Handle updates to features for items somehow.
@@ -809,7 +809,7 @@ int item_cache_remove_entry(ItemCache *item_cache, int entry_id) {
   int rc = CLASSIFIER_OK;
   
   if (item_cache) {
-    pthread_mutex_lock(item_cache->db_access_mutex);
+    pthread_mutex_lock(&item_cache->db_access_mutex);
     int sqlite3_rc;
     sqlite3_bind_int(item_cache->delete_entry_stmt, 1, entry_id);
     sqlite3_rc = sqlite3_step(item_cache->delete_entry_stmt);
@@ -828,7 +828,7 @@ int item_cache_remove_entry(ItemCache *item_cache, int entry_id) {
     
     sqlite3_clear_bindings(item_cache->delete_entry_stmt);
     sqlite3_reset(item_cache->delete_entry_stmt);
-    pthread_mutex_unlock(item_cache->db_access_mutex);    
+    pthread_mutex_unlock(&item_cache->db_access_mutex);    
   }
   
   return rc; 
@@ -840,7 +840,7 @@ int item_cache_add_feed(ItemCache *item_cache, Feed * feed) {
   int rc = CLASSIFIER_OK;
   
   if (item_cache && feed) {
-    pthread_mutex_lock(item_cache->db_access_mutex);
+    pthread_mutex_lock(&item_cache->db_access_mutex);
     sqlite3_bind_int(item_cache->insert_feed_stmt, 1, feed->id);
     BIND_TEXT(item_cache->insert_feed_stmt, feed->title, 2);
     
@@ -854,7 +854,7 @@ int item_cache_add_feed(ItemCache *item_cache, Feed * feed) {
   end:
     sqlite3_clear_bindings(item_cache->insert_feed_stmt);
     sqlite3_reset(item_cache->insert_feed_stmt);
-    pthread_mutex_unlock(item_cache->db_access_mutex);
+    pthread_mutex_unlock(&item_cache->db_access_mutex);
   }
   
   return rc;
@@ -866,7 +866,7 @@ int item_cache_remove_feed(ItemCache *item_cache, int feed_id) {
   int rc = CLASSIFIER_OK;
   
   if (item_cache) {
-    pthread_mutex_lock(item_cache->db_access_mutex);    
+    pthread_mutex_lock(&item_cache->db_access_mutex);    
     sqlite3_bind_int(item_cache->delete_feed_stmt, 1, feed_id);
     
     if (SQLITE_DONE != sqlite3_step(item_cache->delete_feed_stmt)) {
@@ -878,7 +878,7 @@ int item_cache_remove_feed(ItemCache *item_cache, int feed_id) {
     
     sqlite3_clear_bindings(item_cache->delete_feed_stmt);
     sqlite3_reset(item_cache->delete_feed_stmt);
-    pthread_mutex_unlock(item_cache->db_access_mutex);
+    pthread_mutex_unlock(&item_cache->db_access_mutex);
   }
   
   return rc;  
@@ -961,6 +961,8 @@ int item_cache_purge_old_items(ItemCache *item_cache) {
         
         if (!previous) {
           item_cache->items_in_order = NULL;         
+        } else {
+          previous->next = NULL;
         }
         
         while (current) {
@@ -980,6 +982,36 @@ int item_cache_purge_old_items(ItemCache *item_cache) {
     info("Purged %i items, %i items left", number_purged, number_left);   
     pthread_rwlock_unlock(&item_cache->cache_lock);
   } 
+  
+  return rc;
+}
+
+
+static void * item_cache_purge_thread_func(void *memo) {
+  ItemCache *item_cache = (ItemCache *) memo;
+  
+  while (true) {
+    sleep(item_cache->purge_interval);
+    item_cache_purge_old_items(item_cache);
+  }
+}
+
+int item_cache_start_purger(ItemCache * item_cache, int purge_interval) {
+  int rc = CLASSIFIER_OK;
+  
+  if (item_cache) {
+    item_cache->purge_interval = purge_interval;
+    item_cache->purge_thread = malloc(sizeof(pthread_t));
+    if (item_cache->purge_thread == NULL) {
+      fatal("Could not malloc purge_thread");
+      rc = CLASSIFIER_FAIL;      
+    } else {
+      if (pthread_create(item_cache->purge_thread,NULL, item_cache_purge_thread_func, item_cache)) {
+        fatal("Could not start purge thread");
+        rc = CLASSIFIER_FAIL;
+      }
+    }
+  }
   
   return rc;
 }
