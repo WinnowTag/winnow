@@ -658,7 +658,7 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     // Data hasn't arrived yet
     ret = MHD_YES;
   } else if (*upload_data_size > 0 && request->data->size > 0) {    
-    char *new_buffer = calloc(*upload_data_size + request->data->size, sizeof(char));
+    char *new_buffer = calloc(*upload_data_size + request->data->size + 1, sizeof(char));
     memcpy(new_buffer, request->data->buffer, request->data->size);
     memcpy(&new_buffer[request->data->size], upload_data, *upload_data_size);
     free(request->data->buffer);

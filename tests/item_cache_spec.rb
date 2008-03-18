@@ -79,6 +79,10 @@ describe "The Classifier's Item Cache" do
       lambda { create_big_entry }.should_not raise_error
     end
     
+    it "should create another big entry without error" do
+      lambda { create_another_big_entry }.should_not raise_error
+    end
+    
     it "should store entry in the database" do
       create_entry
       @sqlite.get_first_value("select count(*) from entries where id = 1111").should == "1"
@@ -212,6 +216,36 @@ describe "The Classifier's Item Cache" do
     &lt;p&gt;Well, those are a few of my subjective and highly personal thoughts on the matter. Discuss.&lt;/p&gt;")
     end
     
+    collection.publish(entry)
+  end
+  
+  def create_another_big_entry
+    s = <<-END
+<?xml version="1.0"?>
+    <entry xmlns="http://www.w3.org/2005/Atom">
+      <title>Car Advisory Network Takes $6.5 Million Series A</title>
+      <author>
+        <name>Duncan Riley</name>
+      </author>
+      <id>urn:peerworks.org:entry#1740153</id>
+      <content type="html">&lt;p&gt;&lt;a href='http://www.caradvisorynetwork.com'&gt;&lt;img class='shot2' src='http://www.techcrunch.com/wp-content/can.jpg' alt='can.jpg'/&gt;Car Advisory Network&lt;/a&gt; has taken $6.5 million Series A in a round that included Accel Partners and Greylock Partners.&lt;/p&gt;
+    &lt;p&gt;Seattle based Car Advisory Network operates &lt;a href='http://www.thecarconnection.com'&gt;TheCarConnection.com&lt;/a&gt;, a &amp;#8220;source for news and reviews, spy shots and shopping guides, tips and expert advice&amp;#8221; on cars. The site also operates several email lists and publishes the &amp;#8220;Weekly Car Guide.&amp;#8221;&lt;/p&gt;
+    &lt;p&gt;A company listing &lt;a href='http://www.ivc-online.com/G_info.asp?objectType=1&amp;amp;fObjectID=9729&amp;amp;CameFrom=GoogleSearch'&gt;at IVC-Online&lt;/a&gt; notes that Car Advisory Network is &amp;#8220;developing a next generation network media platform in the auto industry,&amp;#8221; was established in April 2007 (TheCarConnection.com was founded in 1997), has five employees and is currently in &amp;#8220;stealth mode.&amp;#8221; &lt;/p&gt;
+    &lt;p&gt;(via &lt;a href='http://www.pehub.com/article/articledetail.php?articlepostid=10891'&gt;PEHub&lt;/a&gt;)
+    &lt;/p&gt;&lt;p&gt;&lt;strong&gt;&lt;em&gt;Crunch Network&lt;/em&gt;&lt;/strong&gt;:  &lt;a href='http://mobilecrunch.com/'&gt;MobileCrunch&lt;/a&gt;&lt;em&gt; &lt;/em&gt;Mobile Gadgets and Applications, Delivered Daily.&lt;/p&gt;
+
+    &lt;p&gt;&lt;a href='http://feeds.feedburner.com/~a/Techcrunch?a=mFfbQ6'&gt;&lt;img src='http://feeds.feedburner.com/~a/Techcrunch?i=mFfbQ6' border='0'/&gt;&lt;/a&gt;&lt;/p&gt;&lt;div class='feedflare'&gt;
+    &lt;a href='http://feeds.feedburner.com/~f/Techcrunch?a=n2htEEF'&gt;&lt;img src='http://feeds.feedburner.com/~f/Techcrunch?i=n2htEEF' border='0'/&gt;&lt;/a&gt; &lt;a href='http://feeds.feedburner.com/~f/Techcrunch?a=TrdhbWf'&gt;&lt;img src='http://feeds.feedburner.com/~f/Techcrunch?i=TrdhbWf' border='0'/&gt;&lt;/a&gt; &lt;a href='http://feeds.feedburner.com/~f/Techcrunch?a=knotoLF'&gt;&lt;img src='http://feeds.feedburner.com/~f/Techcrunch?i=knotoLF' border='0'/&gt;&lt;/a&gt; &lt;a href='http://feeds.feedburner.com/~f/Techcrunch?a=tLBh9kF'&gt;&lt;img src='http://feeds.feedburner.com/~f/Techcrunch?i=tLBh9kF' border='0'/&gt;&lt;/a&gt;
+    &lt;/div&gt;&lt;img src='http://feeds.feedburner.com/~r/Techcrunch/~4/253253539' height='1' width='1'/&gt;</content>
+      <link href="/feed_items/1740153.atom" rel="self"/>
+      <link href="http://feeds.feedburner.com/%7Er/Techcrunch/%7E3/253253539/" rel="alternate"/>
+      <link href="/feed_items/1740153/spider" rel="http://peerworks.org/rel/spider"/>
+      <updated>2008-03-17T21:30:56Z</updated>
+    </entry>
+    END
+    
+    collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feeds/426/feed_items')
+    entry = Atom::Entry.load_entry(s)
     collection.publish(entry)
   end
   
