@@ -658,7 +658,14 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     // Data hasn't arrived yet
     ret = MHD_YES;
   } else if (*upload_data_size > 0 && request->data->size > 0) {    
-    error("TODO Need to handle incremental processing of POST'ed data");      
+    char *new_buffer = calloc(*upload_data_size + request->data->size, sizeof(char));
+    memcpy(new_buffer, request->data->buffer, request->data->size);
+    memcpy(&new_buffer[request->data->size], upload_data, *upload_data_size);
+    free(request->data->buffer);
+    request->data->buffer = new_buffer;
+    request->data->size += *upload_data_size;
+    *upload_data_size = 0;
+    ret = MHD_YES;
   } else if (*upload_data_size == 0) {
     HTTPResponse response;
     memset(&response, 0, sizeof(HTTPResponse));

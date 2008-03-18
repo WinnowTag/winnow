@@ -1,3 +1,7 @@
+=== 1.1.1
+
+ * Handle incremental posting of http data.
+ 
 === 1.1.0
 
  * Supports item cache architecture.
