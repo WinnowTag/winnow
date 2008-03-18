@@ -1,3 +1,4 @@
+*.tar.gz
 *.o
 *.lo
 *.log
