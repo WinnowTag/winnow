@@ -407,6 +407,8 @@ int item_cache_create(ItemCache **item_cache, const char * db_file) {
           rc = CLASSIFIER_FAIL;
         } else if (CLASSIFIER_OK != create_prepared_statements(*item_cache)) {
           rc = CLASSIFIER_FAIL;
+        } else {
+          sqlite3_busy_timeout((*item_cache)->db, 1000);
         }
       } else {
         rc = CLASSIFIER_FAIL;
