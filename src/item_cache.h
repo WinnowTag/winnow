@@ -50,6 +50,8 @@ extern int          item_cache_start_feature_extractor (ItemCache *item_cache);
 extern int          item_cache_start_cache_updater     (ItemCache *item_cache);
 extern int          item_cache_update_queue_size  (const ItemCache * item_cache);
 extern int          item_cache_set_update_callback(ItemCache *item_cache, UpdateCallback callback, void *memo);
+extern int          item_cache_atomize            (ItemCache *item_cache, const char *s);
+extern char *       item_cache_globalize          (ItemCache *item_cache, int atom);
 extern void         free_item_cache               (ItemCache *is);
 
 extern ItemCacheEntry * create_item_cache_entry(int id, 
@@ -62,9 +64,11 @@ extern ItemCacheEntry * create_item_cache_entry(int id,
                                                  const char * content,
                                                  time_t updated,
                                                  int feed_id,
-                                                 time_t created_at);
+                                                 time_t created_at,
+                                                 const char * atom);
                                                  
 extern int item_cache_entry_id(const ItemCacheEntry *entry);
+extern const char * item_cache_entry_atom(const ItemCacheEntry *entry);
 extern Feed * create_feed(int id, const char * title);
 extern void   free_feed(Feed * feed);
 

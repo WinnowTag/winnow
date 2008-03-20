@@ -225,7 +225,7 @@ START_TEST (test_adding_an_entry_stores_it_in_the_database) {
                                         "http://example.org/11.html",
                                         "http://example.org/11/spider",
                                         "<p>This is some content</p>",
-                                        1178551600, 141, 1178551601);
+                                        1178551600, 141, 1178551601, NULL);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
   Item *item = item_cache_fetch_item(item_cache, 11);
@@ -239,7 +239,7 @@ START_TEST (adding_an_entry_saves_all_its_attributes) {
                                           "http://example.org/11.html",
                                           "http://example.org/11/spider",
                                           "<p>This is some content</p>",
-                                          1178551600, 141, 1178551601);
+                                          1178551600, 141, 1178551601, NULL);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
   
@@ -271,7 +271,7 @@ START_TEST (adding_an_entry_twice_does_not_fail) {
                                           "http://example.org/11.html",
                                           "http://example.org/11/spider",
                                           "<p>This is some content</p>",
-                                          1178551600, 141, 1178551601);
+                                          1178551600, 141, 1178551601, NULL);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
   rc = item_cache_add_entry(item_cache, entry);
@@ -411,7 +411,7 @@ START_TEST (test_adding_entry_causes_it_to_be_added_to_the_tokenization_queue) {
                                             "http://example.org/11.html",
                                             "http://example.org/11/spider",
                                             "<p>This is some content</p>",
-                                            1178551600, 141, 1178551601);
+                                            1178551600, 141, 1178551601, NULL);
   item_cache_add_entry(item_cache, entry);
   assert_equal(1, item_cache_feature_extraction_queue_size(item_cache));
 } END_TEST
@@ -422,7 +422,7 @@ START_TEST (test_adding_entry_twice_causes_it_to_be_added_to_the_tokenization_qu
                                             "http://example.org/11.html",
                                             "http://example.org/11/spider",
                                             "<p>This is some content</p>",
-                                            1178551600, 141, 1178551601);
+                                            1178551600, 141, 1178551601, NULL);
   item_cache_add_entry(item_cache, entry);
   item_cache_add_entry(item_cache, entry);
   assert_equal(1, item_cache_feature_extraction_queue_size(item_cache));
@@ -538,7 +538,7 @@ START_TEST (test_adding_entry_results_in_calling_the_tokenizer_with_the_entry) {
                                               "http://example.org/11.html",
                                               "http://example.org/11/spider",
                                               "<p>This is some content</p>",
-                                              1178551600, 1, 1178551601);
+                                              1178551600, 1, 1178551601, NULL);
   item_cache_add_entry(item_cache, entry);
   sleep(1);
   assert_equal(entry, tokenizer_called_with);  
@@ -550,7 +550,7 @@ START_TEST (test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_up
                                                 "http://example.org/11.html",
                                                 "http://example.org/11/spider",
                                                 "<p>This is some content</p>",
-                                                1178551600, 1, 1178551601);
+                                                1178551600, 1, 1178551601, NULL);
   item_cache_add_entry(item_cache, entry);  
   sleep(1);
   assert_equal(1, item_cache_update_queue_size(item_cache));
@@ -584,7 +584,7 @@ START_TEST (test_null_feature_extraction) {
                                                 "http://example.org/11.html",
                                                 "http://example.org/11/spider",
                                                 "<p>This is some content</p>",
-                                                1178551600, 1, 1178551601);
+                                                1178551600, 1, 1178551601, NULL);
   item_cache_add_entry(item_cache, entry);  
   sleep(1);
   assert_equal(0, item_cache_update_queue_size(item_cache));
@@ -620,7 +620,7 @@ START_TEST (test_adding_entry_causes_item_added_to_cache) {
                                                   "http://example.org/11.html",
                                                   "http://example.org/11/spider",
                                                   "<p>This is some content</p>",
-                                                  1178551600, 1, 1178551601);
+                                                  1178551600, 1, 1178551601, NULL);
   item_cache_add_entry(item_cache, entry);
   sleep(1);
   assert_equal(11, item_cache_cached_size(item_cache));
@@ -632,13 +632,13 @@ START_TEST (test_adding_multiple_entries_causes_item_added_to_cache) {
                                                   "http://example.org/11.html",
                                                   "http://example.org/11/spider",
                                                   "<p>This is some content</p>",
-                                                  1178551600, 1, 1178551601);
+                                                  1178551600, 1, 1178551601, NULL);
   ItemCacheEntry *entry2 = create_item_cache_entry(12, "id#12", "Entry 12", "Author 12",
                                                     "http://example.org/12",
                                                     "http://example.org/12.html",
                                                     "http://example.org/11/spider",
                                                     "<p>This is some content</p>",
-                                                    1178551600, 1, 1178551601);
+                                                    1178551600, 1, 1178551601, NULL);
   
   item_cache_add_entry(item_cache, entry1);
   item_cache_add_entry(item_cache, entry2);
@@ -659,7 +659,7 @@ START_TEST (test_update_callback) {
                                                     "http://example.org/11.html",
                                                     "http://example.org/11/spider",
                                                     "<p>This is some content</p>",
-                                                    1178551600, 1, 1178551601);
+                                                    1178551600, 1, 1178551601, NULL);
   
   item_cache_add_entry(item_cache, entry1);  
   sleep(1);
@@ -722,6 +722,34 @@ START_TEST (test_purging_half_of_the_cache) {
   
   assert_not_null(item_cache_fetch_item(item_cache, 23));
   assert_null(item_cache_fetch_item(item_cache, 24));
+} END_TEST
+
+/* Atomizer tests */
+START_TEST (test_atomize_a_token) {
+  int atom = item_cache_atomize(item_cache, "one");
+  assert_equal(1, atom);
+} END_TEST
+
+START_TEST (test_atomize_a_new_token) {
+  int atom = item_cache_atomize(item_cache, "new");
+  assert_equal(2, atom);
+} END_TEST
+
+START_TEST (test_globalize_a_token) {
+  char *s = item_cache_globalize(item_cache, 1);
+  assert_equal_s("one", s);
+} END_TEST
+
+START_TEST (test_globalize_a_missing_token_returns_NULL) {
+  char *s = item_cache_globalize(item_cache, 2);
+  assert_null(s);
+} END_TEST
+
+START_TEST (test_globalize_a_new_token) {
+  int atom = item_cache_atomize(item_cache, "new");
+  char *s = item_cache_globalize(item_cache, atom);
+  assert_not_null(s);
+  assert_equal_s("new", s);
 } END_TEST
 
 Suite *
@@ -810,6 +838,14 @@ item_cache_suite(void) {
   tcase_add_test(purging, test_purging_cache_does_nothing_with_no_items);
   tcase_add_test(purging, test_purging_half_of_the_cache);
   
+  TCase *atomization = tcase_create("atomization");
+  tcase_add_checked_fixture(atomization, setup_modification, teardown_modification);
+  tcase_add_test(atomization, test_atomize_a_token);
+  tcase_add_test(atomization, test_atomize_a_new_token);
+  tcase_add_test(atomization, test_globalize_a_token);
+  tcase_add_test(atomization, test_globalize_a_missing_token_returns_NULL);
+  tcase_add_test(atomization, test_globalize_a_new_token);
+  
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
   suite_add_tcase(s, load);
@@ -821,5 +857,6 @@ item_cache_suite(void) {
   suite_add_tcase(s, null_feature_extraction);
   suite_add_tcase(s, full_update);
   suite_add_tcase(s, purging);
+  suite_add_tcase(s, atomization);
   return s;
 }

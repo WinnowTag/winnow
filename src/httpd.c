@@ -250,7 +250,7 @@ static char * get_attribute_value(xmlXPathContextPtr context, const char * path,
   return value;
 }
 
-static ItemCacheEntry * entry_from_xml(int feed_id, xmlDocPtr doc) {  
+static ItemCacheEntry * entry_from_xml(int feed_id, xmlDocPtr doc, const char * xml_source) {  
   ItemCacheEntry *entry = NULL;
   xmlXPathContextPtr context = xmlXPathNewContext(doc);    
   xmlXPathRegisterNs(context, BAD_CAST "atom", BAD_CAST "http://www.w3.org/2005/Atom");
@@ -276,7 +276,7 @@ static ItemCacheEntry * entry_from_xml(int feed_id, xmlDocPtr doc) {
     }
    
     if (id_i > 0) {      
-      entry = create_item_cache_entry(id_i, id, title, author, alternate, self, spider, content, updated_time, feed_id, time(NULL));
+      entry = create_item_cache_entry(id_i, id, title, author, alternate, self, spider, content, updated_time, feed_id, time(NULL), xml_source);
     }
   }
    
@@ -357,7 +357,7 @@ static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
     if (feed_id <= 0) {
       HTTP_BAD_ENTRY(response);
     } else {
-      ItemCacheEntry *entry = entry_from_xml(feed_id, doc);
+      ItemCacheEntry *entry = entry_from_xml(feed_id, doc, request->data->buffer);
         
       if (CLASSIFIER_OK == item_cache_add_entry(request->item_cache, entry)) {
         response->code = MHD_HTTP_CREATED;

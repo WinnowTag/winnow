@@ -32,6 +32,9 @@
 #define DELETE_ENTRY_SQL "delete from entries where id = ?"
 #define INSERT_FEED_SQL "insert or replace into feeds VALUES (?, ?)"
 #define DELETE_FEED_SQL "delete from feeds where id = ?"
+#define FIND_ATOM_SQL "select id from tokens where token = ?"
+#define INSERT_ATOM_SQL "insert into tokens (token) values (?)"
+#define FIND_TOKEN_SQL "select token from tokens where id = ?"
 
 typedef struct ORDERED_ITEM_LIST OrderedItemList;
 struct ORDERED_ITEM_LIST {
@@ -77,6 +80,7 @@ struct ITEM_CACHE_ENTRY {
   time_t updated;
   int feed_id;
   time_t created_at;
+  char * atom;
 };
 
 /** This is the opaque type for the Item Cache */
@@ -92,6 +96,9 @@ struct ITEM_CACHE {
   sqlite3_stmt *delete_entry_stmt;
   sqlite3_stmt *insert_feed_stmt;
   sqlite3_stmt *delete_feed_stmt;
+  sqlite3_stmt *find_token_stmt;
+  sqlite3_stmt *find_atom_stmt;
+  sqlite3_stmt *insert_atom_stmt;
   
   pthread_mutex_t db_access_mutex; 
   
@@ -197,7 +204,8 @@ ItemCacheEntry * create_item_cache_entry(int id,
                                           const char * content,
                                           time_t updated,
                                           int feed_id,
-                                          time_t created_at) {
+                                          time_t created_at,
+                                          const char * atom) {
   ItemCacheEntry *entry = calloc(1, sizeof(struct ITEM_CACHE_ENTRY));
   
   if (entry) {
@@ -212,6 +220,7 @@ ItemCacheEntry * create_item_cache_entry(int id,
     COPY_STRING(entry->self, self);
     COPY_STRING(entry->spider, spider);
     COPY_STRING(entry->content, content);
+    COPY_STRING(entry->atom, atom);
   } else {
     fatal("Malloc failed in create_item_cache_entry");
   }
@@ -221,6 +230,10 @@ ItemCacheEntry * create_item_cache_entry(int id,
 
 int item_cache_entry_id(const ItemCacheEntry * entry) {
   return entry->id;
+}
+
+const char * item_cache_entry_atom(const ItemCacheEntry * entry) {
+  return entry->atom;
 }
 
 void free_entry(ItemCacheEntry *entry) {
@@ -286,15 +299,18 @@ static int get_user_version(ItemCache *item_cache) {
 static int create_prepared_statements(ItemCache *item_cache) {
   int rc = CLASSIFIER_OK;
   
-  if (SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ITEM_SQL, -1, &(item_cache->fetch_item_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ITEM_TOKENS_SQL, -1, &(item_cache->fetch_item_tokens_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ALL_ITEMS_SQL, -1, &(item_cache->fetch_all_items_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ALL_ITEMS_TOKENS_SQL, -1, &(item_cache->fetch_all_item_tokens_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_RANDOM_BACKGROUND, -1, &(item_cache->random_background_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, INSERT_ENTRY_SQL, -1, &(item_cache->insert_entry_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, DELETE_ENTRY_SQL, -1, &(item_cache->delete_entry_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, INSERT_FEED_SQL, -1, &(item_cache->insert_feed_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, DELETE_FEED_SQL, -1, &(item_cache->delete_feed_stmt), NULL)) {
+  if (SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_ITEM_SQL,             -1, &item_cache->fetch_item_stmt,            NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_ITEM_TOKENS_SQL,      -1, &item_cache->fetch_item_tokens_stmt,     NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_ALL_ITEMS_SQL,        -1, &item_cache->fetch_all_items_stmt,       NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_ALL_ITEMS_TOKENS_SQL, -1, &item_cache->fetch_all_item_tokens_stmt, NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_RANDOM_BACKGROUND,    -1, &item_cache->random_background_stmt,     NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ENTRY_SQL,           -1, &item_cache->insert_entry_stmt,          NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_ENTRY_SQL,           -1, &item_cache->delete_entry_stmt,          NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_FEED_SQL,            -1, &item_cache->insert_feed_stmt,           NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_FEED_SQL,            -1, &item_cache->delete_feed_stmt,           NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FIND_TOKEN_SQL,             -1, &item_cache->find_token_stmt,            NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FIND_ATOM_SQL,              -1, &item_cache->find_atom_stmt,             NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ATOM_SQL,            -1, &item_cache->insert_atom_stmt,           NULL)) {
     fatal("Unable to prepare statment: %s", item_cache_errmsg(item_cache));
     rc = CLASSIFIER_FAIL;
   }
@@ -434,6 +450,9 @@ void free_item_cache(ItemCache *item_cache) {
       sqlite3_finalize(item_cache->delete_entry_stmt);
       sqlite3_finalize(item_cache->insert_feed_stmt);
       sqlite3_finalize(item_cache->delete_feed_stmt);
+      sqlite3_finalize(item_cache->find_token_stmt);
+      sqlite3_finalize(item_cache->find_atom_stmt);
+      sqlite3_finalize(item_cache->insert_atom_stmt);
       sqlite3_close(item_cache->db);
     }
     
@@ -949,12 +968,13 @@ int item_cache_purge_old_items(ItemCache *item_cache) {
   int rc = CLASSIFIER_OK;
   
   if (item_cache) {
-    int number_purged;
-    int number_left;
+    int number_purged = 0;
+    int number_left = 0;
     pthread_rwlock_wrlock(&item_cache->cache_lock);
     time_t purge_time = get_purge_time();
         
-    OrderedItemList *previous, *current;
+    OrderedItemList *current;
+    OrderedItemList *previous = NULL;
     
     /* Find the point in the list where items are older than purge_time and remove them. */
     for (current = item_cache->items_in_order; current != NULL; previous = current, current = current->next) {
@@ -1148,6 +1168,74 @@ int item_cache_set_update_callback(ItemCache *item_cache, UpdateCallback callbac
     item_cache->update_callback_memo = memo;
   }
   return CLASSIFIER_OK;
+}
+
+/******************************************************************************
+ * Atomization functions.
+ ******************************************************************************/
+ 
+/** Converts a string token into it's atomized form.
+ *
+ *  If no atom for the string exists this will create one.
+ *
+ *  @return The integer atom for the token or -1 if it failed.
+ */
+int item_cache_atomize(ItemCache * item_cache, const char * s) {
+  int atom = -1;
+  
+  if (item_cache && s) {
+    pthread_mutex_lock(&item_cache->db_access_mutex);
+    
+    if (SQLITE_OK != sqlite3_bind_text(item_cache->find_atom_stmt, 1, s, -1, NULL)) {
+      error("Error binding %s to parameter 1", s);
+    } else {
+      
+      if (SQLITE_ROW == sqlite3_step(item_cache->find_atom_stmt)) {
+        atom = sqlite3_column_int(item_cache->find_atom_stmt, 0);
+      } else {
+        if (SQLITE_OK != sqlite3_bind_text(item_cache->insert_atom_stmt, 1, s, -1, NULL)) {
+          error("Error bind %s to parameter 1", s);
+        } else if (SQLITE_DONE != sqlite3_step(item_cache->insert_atom_stmt)) {
+          error("Error executing atom insertion: %s", item_cache_errmsg(item_cache));
+        } else {
+          atom = sqlite3_last_insert_rowid(item_cache->db);
+        }
+        
+        sqlite3_clear_bindings(item_cache->insert_atom_stmt);
+        sqlite3_reset(item_cache->insert_atom_stmt);          
+      }
+      
+      sqlite3_clear_bindings(item_cache->find_atom_stmt);
+      sqlite3_reset(item_cache->find_atom_stmt);
+    }
+    
+    
+    pthread_mutex_unlock(&item_cache->db_access_mutex);    
+  }
+  
+  return atom;  
+} 
+
+char * item_cache_globalize(ItemCache * item_cache, int atom) {
+  char * s = NULL;
+  
+  if (item_cache) {
+    pthread_mutex_lock(&item_cache->db_access_mutex);
+    
+    sqlite3_bind_int(item_cache->find_token_stmt, 1, atom);
+    
+    if (SQLITE_ROW == sqlite3_step(item_cache->find_token_stmt)) {
+      char *token = sqlite3_column_text(item_cache->find_token_stmt, 0);
+      if (token) {
+        s = strdup(token);
+      }
+    }
+    
+    sqlite3_clear_bindings(item_cache->find_token_stmt);
+    sqlite3_reset(item_cache->find_token_stmt);    
+    pthread_mutex_unlock(&item_cache->db_access_mutex);    
+  }
+  return s;
 }
 
 /******************************************************************************
