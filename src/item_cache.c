@@ -949,12 +949,13 @@ int item_cache_purge_old_items(ItemCache *item_cache) {
   int rc = CLASSIFIER_OK;
   
   if (item_cache) {
-    int number_purged;
-    int number_left;
+    int number_purged = 0;
+    int number_left = 0;
     pthread_rwlock_wrlock(&item_cache->cache_lock);
     time_t purge_time = get_purge_time();
         
-    OrderedItemList *previous, *current;
+    OrderedItemList *current;
+    OrderedItemList *previous = NULL;
     
     /* Find the point in the list where items are older than purge_time and remove them. */
     for (current = item_cache->items_in_order; current != NULL; previous = current, current = current->next) {
