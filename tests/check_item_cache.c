@@ -729,6 +729,22 @@ START_TEST (test_update_callback) {
   assert_equal(&memo, memo_ref);
 } END_TEST
 
+START_TEST (test_update_callback_not_triggered_for_invalid_item) {
+  memo_ref = NULL;
+  int memo = 21;
+  item_cache_set_update_callback(item_cache, update_callback, &memo);
+  ItemCacheEntry *entry1 = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
+                                                    "http://example.org/11",
+                                                    "http://example.org/11.html",
+                                                    "http://example.org/11/spider",
+                                                    "<p>This is some content</p>",
+                                                    1178551600, 1, 1178551601, NULL);
+  
+  item_cache_add_entry(item_cache, entry1);  
+  sleep(1);
+  assert_equal(NULL, memo_ref);
+} END_TEST
+
 /* Cache pruning */
 time_t purge_time;
 
@@ -894,6 +910,7 @@ item_cache_suite(void) {
   tcase_add_test(full_update, test_adding_entry_causes_item_added_to_cache); 
   tcase_add_test(full_update, test_adding_multiple_entries_causes_item_added_to_cache);
   tcase_add_test(full_update, test_update_callback);
+  tcase_add_test(full_update, test_update_callback_not_triggered_for_invalid_item);
   tcase_add_test(full_update, test_adding_entry_causes_tokens_to_be_added_to_the_db);
   
   TCase *purging = tcase_create("purging");

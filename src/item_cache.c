@@ -795,13 +795,13 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
     
     // Do the insert or replace if it already exists
     sqlite3_bind_int(item_cache->insert_entry_stmt, 1, entry->id);
-    BIND_TEXT(item_cache->insert_entry_stmt, entry->full_id, 2);
-    BIND_TEXT(item_cache->insert_entry_stmt, entry->title, 3);
-    BIND_TEXT(item_cache->insert_entry_stmt, entry->author, 4);
-    BIND_TEXT(item_cache->insert_entry_stmt, entry->alternate, 5);
-    BIND_TEXT(item_cache->insert_entry_stmt, entry->self, 6);
-    BIND_TEXT(item_cache->insert_entry_stmt, entry->spider, 7);
-    BIND_TEXT(item_cache->insert_entry_stmt, entry->content, 8);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->full_id,   2);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->title,     3);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->author,    4);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->alternate, 5);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->self,      6);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->spider,    7);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->content,   8);
     sqlite3_bind_double(item_cache->insert_entry_stmt, 9, entry->updated);
     sqlite3_bind_int(item_cache->insert_entry_stmt, 10, entry->feed_id);
     sqlite3_bind_double(item_cache->insert_entry_stmt, 11, entry->created_at);
@@ -816,7 +816,7 @@ end:
     pthread_mutex_unlock(&item_cache->db_access_mutex);
     
     // We don't want to extract features for items we already have.
-    // TODO Handle updates to features for items somehow.
+    // TODO Handle updates to features for items somehow?
     if (is_new_entry && rc != CLASSIFIER_FAIL) {
       q_enqueue(item_cache->feature_extraction_queue, entry);
     }
