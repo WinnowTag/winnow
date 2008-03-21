@@ -374,7 +374,8 @@ static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
     
     if (NULL == request->data) {
       HTTP_BAD_XML(response);
-    } else if (NULL == (doc = xmlParseDoc(BAD_CAST request->data->buffer))) {              
+    } else if (NULL == (doc = xmlParseDoc(BAD_CAST request->data->buffer))) {
+      error("Bad xml for feed: %s", request->data->buffer);
       HTTP_BAD_XML(response);
     } else {
       xmlXPathContextPtr context = xmlXPathNewContext(doc);
@@ -383,12 +384,14 @@ static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
       char *id = get_element_value(context, "/atom:entry/atom:id/text()");
             
       if (!title || !id) {
+        error("Missing title or id for feed: %s", request->data->buffer);
         HTTP_BAD_FEED(response);
       } else {
         int feed_id = get_atom_id(id);
         
         if (feed_id <= 0) {
           HTTP_BAD_FEED(response);
+          error("Missing id for feed: %s", request->data->buffer);
         } else {
           Feed *feed = create_feed(feed_id, title);
           if (CLASSIFIER_OK == item_cache_add_feed(request->item_cache, feed)) {
