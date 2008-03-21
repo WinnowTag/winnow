@@ -1,3 +1,13 @@
+=== 1.1.2
+
+ * Classifier handles storage and atomization of item tokens itself. (Prevents database deadlocks)
+ * Turn off debug and trace messages unless configured with --enable-debug
+ * Reports git version instead of svn version.
+ * Prevent adding new items from triggering a new classification job for every tag on every item.
+   Instead it will now allow items to build up to 200 before new jobs a created.  If there is a
+   lull in the addition of new items (currently only 1 second) it will trigger jobs for what it has
+   already added.  1 second might not be enough though so this should probably be parameterized.
+
 === 1.1.1
 
  * Handle incremental posting of http data.
