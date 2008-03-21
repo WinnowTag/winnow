@@ -35,6 +35,7 @@
 #define FIND_ATOM_SQL "select id from tokens where token = ?"
 #define INSERT_ATOM_SQL "insert into tokens (token) values (?)"
 #define FIND_TOKEN_SQL "select token from tokens where id = ?"
+#define INSERT_ENTRY_TOKENS "insert into entry_tokens (entry_id, token_id, frequency) values (?, ?, ?)"
 
 typedef struct ORDERED_ITEM_LIST OrderedItemList;
 struct ORDERED_ITEM_LIST {
@@ -99,6 +100,7 @@ struct ITEM_CACHE {
   sqlite3_stmt *find_token_stmt;
   sqlite3_stmt *find_atom_stmt;
   sqlite3_stmt *insert_atom_stmt;
+  sqlite3_stmt *insert_entry_token_stmt;
   
   pthread_mutex_t db_access_mutex; 
   
@@ -310,7 +312,8 @@ static int create_prepared_statements(ItemCache *item_cache) {
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_FEED_SQL,            -1, &item_cache->delete_feed_stmt,           NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FIND_TOKEN_SQL,             -1, &item_cache->find_token_stmt,            NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FIND_ATOM_SQL,              -1, &item_cache->find_atom_stmt,             NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ATOM_SQL,            -1, &item_cache->insert_atom_stmt,           NULL)) {
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ATOM_SQL,            -1, &item_cache->insert_atom_stmt,           NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ENTRY_TOKENS,        -1, &item_cache->insert_entry_token_stmt,    NULL)) {
     fatal("Unable to prepare statment: %s", item_cache_errmsg(item_cache));
     rc = CLASSIFIER_FAIL;
   }
@@ -453,6 +456,7 @@ void free_item_cache(ItemCache *item_cache) {
       sqlite3_finalize(item_cache->find_token_stmt);
       sqlite3_finalize(item_cache->find_atom_stmt);
       sqlite3_finalize(item_cache->insert_atom_stmt);
+      sqlite3_finalize(item_cache->insert_entry_token_stmt);
       sqlite3_close(item_cache->db);
     }
     
@@ -813,7 +817,7 @@ end:
     
     // We don't want to extract features for items we already have.
     // TODO Handle updates to features for items somehow.
-    if (is_new_entry) {
+    if (is_new_entry && rc != CLASSIFIER_FAIL) {
       q_enqueue(item_cache->feature_extraction_queue, entry);
     }
   }
@@ -920,7 +924,8 @@ int item_cache_add_item(ItemCache *item_cache, Item *item) {
     JLI(item_pointer, item_cache->items_by_id, item->id);
     if (item_pointer) {
       (*item_pointer) = (Word_t) item;
-      OrderedItemList *new_node = calloc(1, sizeof(struct ORDERED_ITEM_LIST));      
+      OrderedItemList *new_node = calloc(1, sizeof(struct ORDERED_ITEM_LIST));
+      
       if (new_node) {        
         new_node->item = item;
         // Is it the first one?
@@ -950,6 +955,64 @@ int item_cache_add_item(ItemCache *item_cache, Item *item) {
       fatal("Malloc error inserting into items_by_id");
       rc = CLASSIFIER_FAIL;
     }
+  }
+  
+  return rc;
+}
+
+/** Saves the item in the database.
+ *
+ * This save the tokenized representation of an entry in the database.
+ * The item must have an entry in the DB or it will not be saved.
+ *
+ * @param item_cache The item cache to save the item in.
+ * @param item The tokenized item to save in the cache's database.
+ */
+int item_cache_save_item(ItemCache * item_cache, Item *item) {
+  int rc = CLASSIFIER_OK;
+  
+  if (item_cache && item) {
+    info("Saving item %i", item->id);
+    pthread_mutex_lock(&item_cache->db_access_mutex);    
+    char *err;
+    
+    if (SQLITE_OK != sqlite3_exec(item_cache->db, "begin immediate transaction", NULL, NULL, &err)) {
+      error("Could not start transaction to save item: %s", err);
+      sqlite3_free(err);
+      rc = CLASSIFIER_FAIL;
+    } else {
+      Token token;
+      token.id = 0;
+      
+      while(item_next_token(item, &token)) {
+        info("save token %i", token.id);
+        int stmt_rc;
+        sqlite3_bind_int(item_cache->insert_entry_token_stmt, 1, item->id);
+        sqlite3_bind_int(item_cache->insert_entry_token_stmt, 2, token.id);
+        sqlite3_bind_int(item_cache->insert_entry_token_stmt, 3, token.frequency);
+        
+        stmt_rc = sqlite3_step(item_cache->insert_entry_token_stmt);
+        sqlite3_clear_bindings(item_cache->insert_entry_token_stmt);
+        sqlite3_reset(item_cache->insert_entry_token_stmt);
+        
+        if (SQLITE_DONE != stmt_rc) {
+          error("Error inserting entry token: (%i, %i, %i), %s", 
+                item->id, token.id, token.frequency, item_cache_errmsg(item_cache));
+          rc = CLASSIFIER_FAIL;
+          break;
+        }
+      }
+      
+      if (CLASSIFIER_FAIL == rc) {
+        sqlite3_exec(item_cache->db, "rollback transaction", NULL, NULL, NULL);
+      } else if (SQLITE_OK != sqlite3_exec(item_cache->db, "commit transaction", NULL, NULL, &err)) {
+        error("Error commiting save item: %s", err);
+        rc = CLASSIFIER_FAIL;
+        sqlite3_free(err);
+      }
+    }
+       
+    pthread_mutex_unlock(&item_cache->db_access_mutex);
   }
   
   return rc;
@@ -1124,7 +1187,9 @@ void * cache_updating_func(void *memo) {
       do {
         switch (job->type) {
           case ADD:
-            item_cache_add_item(item_cache, job->item);
+            if (CLASSIFIER_OK == item_cache_save_item(item_cache, job->item)) {
+              item_cache_add_item(item_cache, job->item);
+            }
             break;
           default:
             fatal("Got unknown cache updating job type");
