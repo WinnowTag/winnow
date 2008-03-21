@@ -22,7 +22,7 @@
 #include "classification_engine.h"
 #include "httpd.h"
 #include "misc.h"
-#include "svnversion.h"
+#include "git_revision.h"
 #include "feature_extractor.h"
 
 #define DEFAULT_CONFIG_FILE "config/classifier.conf"
@@ -157,7 +157,7 @@ int main(int argc, char **argv) {
   while (-1 != (opt = getopt_long(argc, argv, SHORT_OPTS, long_options, &longindex))) {
     switch (opt) {
       case 'v':
-        printf("%s, build: %s\n", PACKAGE_STRING, svn_version);
+        printf("%s, build: %s\n", PACKAGE_STRING, git_revision);
         exit(EXIT_SUCCESS);
       break;
       case 'c':

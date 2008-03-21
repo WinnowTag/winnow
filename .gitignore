@@ -21,7 +21,7 @@ src/.libs
 src/classifier
 src/cls_bench
 *.la
-src/svnversion.h
+src/git_revision.h
 stamp-h1
 .DS_Store
 .gdb_history

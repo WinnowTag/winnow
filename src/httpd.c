@@ -18,7 +18,7 @@
 #include "item_cache.h"
 #include "logging.h"
 #include "misc.h"
-#include "svnversion.h"
+#include "git_revision.h"
 
 #define CONTENT_TYPE "application/xml"
 #define NOT_FOUND "<?xml version='1.0' ?>\n<errors><error>Resource not found.</error></errors>\n"
@@ -190,7 +190,7 @@ static xmlChar * xml_for_about(const ClassificationEngine *ce) {
   xmlDocSetRootElement(doc, root);
   
   add_element(root, "version", "string", "%s", PACKAGE_VERSION);
-  add_element(root, "svnversion", "string", "%s", svn_version);
+  add_element(root, "git_revision", "string", "%s", git_revision);
   
   xmlDocDumpFormatMemory(doc, &buffer, &buffersize, 1);
   xmlFreeDoc(doc);

@@ -32,17 +32,17 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            item_cache.c      				 \
                            item_cache.h				       \
                            uuid.h                    \
-                           svnversion.h              \
+                           git_revision.h            \
                            feature_extractor.c       \
                            feature_extractor.h       \
                            xml.c xml.h
 
 libclassifier_la_LIBADD = @LTLIBOBJS@
        
-BUILT_SOURCES=svnversion.h
-CLEANFILES=svnversion.h
+BUILT_SOURCES=git_revision.h
+CLEANFILES=git_revision.h
 bin_PROGRAMS = classifier
-classifier_SOURCES = svnversion.h main.c 
+classifier_SOURCES = git_revision.h main.c 
 classifier_LDADD = libclassifier.la
 
 #cls_bench_SOURCES = bench.c
@@ -56,7 +56,7 @@ endif
 
 # noinst_PROGRAMS = cls_bench
 
-svnversion.h:
-	echo "static const char *svn_version = \"`svnversion`\";" > svnversion.h
+git_revision.h:
+	echo "static const char *git_revision = \"`git rev-parse --short HEAD`\";" > git_revision.h
 
 
