@@ -15,8 +15,14 @@
 #define fatal(fmt, ...) _fatal(__FILE__, __LINE__, fmt, ## __VA_ARGS__)
 #define error(fmt, ...) _error(__FILE__, __LINE__, fmt, ## __VA_ARGS__)
 #define info(fmt, ...)  _info (__FILE__, __LINE__, fmt, ## __VA_ARGS__)
-#define debug(fmt, ...) _debug(__FILE__, __LINE__, fmt, ## __VA_ARGS__)
-#define trace(fmt, ...)
+
+#ifdef _DEBUG
+#  define debug(fmt, ...) _debug(__FILE__, __LINE__, fmt, ## __VA_ARGS__)
+#  define trace(fmt, ...)
+#else
+#  define debug(fmt, ...)
+#  define trace(fmt, ...)
+#endif
 
 extern void initialize_logging(const char *logfile);
 extern void _fatal (const char *file, int line, const char *fmt, ...);

@@ -49,9 +49,9 @@ classifier_LDADD = libclassifier.la
 #cls_bench_LDADD = libclassifier.la
 
 if DEBUG
-classifier_CFLAGS = -g -DDEBUG
+classifier_CFLAGS = -g -D_DEBUG
 classifier_LDFLAGS = -static
-libclassifier_la_CFLAGS = -g -DDEBUG
+libclassifier_la_CFLAGS = -g -D_DEBUG
 endif
 
 # noinst_PROGRAMS = cls_bench
