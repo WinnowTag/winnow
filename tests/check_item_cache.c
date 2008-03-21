@@ -726,7 +726,7 @@ START_TEST (test_update_callback) {
                                                     1178551600, 141, 1178551601, NULL);
   
   item_cache_add_entry(item_cache, entry1);  
-  sleep(1);
+  sleep(2);
   assert_equal(&memo, memo_ref);
 } END_TEST
 

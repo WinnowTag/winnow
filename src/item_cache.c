@@ -680,7 +680,7 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
   
   if (NULL == item) {
     pthread_mutex_lock(&item_cache->db_access_mutex);
-    debug("thread(%i) has locked db_access_mutex to fetch %i", pthread_self(), id);
+    trace("thread(%i) has locked db_access_mutex to fetch %i", pthread_self(), id);
     
     sqlite3_rc = sqlite3_bind_int(item_cache->fetch_item_stmt, 1, id);
     if (SQLITE_OK != sqlite3_rc) {
@@ -721,7 +721,7 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
     }
     
     pthread_mutex_unlock(&item_cache->db_access_mutex);
-    debug("thread(%i) has unlocked db_access_mutex after fetching %i", pthread_self(), id);
+    trace("thread(%i) has unlocked db_access_mutex after fetching %i", pthread_self(), id);
   }
   
   return item;
@@ -926,6 +926,8 @@ int item_cache_add_item(ItemCache *item_cache, Item *item) {
   int rc = CLASSIFIER_OK;
   
   if (item_cache && item) {
+    pthread_rwlock_wrlock(&item_cache->cache_lock);
+    
     PWord_t item_pointer;
     JLI(item_pointer, item_cache->items_by_id, item->id);
     if (item_pointer) {
@@ -961,6 +963,8 @@ int item_cache_add_item(ItemCache *item_cache, Item *item) {
       fatal("Malloc error inserting into items_by_id");
       rc = CLASSIFIER_FAIL;
     }
+    
+    pthread_rwlock_unlock(&item_cache->cache_lock);
   }
   
   return rc;
@@ -1184,6 +1188,42 @@ int item_cache_update_queue_size(const ItemCache * item_cache) {
   return size;
 }
 
+#define PROCESSING_LIMIT 200
+
+/** The cache updating thread.
+ *
+ * This is one of the hairier functions in the Item cache.  It is responsible
+ * for saving new tokenized items in the database and adding new tokenized items 
+ * into the in-memory cache that is used for classification.
+ *
+ * UpdateJob are first placed into the update_queue by the feature extraction thread.
+ * The updating thread then gets the jobs of the queue. The jobs contain an item that
+ * is to be saved into the database and, if that is successful, it is saved into the
+ * in-memory cache.  We use a write lock on the in-memory cache to ensure that
+ * nothing is reading or writing to the in-memory cache at this time.  The lock is around
+ * the smallest possible section, the item_cache_add_item function, to ensure we hold
+ * the lock for as short a time as possible.
+ *
+ * One particularly trick aspect to this is that new classification jobs are triggered
+ * by the addition of new items to the cache. This is handled by the calling of the 
+ * update_callback when new items are added.  However item can come in spurts and we
+ * don't want to be creating a new classification job for every item if we are getting
+ * say 100-200 items at a rate of one every second or so, this will flood the classifier
+ * with thousands of small jobs that each classify a single item and then end.
+ *
+ * So what we want to try and do here is to add as many items as we can before calling
+ * the callback, but we also want to make sure the callback is called fairly regularly
+ * and you do don't have a small number of items waiting a long time to be classified.
+ * To do this we keep track of the number of items processed in a "run", when that reaches
+ * PROCESSING_LIMIT (default: 200) the callback is called and we continue processing new
+ * items.  Before that limit is reached we will try an get another item off the queue,
+ * if there are no items we wait 1 second, if there are still no items we then call the callback.
+ *
+ * So we have a couple of parameters that might need tuning:
+ *
+ *   PROCESSING_LIMIT: The number of items that will be processed before the update_callback is triggered.
+ *   QUEUE_WAIT: The time we wait for a new item in the queue before the update_callback is triggered.
+ */
 void * cache_updating_func(void *memo) {
   ItemCache *item_cache = (ItemCache*) memo;
   
@@ -1191,11 +1231,12 @@ void * cache_updating_func(void *memo) {
     UpdateJob *job = q_dequeue_or_wait(item_cache->update_queue);
     
     if (job) {
-      pthread_rwlock_wrlock(&item_cache->cache_lock);
+      int jobs_processed = 0;
+      
       do {
         switch (job->type) {
           case ADD:
-            if (CLASSIFIER_OK == item_cache_save_item(item_cache, job->item)) {
+            if (CLASSIFIER_OK == item_cache_save_item(item_cache, job->item)) {              
               item_cache_add_item(item_cache, job->item);
             }
             break;
@@ -1203,11 +1244,27 @@ void * cache_updating_func(void *memo) {
             fatal("Got unknown cache updating job type");
             break;
         }
-        job = q_dequeue(item_cache->update_queue);
+        
+        jobs_processed++;
+        
+        /* When we have added 200 items to the queue
+         * skip to calling the callback. Otherwise
+         * try an get another job, possibly waiting
+         * one second for it to arrive.
+         */
+        if (jobs_processed >= PROCESSING_LIMIT) {
+          debug("Hit PROCESSING_LIMIT(%i)", PROCESSING_LIMIT);
+          break;
+        } else {
+          job = q_dequeue_or_wait(item_cache->update_queue);
+        }
+        
+        /* We keep doing this until we don't get any more jobs after a 1 second wait. */
+        /* Is one second long enough? This might need to be a parameter. */
       } while (job != NULL);
-      pthread_rwlock_unlock(&item_cache->cache_lock);
-      
+            
       if (item_cache->update_callback) {
+        debug("Trigger update callback for %i items", jobs_processed);
         item_cache->update_callback(item_cache, item_cache->update_callback_memo);
       }
     }    

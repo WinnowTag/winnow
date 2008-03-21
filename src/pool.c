@@ -74,7 +74,7 @@ int pool_add_items(Pool *pool, const int items[], int size, const ItemCache *ite
       pool_add_item(pool, item);
     } else {
       success = false;
-      error("Missing item when adding to pool %d", items[i]);
+      trace("Missing item when adding to pool %d", items[i]);
     }
   }
   

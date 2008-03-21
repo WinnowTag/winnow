@@ -37,6 +37,7 @@ describe "The Classifier's Item Cache" do
   end
   
   before(:each) do
+    system("rm /tmp/perf.log")
     system("cp -f #{File.join(ROOT, 'fixtures/valid.db')} #{Database}")
     system("chmod 644 #{Database}")
     start_classifier
@@ -165,8 +166,23 @@ describe "The Classifier's Item Cache" do
         Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
         
         create_entry
-        sleep(1) # wait for it to be classified
+        sleep(2) # wait for it to be classified
         Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 1)
+      end
+      
+      it "should only create a single job that classifies both items for each tag" do
+        job = Job.create(:tag_id => 48)
+        while job.progress < 100
+          job.reload
+        end
+        
+        Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
+        
+        create_entry("1111")
+        create_entry("1112")
+        sleep(2)
+        Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 2)
+        `wc -l /tmp/perf.log`.to_i.should == Tagging.count(:select => 'distinct tag_id') + 2 # +1 for header, +1 for previous job
       end
     end
   end
@@ -177,11 +193,11 @@ describe "The Classifier's Item Cache" do
     collection.publish(feed_entry)
   end
   
-  def create_entry
+  def create_entry(id = "1111")
     collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feeds/426/feed_items')
     entry = Atom::Entry.new do |entry|
       entry.title = 'My Feed'
-      entry.id = "urn:peerworks.org:entries#1111"
+      entry.id = "urn:peerworks.org:entries##{id}"
       entry.links << Atom::Link.new(:href => 'http://example.org/1111.html', :rel => 'alternate')
       entry.links << Atom::Link.new(:href => 'http://example.org/1111.atom', :rel => 'self')
       entry.updated = Time.now
