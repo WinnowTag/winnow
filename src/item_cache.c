@@ -13,6 +13,11 @@
 #include <pthread.h>
 #include <errno.h>
 #include <unistd.h>
+#include <libxml/tree.h>
+#include <libxml/xpath.h>
+#include <libxml/xpathInternals.h>
+#include <libxml/uri.h>
+
 #if HAVE_JUDY_H
 #include <Judy.h>
 #endif
@@ -20,6 +25,7 @@
 #include "logging.h"
 #include "misc.h"
 #include "job_queue.h"
+#include "xml.h"
 
 #define CURRENT_USER_VERSION 1
 #define FETCH_ITEM_SQL "select id, strftime('%s', updated) from entries where id = ?"
@@ -32,6 +38,10 @@
 #define DELETE_ENTRY_SQL "delete from entries where id = ?"
 #define INSERT_FEED_SQL "insert or replace into feeds VALUES (?, ?)"
 #define DELETE_FEED_SQL "delete from feeds where id = ?"
+#define FIND_ATOM_SQL "select id from tokens where token = ?"
+#define INSERT_ATOM_SQL "insert into tokens (token) values (?)"
+#define FIND_TOKEN_SQL "select token from tokens where id = ?"
+#define INSERT_ENTRY_TOKENS "insert into entry_tokens (entry_id, token_id, frequency) values (?, ?, ?)"
 
 typedef struct ORDERED_ITEM_LIST OrderedItemList;
 struct ORDERED_ITEM_LIST {
@@ -77,6 +87,7 @@ struct ITEM_CACHE_ENTRY {
   time_t updated;
   int feed_id;
   time_t created_at;
+  char * atom;
 };
 
 /** This is the opaque type for the Item Cache */
@@ -92,6 +103,10 @@ struct ITEM_CACHE {
   sqlite3_stmt *delete_entry_stmt;
   sqlite3_stmt *insert_feed_stmt;
   sqlite3_stmt *delete_feed_stmt;
+  sqlite3_stmt *find_token_stmt;
+  sqlite3_stmt *find_atom_stmt;
+  sqlite3_stmt *insert_atom_stmt;
+  sqlite3_stmt *insert_entry_token_stmt;
   
   pthread_mutex_t db_access_mutex; 
   
@@ -197,7 +212,8 @@ ItemCacheEntry * create_item_cache_entry(int id,
                                           const char * content,
                                           time_t updated,
                                           int feed_id,
-                                          time_t created_at) {
+                                          time_t created_at,
+                                          const char * atom) {
   ItemCacheEntry *entry = calloc(1, sizeof(struct ITEM_CACHE_ENTRY));
   
   if (entry) {
@@ -212,6 +228,7 @@ ItemCacheEntry * create_item_cache_entry(int id,
     COPY_STRING(entry->self, self);
     COPY_STRING(entry->spider, spider);
     COPY_STRING(entry->content, content);
+    COPY_STRING(entry->atom, atom);
   } else {
     fatal("Malloc failed in create_item_cache_entry");
   }
@@ -221,6 +238,10 @@ ItemCacheEntry * create_item_cache_entry(int id,
 
 int item_cache_entry_id(const ItemCacheEntry * entry) {
   return entry->id;
+}
+
+const char * item_cache_entry_atom(const ItemCacheEntry * entry) {
+  return entry->atom;
 }
 
 void free_entry(ItemCacheEntry *entry) {
@@ -286,15 +307,19 @@ static int get_user_version(ItemCache *item_cache) {
 static int create_prepared_statements(ItemCache *item_cache) {
   int rc = CLASSIFIER_OK;
   
-  if (SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ITEM_SQL, -1, &(item_cache->fetch_item_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ITEM_TOKENS_SQL, -1, &(item_cache->fetch_item_tokens_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ALL_ITEMS_SQL, -1, &(item_cache->fetch_all_items_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_ALL_ITEMS_TOKENS_SQL, -1, &(item_cache->fetch_all_item_tokens_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, FETCH_RANDOM_BACKGROUND, -1, &(item_cache->random_background_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, INSERT_ENTRY_SQL, -1, &(item_cache->insert_entry_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, DELETE_ENTRY_SQL, -1, &(item_cache->delete_entry_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, INSERT_FEED_SQL, -1, &(item_cache->insert_feed_stmt), NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2(item_cache->db, DELETE_FEED_SQL, -1, &(item_cache->delete_feed_stmt), NULL)) {
+  if (SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_ITEM_SQL,             -1, &item_cache->fetch_item_stmt,            NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_ITEM_TOKENS_SQL,      -1, &item_cache->fetch_item_tokens_stmt,     NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_ALL_ITEMS_SQL,        -1, &item_cache->fetch_all_items_stmt,       NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_ALL_ITEMS_TOKENS_SQL, -1, &item_cache->fetch_all_item_tokens_stmt, NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_RANDOM_BACKGROUND,    -1, &item_cache->random_background_stmt,     NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ENTRY_SQL,           -1, &item_cache->insert_entry_stmt,          NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_ENTRY_SQL,           -1, &item_cache->delete_entry_stmt,          NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_FEED_SQL,            -1, &item_cache->insert_feed_stmt,           NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_FEED_SQL,            -1, &item_cache->delete_feed_stmt,           NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FIND_TOKEN_SQL,             -1, &item_cache->find_token_stmt,            NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FIND_ATOM_SQL,              -1, &item_cache->find_atom_stmt,             NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ATOM_SQL,            -1, &item_cache->insert_atom_stmt,           NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ENTRY_TOKENS,        -1, &item_cache->insert_entry_token_stmt,    NULL)) {
     fatal("Unable to prepare statment: %s", item_cache_errmsg(item_cache));
     rc = CLASSIFIER_FAIL;
   }
@@ -434,6 +459,10 @@ void free_item_cache(ItemCache *item_cache) {
       sqlite3_finalize(item_cache->delete_entry_stmt);
       sqlite3_finalize(item_cache->insert_feed_stmt);
       sqlite3_finalize(item_cache->delete_feed_stmt);
+      sqlite3_finalize(item_cache->find_token_stmt);
+      sqlite3_finalize(item_cache->find_atom_stmt);
+      sqlite3_finalize(item_cache->insert_atom_stmt);
+      sqlite3_finalize(item_cache->insert_entry_token_stmt);
       sqlite3_close(item_cache->db);
     }
     
@@ -772,13 +801,13 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
     
     // Do the insert or replace if it already exists
     sqlite3_bind_int(item_cache->insert_entry_stmt, 1, entry->id);
-    BIND_TEXT(item_cache->insert_entry_stmt, entry->full_id, 2);
-    BIND_TEXT(item_cache->insert_entry_stmt, entry->title, 3);
-    BIND_TEXT(item_cache->insert_entry_stmt, entry->author, 4);
-    BIND_TEXT(item_cache->insert_entry_stmt, entry->alternate, 5);
-    BIND_TEXT(item_cache->insert_entry_stmt, entry->self, 6);
-    BIND_TEXT(item_cache->insert_entry_stmt, entry->spider, 7);
-    BIND_TEXT(item_cache->insert_entry_stmt, entry->content, 8);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->full_id,   2);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->title,     3);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->author,    4);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->alternate, 5);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->self,      6);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->spider,    7);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->content,   8);
     sqlite3_bind_double(item_cache->insert_entry_stmt, 9, entry->updated);
     sqlite3_bind_int(item_cache->insert_entry_stmt, 10, entry->feed_id);
     sqlite3_bind_double(item_cache->insert_entry_stmt, 11, entry->created_at);
@@ -793,8 +822,8 @@ end:
     pthread_mutex_unlock(&item_cache->db_access_mutex);
     
     // We don't want to extract features for items we already have.
-    // TODO Handle updates to features for items somehow.
-    if (is_new_entry) {
+    // TODO Handle updates to features for items somehow?
+    if (is_new_entry && rc != CLASSIFIER_FAIL) {
       q_enqueue(item_cache->feature_extraction_queue, entry);
     }
   }
@@ -901,7 +930,8 @@ int item_cache_add_item(ItemCache *item_cache, Item *item) {
     JLI(item_pointer, item_cache->items_by_id, item->id);
     if (item_pointer) {
       (*item_pointer) = (Word_t) item;
-      OrderedItemList *new_node = calloc(1, sizeof(struct ORDERED_ITEM_LIST));      
+      OrderedItemList *new_node = calloc(1, sizeof(struct ORDERED_ITEM_LIST));
+      
       if (new_node) {        
         new_node->item = item;
         // Is it the first one?
@@ -931,6 +961,64 @@ int item_cache_add_item(ItemCache *item_cache, Item *item) {
       fatal("Malloc error inserting into items_by_id");
       rc = CLASSIFIER_FAIL;
     }
+  }
+  
+  return rc;
+}
+
+/** Saves the item in the database.
+ *
+ * This save the tokenized representation of an entry in the database.
+ * The item must have an entry in the DB or it will not be saved.
+ *
+ * @param item_cache The item cache to save the item in.
+ * @param item The tokenized item to save in the cache's database.
+ */
+int item_cache_save_item(ItemCache * item_cache, Item *item) {
+  int rc = CLASSIFIER_OK;
+  
+  if (item_cache && item) {
+    debug("Saving item %i", item->id);
+    pthread_mutex_lock(&item_cache->db_access_mutex);    
+    char *err;
+    
+    if (SQLITE_OK != sqlite3_exec(item_cache->db, "begin immediate transaction", NULL, NULL, &err)) {
+      error("Could not start transaction to save item: %s", err);
+      sqlite3_free(err);
+      rc = CLASSIFIER_FAIL;
+    } else {
+      Token token;
+      token.id = 0;
+      
+      while(item_next_token(item, &token)) {
+        debug("save token %i", token.id);
+        int stmt_rc;
+        sqlite3_bind_int(item_cache->insert_entry_token_stmt, 1, item->id);
+        sqlite3_bind_int(item_cache->insert_entry_token_stmt, 2, token.id);
+        sqlite3_bind_int(item_cache->insert_entry_token_stmt, 3, token.frequency);
+        
+        stmt_rc = sqlite3_step(item_cache->insert_entry_token_stmt);
+        sqlite3_clear_bindings(item_cache->insert_entry_token_stmt);
+        sqlite3_reset(item_cache->insert_entry_token_stmt);
+        
+        if (SQLITE_DONE != stmt_rc) {
+          error("Error inserting entry token: (%i, %i, %i), %s", 
+                item->id, token.id, token.frequency, item_cache_errmsg(item_cache));
+          rc = CLASSIFIER_FAIL;
+          break;
+        }
+      }
+      
+      if (CLASSIFIER_FAIL == rc) {
+        sqlite3_exec(item_cache->db, "rollback transaction", NULL, NULL, NULL);
+      } else if (SQLITE_OK != sqlite3_exec(item_cache->db, "commit transaction", NULL, NULL, &err)) {
+        error("Error commiting save item: %s", err);
+        rc = CLASSIFIER_FAIL;
+        sqlite3_free(err);
+      }
+    }
+       
+    pthread_mutex_unlock(&item_cache->db_access_mutex);
   }
   
   return rc;
@@ -1045,6 +1133,8 @@ static void * feature_extraction_thread_func(void *memo) {
       debug("Got entry off feature_extraction_queue");
       Item *item = item_cache->feature_extractor(item_cache, entry, item_cache->feature_extractor_memo);
       if (item) {
+        // Make sure the item has the right timestamp
+        item->time = entry->updated;
         UpdateJob *job = create_add_job(item);
         q_enqueue(item_cache->update_queue, job);
         debug("Update added to update_queue");  
@@ -1105,7 +1195,9 @@ void * cache_updating_func(void *memo) {
       do {
         switch (job->type) {
           case ADD:
-            item_cache_add_item(item_cache, job->item);
+            if (CLASSIFIER_OK == item_cache_save_item(item_cache, job->item)) {
+              item_cache_add_item(item_cache, job->item);
+            }
             break;
           default:
             fatal("Got unknown cache updating job type");
@@ -1152,6 +1244,74 @@ int item_cache_set_update_callback(ItemCache *item_cache, UpdateCallback callbac
 }
 
 /******************************************************************************
+ * Atomization functions.
+ ******************************************************************************/
+ 
+/** Converts a string token into it's atomized form.
+ *
+ *  If no atom for the string exists this will create one.
+ *
+ *  @return The integer atom for the token or -1 if it failed.
+ */
+int item_cache_atomize(ItemCache * item_cache, const char * s) {
+  int atom = -1;
+  
+  if (item_cache && s) {
+    pthread_mutex_lock(&item_cache->db_access_mutex);
+    
+    if (SQLITE_OK != sqlite3_bind_text(item_cache->find_atom_stmt, 1, s, -1, NULL)) {
+      error("Error binding %s to parameter 1", s);
+    } else {
+      
+      if (SQLITE_ROW == sqlite3_step(item_cache->find_atom_stmt)) {
+        atom = sqlite3_column_int(item_cache->find_atom_stmt, 0);
+      } else {
+        if (SQLITE_OK != sqlite3_bind_text(item_cache->insert_atom_stmt, 1, s, -1, NULL)) {
+          error("Error bind %s to parameter 1", s);
+        } else if (SQLITE_DONE != sqlite3_step(item_cache->insert_atom_stmt)) {
+          error("Error executing atom insertion: %s", item_cache_errmsg(item_cache));
+        } else {
+          atom = sqlite3_last_insert_rowid(item_cache->db);
+        }
+        
+        sqlite3_clear_bindings(item_cache->insert_atom_stmt);
+        sqlite3_reset(item_cache->insert_atom_stmt);          
+      }
+      
+      sqlite3_clear_bindings(item_cache->find_atom_stmt);
+      sqlite3_reset(item_cache->find_atom_stmt);
+    }
+    
+    
+    pthread_mutex_unlock(&item_cache->db_access_mutex);    
+  }
+  
+  return atom;  
+} 
+
+char * item_cache_globalize(ItemCache * item_cache, int atom) {
+  char * s = NULL;
+  
+  if (item_cache) {
+    pthread_mutex_lock(&item_cache->db_access_mutex);
+    
+    sqlite3_bind_int(item_cache->find_token_stmt, 1, atom);
+    
+    if (SQLITE_ROW == sqlite3_step(item_cache->find_token_stmt)) {
+      char *token = sqlite3_column_text(item_cache->find_token_stmt, 0);
+      if (token) {
+        s = strdup(token);
+      }
+    }
+    
+    sqlite3_clear_bindings(item_cache->find_token_stmt);
+    sqlite3_reset(item_cache->find_token_stmt);    
+    pthread_mutex_unlock(&item_cache->db_access_mutex);    
+  }
+  return s;
+}
+
+/******************************************************************************
  * Item creation functions 
  ******************************************************************************/
 
@@ -1172,6 +1332,71 @@ Item * create_item(int id) {
   }
   
   return item;
+}
+
+Item * item_from_xml(ItemCache * item_cache, const char * xml) {
+  Item *item = NULL;
+  
+  if (item_cache && xml) {
+    xmlDocPtr doc = xmlParseDoc(BAD_CAST xml);
+    if (doc) {
+      xmlXPathContextPtr context = xmlXPathNewContext(doc);
+      xmlXPathRegisterNs(context, BAD_CAST "pw", BAD_CAST "http://peerworks.org/classifier");
+      char *id_s = get_element_value(context, "/pw:item/pw:id/text()");
+      int id = url_fragment_as_int(id_s);
+      
+      if (id > 0) {
+        int i;
+        item = create_item(id);
+        xmlXPathObjectPtr xp = xmlXPathEvalExpression(BAD_CAST "/pw:item/pw:feature", context);
+        
+        for (i = 0; i < xp->nodesetval->nodeNr; i++) {
+          int failed = false;
+          char *key = xmlGetProp(xp->nodesetval->nodeTab[i], BAD_CAST "key");
+          char *value = xmlGetProp(xp->nodesetval->nodeTab[i], BAD_CAST "value");
+         
+          if (!(key && value && *key != '\0' && *value != '\0')) {
+            error("Got malformed features in item xml: %s", xml);
+            failed = true;
+          } else {
+            int frequency = strtol(value, NULL, 10);            
+            if (errno == EINVAL) {
+              error("frequency was not an integer: %s in %s", value, xml);
+              failed = true;
+            }
+
+            int token = item_cache_atomize(item_cache, key);
+            if (token == 0) {
+              failed = true;
+            }
+            
+            if (!failed) {
+              debug("Adding token: %i, %i", token, frequency);
+              item_add_token(item, token, frequency);              
+            }
+          }
+          
+          if (key) xmlFree(key);
+          if (value) xmlFree(value);
+          if (failed) {
+            free_item(item);
+            item = NULL;
+            break; 
+          }
+        }
+        
+        xmlXPathFreeObject(xp);
+      } else {
+        error("Got no id");
+      }
+      
+      xmlFree(id_s);
+      xmlXPathFreeContext(context);
+      xmlFreeDoc(doc);
+    }
+  }
+  
+  return item;  
 }
 
 static int load_tokens_from_array(Item *item, int tokens[][2], int num_tokens) {

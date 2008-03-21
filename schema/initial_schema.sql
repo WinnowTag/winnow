@@ -71,6 +71,15 @@ create trigger entry_feed_delete
       DELETE from entries WHERE feed_id = OLD.id;
   END;
   
+-- Prevent insertion of tokens when there is no entry
+CREATE TRIGGER entry_tokens_insert_entry_id
+  BEFORE INSERT ON entry_tokens
+  FOR EACH ROW BEGIN
+      SELECT RAISE(ROLLBACK, 'insert on table "entry_tokens" violates foreign key constraint "entry_tokens_entry_id"')
+      WHERE NEW.entry_id IS NOT NULL
+            AND (SELECT id FROM entries where id = NEW.entry_id) IS NULL;
+  END;
+    
 -- Prevent deletion of tokens when there is a matching entry_token
 CREATE TRIGGER entry_tokens_token_id
   BEFORE DELETE ON tokens
