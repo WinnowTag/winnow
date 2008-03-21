@@ -13,6 +13,11 @@
 #include <pthread.h>
 #include <errno.h>
 #include <unistd.h>
+#include <libxml/tree.h>
+#include <libxml/xpath.h>
+#include <libxml/xpathInternals.h>
+#include <libxml/uri.h>
+
 #if HAVE_JUDY_H
 #include <Judy.h>
 #endif
@@ -20,6 +25,7 @@
 #include "logging.h"
 #include "misc.h"
 #include "job_queue.h"
+#include "xml.h"
 
 #define CURRENT_USER_VERSION 1
 #define FETCH_ITEM_SQL "select id, strftime('%s', updated) from entries where id = ?"
@@ -972,7 +978,7 @@ int item_cache_save_item(ItemCache * item_cache, Item *item) {
   int rc = CLASSIFIER_OK;
   
   if (item_cache && item) {
-    info("Saving item %i", item->id);
+    debug("Saving item %i", item->id);
     pthread_mutex_lock(&item_cache->db_access_mutex);    
     char *err;
     
@@ -985,7 +991,7 @@ int item_cache_save_item(ItemCache * item_cache, Item *item) {
       token.id = 0;
       
       while(item_next_token(item, &token)) {
-        info("save token %i", token.id);
+        debug("save token %i", token.id);
         int stmt_rc;
         sqlite3_bind_int(item_cache->insert_entry_token_stmt, 1, item->id);
         sqlite3_bind_int(item_cache->insert_entry_token_stmt, 2, token.id);
@@ -1324,6 +1330,71 @@ Item * create_item(int id) {
   }
   
   return item;
+}
+
+Item * item_from_xml(ItemCache * item_cache, const char * xml) {
+  Item *item = NULL;
+  
+  if (item_cache && xml) {
+    xmlDocPtr doc = xmlParseDoc(BAD_CAST xml);
+    if (doc) {
+      xmlXPathContextPtr context = xmlXPathNewContext(doc);
+      xmlXPathRegisterNs(context, BAD_CAST "pw", BAD_CAST "http://peerworks.org/classifier");
+      char *id_s = get_element_value(context, "/pw:item/pw:id/text()");
+      int id = url_fragment_as_int(id_s);
+      
+      if (id > 0) {
+        int i;
+        item = create_item(id);
+        xmlXPathObjectPtr xp = xmlXPathEvalExpression(BAD_CAST "/pw:item/pw:feature", context);
+        
+        for (i = 0; i < xp->nodesetval->nodeNr; i++) {
+          int failed = false;
+          char *key = xmlGetProp(xp->nodesetval->nodeTab[i], BAD_CAST "key");
+          char *value = xmlGetProp(xp->nodesetval->nodeTab[i], BAD_CAST "value");
+         
+          if (!(key && value && *key != '\0' && *value != '\0')) {
+            error("Got malformed features in item xml: %s", xml);
+            failed = true;
+          } else {
+            int frequency = strtol(value, NULL, 10);            
+            if (errno == EINVAL) {
+              error("frequency was not an integer: %s in %s", value, xml);
+              failed = true;
+            }
+
+            int token = item_cache_atomize(item_cache, key);
+            if (token == 0) {
+              failed = true;
+            }
+            
+            if (!failed) {
+              debug("Adding token: %i, %i", token, frequency);
+              item_add_token(item, token, frequency);              
+            }
+          }
+          
+          if (key) xmlFree(key);
+          if (value) xmlFree(value);
+          if (failed) {
+            free_item(item);
+            item = NULL;
+            break; 
+          }
+        }
+        
+        xmlXPathFreeObject(xp);
+      } else {
+        error("Got no id");
+      }
+      
+      xmlFree(id_s);
+      xmlXPathFreeContext(context);
+      xmlFreeDoc(doc);
+    }
+  }
+  
+  return item;  
 }
 
 static int load_tokens_from_array(Item *item, int tokens[][2], int num_tokens) {

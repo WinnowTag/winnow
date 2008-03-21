@@ -34,7 +34,8 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            uuid.h                    \
                            svnversion.h              \
                            feature_extractor.c       \
-                           feature_extractor.h
+                           feature_extractor.h       \
+                           xml.c xml.h
 
 libclassifier_la_LIBADD = @LTLIBOBJS@
        

@@ -73,6 +73,7 @@ extern const char * item_cache_entry_atom(const ItemCacheEntry *entry);
 extern Feed * create_feed(int id, const char * title);
 extern void   free_feed(Feed * feed);
 
+extern Item * item_from_xml           (ItemCache * item_cache, const char * xml);
 extern Item * create_item             (int id);
 extern Item * create_item_with_tokens (int id, int tokens[][2], int num_tokens);
 extern Item * create_item_with_tokens_and_time (int id, int tokens[][2], int num_tokens, time_t time);

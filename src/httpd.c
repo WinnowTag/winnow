@@ -33,6 +33,8 @@
 #include <libxml/xpathInternals.h>
 #include <libxml/uri.h>
 
+#include "xml.h"
+
 #define HTTP_NOT_FOUND(response)         \
   response->code = 404;                  \
   response->content = NOT_FOUND;         \
@@ -111,24 +113,6 @@ static float tdiff(struct timeval from, struct timeval to) {
   double from_d = from.tv_sec + (from.tv_usec / 1000000.0);
   double to_d = to.tv_sec + (to.tv_usec / 1000000.0);
   return to_d - from_d;  
-}
-
-/*************************************************
- * XML related functions
- *************************************************/
-
-static xmlNodePtr add_element(xmlNodePtr parent, const char * name, const char * type, const char * fmt, ...) {
-  char buffer[32];
-  
-  va_list argp;
-  va_start(argp, fmt);
-  vsnprintf(buffer, 16, fmt, argp);
-  va_end(argp);
-  
-  xmlNodePtr node = xmlNewChild(parent, NULL, BAD_CAST name, BAD_CAST buffer);
-  xmlNewProp(node, BAD_CAST "type", BAD_CAST type);
-  
-  return node;
 }
 
 /*  <job>
@@ -224,30 +208,6 @@ static int get_atom_id(const char *uri) {
   
   xmlFreeURI(id_uri);
   return id;
-}
-
-static char * get_element_value(xmlXPathContextPtr context, const char * path) {
-  char *value = NULL;
-  
-  xmlXPathObjectPtr xp = xmlXPathEvalExpression(BAD_CAST path, context);
-  if (!xmlXPathNodeSetIsEmpty(xp->nodesetval)) {
-    value = strdup((char*) xp->nodesetval->nodeTab[0]->content);
-  }
-  
-  xmlXPathFreeObject(xp);
-  return value;
-}
-
-static char * get_attribute_value(xmlXPathContextPtr context, const char * path, const char * attr) {
-  char *value = NULL;
-  
-  xmlXPathObjectPtr xp = xmlXPathEvalExpression(BAD_CAST path, context);
-  if (!xmlXPathNodeSetIsEmpty(xp->nodesetval)) {
-    value = (char*) xmlGetProp(xp->nodesetval->nodeTab[0], BAD_CAST "href");;
-  }
-  
-  xmlXPathFreeObject(xp);
-  return value;
 }
 
 static ItemCacheEntry * entry_from_xml(int feed_id, xmlDocPtr doc, const char * xml_source) {  
