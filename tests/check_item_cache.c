@@ -813,6 +813,8 @@ START_TEST (test_atomize_a_token) {
 START_TEST (test_atomize_a_new_token) {
   int atom = item_cache_atomize(item_cache, "new");
   assert_equal(2, atom);
+  int atom2 = item_cache_atomize(item_cache, "new");
+  assert_equal(atom, atom2);
 } END_TEST
 
 START_TEST (test_globalize_a_token) {
