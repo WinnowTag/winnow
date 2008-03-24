@@ -96,11 +96,11 @@ void * q_dequeue(Queue * q) {
 /** Dequeue a Job from the queue.
  *
  *  Waits until a Job has been added to the queue if
- *  the queue is empty.
+ *  the queue is empty, times out after seconds.
  *
  *  This was helped by http://www.yolinux.com/TUTORIALS/LinuxTutorialPosixThreads.html#BASICS
  */
-void * q_dequeue_or_wait(Queue * q) {
+void * q_dequeue_or_wait(Queue * q, int seconds) {
   void *job = NULL;  
   struct timeval tv;
   struct timespec ts;
@@ -109,7 +109,7 @@ void * q_dequeue_or_wait(Queue * q) {
   /* Convert from timeval to timespec */
   ts.tv_sec  = tv.tv_sec;
   ts.tv_nsec = tv.tv_usec * 1000;
-  ts.tv_sec += WAIT_TIME_SECONDS;
+  ts.tv_sec += seconds;
       
   /* The algorith here is first check if there is a job in the queue.
    *  - If there is no job wait until a job is added.

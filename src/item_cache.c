@@ -1132,7 +1132,7 @@ static void * feature_extraction_thread_func(void *memo) {
   info("feature extractor thread started");
   
   while (true) {
-    ItemCacheEntry *entry = q_dequeue_or_wait(item_cache->feature_extraction_queue);
+    ItemCacheEntry *entry = q_dequeue_or_wait(item_cache->feature_extraction_queue, 1);
     if (entry) {
       debug("Got entry off feature_extraction_queue");
       Item *item = item_cache->feature_extractor(item_cache, entry, item_cache->feature_extractor_memo);
@@ -1228,7 +1228,7 @@ void * cache_updating_func(void *memo) {
   ItemCache *item_cache = (ItemCache*) memo;
   
   while (true) {
-    UpdateJob *job = q_dequeue_or_wait(item_cache->update_queue);
+    UpdateJob *job = q_dequeue_or_wait(item_cache->update_queue, 1);
     
     if (job) {
       int jobs_processed = 0;
@@ -1256,7 +1256,7 @@ void * cache_updating_func(void *memo) {
           debug("Hit PROCESSING_LIMIT(%i)", PROCESSING_LIMIT);
           break;
         } else {
-          job = q_dequeue_or_wait(item_cache->update_queue);
+          job = q_dequeue_or_wait(item_cache->update_queue, 1);
         }
         
         /* We keep doing this until we don't get any more jobs after a 1 second wait. */

@@ -586,7 +586,7 @@ void *classification_worker_func(void *engine_vp) {
     pthread_mutex_unlock(ce->classification_suspension_mutex);
      
     trace("About to wait on queue, thread %i", pthread_self());
-    ClassificationJob *job = (ClassificationJob*) q_dequeue_or_wait(job_queue);
+    ClassificationJob *job = (ClassificationJob*) q_dequeue_or_wait(job_queue, 1);
     trace("Returned from queue, thread %i", pthread_self());
     
     if (job) {
@@ -624,7 +624,7 @@ void *insertion_worker_func(void *engine_vp) {
   TaggingStore *store = create_db_tagging_store(&tagging_store_config, econfig.insertion_threshold);
       
   while(!q_empty(ce->tagging_store_queue) || ce->is_inserting) {
-    ClassificationJob *job = q_dequeue_or_wait(ce->tagging_store_queue);
+    ClassificationJob *job = q_dequeue_or_wait(ce->tagging_store_queue, 1);
     
     if (job && job->taggings) {
       debug("%i got job off insertion queue: %s", pthread_self(), cjob_id(job));

@@ -18,6 +18,10 @@ typedef struct TOKEN {
   int frequency;
 } Token, *Token_p;
 
+typedef struct ITEM_CACHE_CONFIG {
+  int update_wait_time;
+} ItemCacheConfig;
+
 typedef struct ITEM Item;
 typedef struct POOL Pool;
 typedef struct ITEM_CACHE ItemCache;

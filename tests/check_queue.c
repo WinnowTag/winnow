@@ -60,7 +60,7 @@ START_TEST(check_queue_size) {
 Job *dequeued_by_thread = NULL;
 void dequeue_it(void *qp) {
   Queue *q = (Queue*) qp;
-  dequeued_by_thread = q_dequeue_or_wait(q);
+  dequeued_by_thread = q_dequeue_or_wait(q, 1);
 }
 
 START_TEST (check_dequeue_or_wait) {
@@ -77,7 +77,7 @@ START_TEST (check_dequeue_or_wait) {
 
 START_TEST(check_timeout) {
   Queue *q = new_queue();
-  Job *j = q_dequeue_or_wait(q);
+  Job *j = q_dequeue_or_wait(q, 1);
   mark_point();
   assert_null(j);
 }
