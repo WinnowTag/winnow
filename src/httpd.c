@@ -383,8 +383,8 @@ static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
       char *title = get_element_value(context, "/atom:entry/atom:title/text()");
       char *id = get_element_value(context, "/atom:entry/atom:id/text()");
             
-      if (!title || !id) {
-        error("Missing title or id for feed: %s", request->data->buffer);
+      if (!id) {
+        error("Missing id for feed: %s", request->data->buffer);
         HTTP_BAD_FEED(response);
       } else {
         int feed_id = get_atom_id(id);

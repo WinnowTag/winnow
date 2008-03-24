@@ -1,3 +1,7 @@
+=== Latest
+
+ * Fixed feed addition to handle feed without titles.
+ 
 === 1.1.2
 
  * Classifier handles storage and atomization of item tokens itself. (Prevents database deadlocks)

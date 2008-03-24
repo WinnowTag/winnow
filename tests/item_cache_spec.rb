@@ -54,6 +54,10 @@ describe "The Classifier's Item Cache" do
       lambda { create_feed(:title => 'My new feed', :id => 'urn:peerworks.org:feeds#1337') }.should_not raise_error
     end
     
+    it "should create a feed without a title without error" do
+      lambda { create_feed(:title => nil, :id => 'urn:peerworks.org:feeds#1337') }.should_not raise_error
+    end
+    
     it "should store feed in the database" do
       create_feed(:title => 'My new feed', :id => 'urn:peerworks.org:feeds#1337')
       @sqlite.get_first_value("select title from feeds where id = 1337").should == 'My new feed'
