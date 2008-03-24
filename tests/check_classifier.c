@@ -20,11 +20,13 @@
  *
  *************************************************************/
  
+ItemCacheOptions item_cache_options;
 ItemCache *item_cache;
 
 void setup_train(void) {
+  item_cache_options.cache_update_wait_time = 1;
   setup_fixture_path();
-  item_cache_create(&item_cache, "fixtures/valid.db");
+  item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
 }
 
 void teardown_train(void) {

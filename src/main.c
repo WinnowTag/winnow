@@ -30,13 +30,16 @@
 #define DEFAULT_PID_FILE "log/classifier.pid"
 #define DEFAULT_DB_FILE "log/classifier.db"
 #define DEFAULT_TOKENIZER_URL "http://localhost"
+#define DEFAULT_CACHE_UPDATE_WAIT_TIME 60
 
 #define PID_VAL 512
 #define DB_VAL  513
 #define CREATE_DB_VAL 514
+#define CACHE_UPDATE_WAIT_TIME_VAL 515
 #define SHORT_OPTS "hvdc:l:t:"
 #define USAGE "Usage: classifier [-dvh] [-c CONFIGFILE] [-l LOGFILE] [--db DATABASE_FILE] [--pid PIDFILE] [-t tokenizer_url] [--create-db]\n"
 
+static ItemCacheOptions item_cache_options;
 static Config *config;
 static ItemCache *item_cache;
 static ClassificationEngine *engine;
@@ -111,7 +114,7 @@ static void _daemonize(const char * pid_file) {
 }
 
 static int start_classifier(const char * db_file, const char * tokenizer_url) {  
-  if (CLASSIFIER_OK != item_cache_create(&item_cache, db_file)) {
+  if (CLASSIFIER_OK != item_cache_create(&item_cache, db_file, &item_cache_options)) {
     fprintf(stderr, "Error opening classifier database file at %s: %s\n", db_file, item_cache_errmsg(item_cache));
     free_item_cache(item_cache);
     return EXIT_FAILURE;
@@ -139,6 +142,7 @@ int main(int argc, char **argv) {
   char real_config_file[MAXPATHLEN];
   char real_log_file[MAXPATHLEN];
   char real_db_file[MAXPATHLEN];
+  item_cache_options.cache_update_wait_time = DEFAULT_CACHE_UPDATE_WAIT_TIME;
   
   int longindex;
   int opt;
@@ -151,6 +155,7 @@ int main(int argc, char **argv) {
       {"pid", required_argument, 0, PID_VAL},
       {"db", required_argument, 0, DB_VAL},      
       {"create-db", no_argument, 0, CREATE_DB_VAL},
+      {"cache-update-wait-time", required_argument, 0, CACHE_UPDATE_WAIT_TIME_VAL},
       {0, 0, 0, 0}
   };
   
@@ -181,11 +186,15 @@ int main(int argc, char **argv) {
       case 'd':
         daemonize = true;
       break;
+      case CACHE_UPDATE_WAIT_TIME_VAL:
+        item_cache_options.cache_update_wait_time = strtol(optarg, NULL, 10);
+      break;
       case 'h':
         // TODO Add help
         printf(USAGE);
         exit(0);
       default:
+        fprintf(stderr, USAGE);
         exit(EXIT_FAILURE);
       break;
     }

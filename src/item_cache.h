@@ -18,9 +18,9 @@ typedef struct TOKEN {
   int frequency;
 } Token, *Token_p;
 
-typedef struct ITEM_CACHE_CONFIG {
-  int update_wait_time;
-} ItemCacheConfig;
+typedef struct ITEM_CACHE_OPTIONS {
+  int cache_update_wait_time;
+} ItemCacheOptions;
 
 typedef struct ITEM Item;
 typedef struct POOL Pool;
@@ -33,7 +33,7 @@ typedef Item* (*FeatureExtractor) (ItemCache *item_cache, const ItemCacheEntry *
 typedef void (*UpdateCallback) (ItemCache * item_cache, void *memo);
 
 extern int          item_cache_initialize         (const char *dbfile, char *error);
-extern int          item_cache_create             (ItemCache **is, const char *db_file);
+extern int          item_cache_create             (ItemCache **is, const char *db_file, const ItemCacheOptions * options);
 extern int          item_cache_set_feature_extractor (ItemCache * item_cache, FeatureExtractor feature_extractor, void *memo);
 extern int          item_cache_load               (ItemCache *item_cache);
 extern int          item_cache_loaded             (const ItemCache *item_cache);

@@ -23,6 +23,7 @@
 
 #define PORT 8008
 
+static ItemCacheOptions item_cache_options = {1};
 ItemCache *item_cache;
 Config *config;
 ClassificationEngine *ce;
@@ -52,7 +53,7 @@ static void setup_httpd() {
   
   setup_fixture_path();
   system("cp fixtures/valid.db /tmp/valid-copy.db");
-  item_cache_create(&item_cache, "/tmp/valid-copy.db");
+  item_cache_create(&item_cache, "/tmp/valid-copy.db", &item_cache_options);
   config = load_config("fixtures/real-db.conf");
   ce = create_classification_engine(item_cache, config);  
   httpd = httpd_start(config, ce, item_cache);

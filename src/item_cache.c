@@ -93,6 +93,10 @@ struct ITEM_CACHE_ENTRY {
 /** This is the opaque type for the Item Cache */
 struct ITEM_CACHE {
   const char *db_file;
+  
+  /* Item cache's copy of ItemCacheOptions */
+  int cache_update_wait_time;
+  
   sqlite3 *db;  
   sqlite3_stmt *fetch_item_stmt;
   sqlite3_stmt *fetch_item_tokens_stmt;
@@ -392,11 +396,12 @@ int item_cache_initialize(const char *db_file, char * error) {
  *          CLASSIFIER_FAIL you can pass item_cache back to sqlite_item_source_errmsg
  *          to get a detailed error message.
  */
-int item_cache_create(ItemCache **item_cache, const char * db_file) {
+int item_cache_create(ItemCache **item_cache, const char * db_file, const ItemCacheOptions * options) {
   int rc = CLASSIFIER_OK;
   
   *item_cache = calloc(1, sizeof(struct ITEM_CACHE));
   
+  (*item_cache)->cache_update_wait_time = options->cache_update_wait_time;
   (*item_cache)->version_mismatch = 0;
   (*item_cache)->items_by_id = NULL;
   (*item_cache)->items_in_order = NULL;
@@ -1228,7 +1233,7 @@ void * cache_updating_func(void *memo) {
   ItemCache *item_cache = (ItemCache*) memo;
   
   while (true) {
-    UpdateJob *job = q_dequeue_or_wait(item_cache->update_queue, 1);
+    UpdateJob *job = q_dequeue_or_wait(item_cache->update_queue, item_cache->cache_update_wait_time);
     
     if (job) {
       int jobs_processed = 0;
@@ -1256,7 +1261,7 @@ void * cache_updating_func(void *memo) {
           debug("Hit PROCESSING_LIMIT(%i)", PROCESSING_LIMIT);
           break;
         } else {
-          job = q_dequeue_or_wait(item_cache->update_queue, 1);
+          job = q_dequeue_or_wait(item_cache->update_queue, item_cache->cache_update_wait_time);
         }
         
         /* We keep doing this until we don't get any more jobs after a 1 second wait. */

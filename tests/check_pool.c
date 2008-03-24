@@ -13,11 +13,13 @@
 #include "../src/misc.h"
 #include "assertions.h"
 
+ItemCacheOptions item_cache_options;
 ItemCache *item_cache;
 
 static void setup(void) {
+  item_cache_options.cache_update_wait_time = 1;
   setup_fixture_path();
-  item_cache_create(&item_cache, "fixtures/valid.db"); 
+  item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
   item_cache_load(item_cache);
 }
 

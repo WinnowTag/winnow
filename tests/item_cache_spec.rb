@@ -285,6 +285,7 @@ describe "The Classifier's Item Cache" do
                                                    "-t http://localhost:8010/tokenize " +
                                                    "-l /tmp/classifier-item_cache_spec.log " +
                                                    "-c #{File.join(ROOT, "fixtures/real-db.conf")} " +
+                                                   "--cache-update-wait-time 1 " +
                                                    "--db #{Database} 2> /dev/null" 
     system(classifier_cmd)
     sleep(0.0001)

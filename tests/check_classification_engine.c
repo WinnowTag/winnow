@@ -22,6 +22,7 @@
 /************************************************************************
  * End to End tests
  ************************************************************************/
+static ItemCacheOptions item_cache_options = {1};
 ItemCache *item_cache;
 ClassificationEngine *ce;
 Config *ce_config;
@@ -29,7 +30,7 @@ Config *ce_config;
 static void setup_end_to_end(void) {
   setup_fixture_path();
   setup_tagging_store();
-  item_cache_create(&item_cache, "fixtures/valid.db");
+  item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
   item_cache_load(item_cache);
   ce_config = load_config("conf/test.conf");
   ce = create_classification_engine(item_cache, ce_config);
@@ -135,7 +136,7 @@ START_TEST(can_send_bogus_user_id_without_taking_down_the_server) {
 
 static void setup_engine() {
   setup_fixture_path();
-  item_cache_create(&item_cache, "fixtures/valid.db");
+  item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
   item_cache_load(item_cache);
   ce_config = load_config("conf/test.conf");
   ce = create_classification_engine(item_cache, ce_config);
@@ -251,7 +252,7 @@ START_TEST (remove_classification_job_wont_removes_the_job_from_the_engines_job_
 
 START_TEST(test_engine_initialization) {
   ItemCache *item_cache;
-  item_cache_create(&item_cache, "fixtures/valid.db");
+  item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
   item_cache_load(item_cache);
   Config *config = load_config("conf/test.conf");
   assert_not_null(config);
@@ -264,7 +265,7 @@ START_TEST(test_engine_initialization) {
 
 START_TEST(test_engine_starting_and_stopping) {
   ItemCache *item_cache;
-  item_cache_create(&item_cache, "fixtures/valid.db");
+  item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
   item_cache_load(item_cache);
   Config *config = load_config("conf/test.conf");
   assert_not_null(config);

@@ -1,6 +1,8 @@
 === Latest
 
  * Fixed feed addition to handle feed without titles.
+ * Parameterized wait time for item cache updating. This allows you to set the time to wait for more
+   items before triggering a new classification job.  Default is 60 seconds.
  
 === 1.1.2
 
