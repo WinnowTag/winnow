@@ -46,6 +46,8 @@ create table "random_backgrounds" (
     references "entries" ("id")
 );
 
+CREATE INDEX IF NOT EXISTS entry_updated on entries(updated);
+
 -- Triggers to handle foreign keys
 
 -- Cascading delete from entries to entry_tokens

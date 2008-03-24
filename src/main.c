@@ -31,11 +31,13 @@
 #define DEFAULT_DB_FILE "log/classifier.db"
 #define DEFAULT_TOKENIZER_URL "http://localhost"
 #define DEFAULT_CACHE_UPDATE_WAIT_TIME 60
+#define DEFAULT_LOAD_ITEMS_SINCE 30
 
 #define PID_VAL 512
 #define DB_VAL  513
 #define CREATE_DB_VAL 514
 #define CACHE_UPDATE_WAIT_TIME_VAL 515
+#define LOAD_ITEMS_SINCE_VAL 516
 #define SHORT_OPTS "hvdc:l:t:"
 #define USAGE "Usage: classifier [-dvh] [-c CONFIGFILE] [-l LOGFILE] [--db DATABASE_FILE] [--pid PIDFILE] [-t tokenizer_url] [--create-db]\n"
 
@@ -156,6 +158,7 @@ int main(int argc, char **argv) {
       {"db", required_argument, 0, DB_VAL},      
       {"create-db", no_argument, 0, CREATE_DB_VAL},
       {"cache-update-wait-time", required_argument, 0, CACHE_UPDATE_WAIT_TIME_VAL},
+      {"load_items_since", required_argument, 0, LOAD_ITEMS_SINCE_VAL},
       {0, 0, 0, 0}
   };
   
@@ -188,6 +191,9 @@ int main(int argc, char **argv) {
       break;
       case CACHE_UPDATE_WAIT_TIME_VAL:
         item_cache_options.cache_update_wait_time = strtol(optarg, NULL, 10);
+      break;
+      case LOAD_ITEMS_SINCE_VAL:
+        item_cache_options.load_items_since = strtol(optarg, NULL, 10);
       break;
       case 'h':
         // TODO Add help

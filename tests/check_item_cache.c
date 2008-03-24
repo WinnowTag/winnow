@@ -15,7 +15,7 @@
 #include "../src/item_cache.h"
 #include "../src/logging.h"
 
-static ItemCacheOptions item_cache_options = {1};
+static ItemCacheOptions item_cache_options = {1, 3650};
  
 START_TEST (creating_with_missing_db_file_fails) {
   ItemCache *item_cache;

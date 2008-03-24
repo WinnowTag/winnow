@@ -30,7 +30,7 @@
 #define CURRENT_USER_VERSION 1
 #define FETCH_ITEM_SQL "select id, strftime('%s', updated) from entries where id = ?"
 #define FETCH_ITEM_TOKENS_SQL "select token_id, frequency from entry_tokens where entry_id = ?"
-#define FETCH_ALL_ITEMS_SQL "select id, strftime('%s', updated) from entries order by updated desc"
+#define FETCH_ALL_ITEMS_SQL "select id, strftime('%s', updated) from entries where updated > (julianday('now') - ?) order by updated desc"
 #define FETCH_ALL_ITEMS_TOKENS_SQL "select entry_id, token_id, frequency from entry_tokens order by entry_id"
 #define FETCH_RANDOM_BACKGROUND "select entry_id from random_backgrounds"
 #define INSERT_ENTRY_SQL "insert or replace into entries (id, full_id, title, author, alternate, self, spider, content, updated, feed_id, created_at) \
@@ -96,6 +96,7 @@ struct ITEM_CACHE {
   
   /* Item cache's copy of ItemCacheOptions */
   int cache_update_wait_time;
+  int load_items_since;
   
   sqlite3 *db;  
   sqlite3_stmt *fetch_item_stmt;
@@ -402,6 +403,7 @@ int item_cache_create(ItemCache **item_cache, const char * db_file, const ItemCa
   *item_cache = calloc(1, sizeof(struct ITEM_CACHE));
   
   (*item_cache)->cache_update_wait_time = options->cache_update_wait_time;
+  (*item_cache)->load_items_since = options->load_items_since;
   (*item_cache)->version_mismatch = 0;
   (*item_cache)->items_by_id = NULL;
   (*item_cache)->items_in_order = NULL;
@@ -528,16 +530,18 @@ const char * item_cache_errmsg(const ItemCache *item_cache) {
  * TODO Add locking around item loading in item_cache_load.
  */
 int item_cache_load(ItemCache *item_cache) {
-  info("item_cache_load");
   if (!item_cache) {
     fatal("item_cache_load got NULL for item_cache");
     return CLASSIFIER_FAIL;
   }
   
+  info("item_cache_load from %i days ago", item_cache->load_items_since);
   int rc = CLASSIFIER_OK;
   OrderedItemList *ordered_list = NULL;
   OrderedItemList *last = NULL;
   Pvoid_t itemlist = NULL;  
+  
+  sqlite3_bind_int(item_cache->fetch_all_items_stmt, 1, item_cache->load_items_since);
     
   while (SQLITE_ROW == sqlite3_step(item_cache->fetch_all_items_stmt)) {
     int id = sqlite3_column_int(item_cache->fetch_all_items_stmt, 0);
@@ -577,6 +581,7 @@ int item_cache_load(ItemCache *item_cache) {
     }
   }
   
+  sqlite3_clear_bindings(item_cache->fetch_all_items_stmt);
   sqlite3_reset(item_cache->fetch_all_items_stmt);
   
   /* Now load the tokens */
@@ -592,8 +597,6 @@ int item_cache_load(ItemCache *item_cache) {
       if (item) {
         item_add_token(item, token_id, frequency);
       }
-    } else {
-      error("Got token for missing item: %d", id);
     }
   }
   

@@ -3,6 +3,9 @@
  * Fixed feed addition to handle feed without titles.
  * Parameterized wait time for item cache updating. This allows you to set the time to wait for more
    items before triggering a new classification job.  Default is 60 seconds.
+ * Added load_item_since parameter. This is the number of days worth of items the classifier
+   with load on startup. Default is 30.
+ * Added index on entries(updated).
  
 === 1.1.2
 

@@ -22,7 +22,7 @@
 /************************************************************************
  * End to End tests
  ************************************************************************/
-static ItemCacheOptions item_cache_options = {1};
+static ItemCacheOptions item_cache_options = {1, 3650};
 ItemCache *item_cache;
 ClassificationEngine *ce;
 Config *ce_config;
