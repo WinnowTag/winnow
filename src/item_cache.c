@@ -625,7 +625,7 @@ int item_cache_load(ItemCache *item_cache) {
   item_cache->loaded = true;
   time_t end_time = time(NULL);
   
-  info("loaded %i items in %i seconds", end_time - start_time);
+  info("loaded %i items in %i seconds", item_cache_cached_size(item_cache), end_time - start_time);
   return rc;
 }
 

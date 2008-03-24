@@ -1,4 +1,4 @@
-=== Current
+=== 1.1.4 (24 March 2008)
 
  * Fixed default load_item_since time. Forgotten before.
  * Added some logging to item_cache_load.
