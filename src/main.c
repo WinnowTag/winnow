@@ -145,6 +145,7 @@ int main(int argc, char **argv) {
   char real_log_file[MAXPATHLEN];
   char real_db_file[MAXPATHLEN];
   item_cache_options.cache_update_wait_time = DEFAULT_CACHE_UPDATE_WAIT_TIME;
+  item_cache_options.load_items_since = DEFAULT_LOAD_ITEMS_SINCE;
   
   int longindex;
   int opt;

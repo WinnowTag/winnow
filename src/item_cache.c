@@ -536,6 +536,7 @@ int item_cache_load(ItemCache *item_cache) {
   }
   
   info("item_cache_load from %i days ago", item_cache->load_items_since);
+  time_t start_time = time(NULL);
   int rc = CLASSIFIER_OK;
   OrderedItemList *ordered_list = NULL;
   OrderedItemList *last = NULL;
@@ -622,7 +623,9 @@ int item_cache_load(ItemCache *item_cache) {
   item_cache->items_by_id = itemlist;
   item_cache->items_in_order = ordered_list;
   item_cache->loaded = true;
+  time_t end_time = time(NULL);
   
+  info("loaded %i items in %i seconds", end_time - start_time);
   return rc;
 }
 
