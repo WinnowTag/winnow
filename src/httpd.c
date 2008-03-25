@@ -373,7 +373,7 @@ static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
     return 1;
   }
     
-  if (0 != regexec(&regex, request->path, 0, NULL, 0)) {
+  if (0 == regexec(&regex, request->path, 0, NULL, 0)) {
     xmlDocPtr doc = NULL;
     
     if (NULL == request->data) {
