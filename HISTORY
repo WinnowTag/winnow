@@ -1,4 +1,4 @@
-=== Current
+=== 1.1.5 (25 March 2008)
 
  * Fixed about response for classifier.
  * Added memory leak test harness.
