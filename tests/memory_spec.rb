@@ -22,26 +22,60 @@ describe 'the classifier' do
   
   it 'should not leak memory after adding an item' do
     create_entry
-    sleep(0.5)
-    'classifier'.should have_no_leaks
+    sleep(1)
+    'classifier'.should not_leak
   end
   
-  def have_no_leaks
-    return MemoryLeaks.new
+  it 'should not leak memory after adding a duplicate item' do
+    create_entry
+    create_entry
+    sleep(3)
+    'classifier'.should not_leak
+  end
+  
+  it 'should not leak memory after adding an item and waiting for classification' do
+    create_entry
+    sleep(1.5)
+    'classifier'.should not_leak
+  end
+  
+  it "should not leak memory after adding a large item" do
+    create_big_entry
+    sleep(1)
+    'classifier'.should not_leak
+  end
+  
+  it "should not leak memory after adding a feed" do
+    create_feed
+    create_feed(:title => 'My new feed', :id => 'urn:peerworks.org:feeds#1338')
+    # There is a weird one off memory leak on OSX with the regex in add_feed.
+    'classifier'.should have_no_more_than_leaks(1) 
+  end
+  
+  def not_leak
+    return have_no_more_than_leaks(0)
+  end
+  
+  def have_no_more_than_leaks(n)
+    return MemoryLeaks.new(n)
   end
   
   class MemoryLeaks
+    def initialize(n)
+      @n = n
+    end
+    
     def matches?(target)
       @target = target
       @result = `leaks #{@target}`
-      if @result =~ /(\d+) leaks/
+      if @result =~ /(\d+) leaks?/
         @leaks = $1.to_i
-        @leaks == 0
+        @leaks <= @n
       end
     end
     
     def failure_message
-      "#{@target} has #{@leaks} memory leaks\n#{@result}"
+      "#{@target} has #{@leaks} memory leaks, expected less than or equal to #{@n}\n#{@result}"
     end
   end
 end

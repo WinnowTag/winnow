@@ -74,6 +74,7 @@ extern ItemCacheEntry * create_item_cache_entry(int id,
                                                  const char * atom);
                                                  
 extern int item_cache_entry_id(const ItemCacheEntry *entry);
+extern void free_entry(ItemCacheEntry *entry);
 extern const char * item_cache_entry_atom(const ItemCacheEntry *entry);
 extern Feed * create_feed(int id, const char * title);
 extern void   free_feed(Feed * feed);

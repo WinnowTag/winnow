@@ -241,6 +241,13 @@ ItemCacheEntry * create_item_cache_entry(int id,
   return entry;
 }
 
+static ItemCacheEntry * copy_entry(const ItemCacheEntry * entry) {
+  return create_item_cache_entry(entry->id, entry->full_id, entry->title, entry->author, entry->alternate,
+                                 entry->self, entry->spider, entry->content, entry->updated, entry->feed_id,
+                                 entry->created_at, entry->atom);
+  
+}
+
 int item_cache_entry_id(const ItemCacheEntry * entry) {
   return entry->id;
 }
@@ -258,6 +265,7 @@ void free_entry(ItemCacheEntry *entry) {
     FREE_STRING(entry->self);
     FREE_STRING(entry->content);
     FREE_STRING(entry->spider);
+    FREE_STRING(entry->atom);
     free(entry);
   }
 }
@@ -835,7 +843,7 @@ end:
     // We don't want to extract features for items we already have.
     // TODO Handle updates to features for items somehow?
     if (is_new_entry && rc != CLASSIFIER_FAIL) {
-      q_enqueue(item_cache->feature_extraction_queue, entry);
+      q_enqueue(item_cache->feature_extraction_queue, copy_entry(entry));
     }
   }
   

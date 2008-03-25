@@ -30,7 +30,7 @@ class Job < ActiveResource::Base
   self.site = CLASSIFIER_URL + "/classifier"
 end
 
-def create_feed(opts)
+def create_feed(opts = {:title => 'My new feed', :id => 'urn:peerworks.org:feeds#1337'})
   collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feeds')
   feed_entry = Atom::Entry.new(opts)
   collection.publish(feed_entry)

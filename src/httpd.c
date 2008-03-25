@@ -329,6 +329,8 @@ static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
       } else {
         HTTP_BAD_ENTRY(response);
       }
+      
+      free_entry(entry);
     }       
     
     xmlFreeDoc(doc);
@@ -365,12 +367,13 @@ static int entry_handler(const HTTPRequest * request, HTTPResponse * response) {
 static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
   regex_t regex;
   
-  if (regcomp(&regex, "^/feeds/?$", REG_EXTENDED)) {
+
+  if (regcomp(&regex, "^/feeds/?$", REG_EXTENDED | REG_NOSUB)) {
     fatal("Error compiling regex");
     return 1;
   }
-  
-  if (0 == regexec(&regex, request->path, 0, NULL, 0)) {
+    
+  if (0 != regexec(&regex, request->path, 0, NULL, 0)) {
     xmlDocPtr doc = NULL;
     
     if (NULL == request->data) {
@@ -411,13 +414,17 @@ static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
       
       xmlXPathFreeContext(context);
       xmlFreeDoc(doc);
+      if (id) free(id);
+      if (title) free(title);
     }
   } else {
-    response->code = MHD_HTTP_METHOD_NOT_ALLOWED;
-    response->content = "POST not allowed";
-    response->content_type = "text/plain";
-  }
+     response->code = MHD_HTTP_METHOD_NOT_ALLOWED;
+     response->content = "POST not allowed";
+     response->content_type = "text/plain";
+   }
   
+  regfree(&regex);
+
   return 1;
 }
 
