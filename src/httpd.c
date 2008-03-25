@@ -706,7 +706,7 @@ Httpd * httpd_start(Config *config, ClassificationEngine *ce, ItemCache *item_ca
       fatal("Error compiling REGEX: %s", buffer);
     }
     
-    if ((regex_error = regcomp(&httpd->about_regex, "^/classifier$", REG_EXTENDED | REG_NOSUB))) {
+    if ((regex_error = regcomp(&httpd->about_regex, "^/classifier(.xml)?$", REG_EXTENDED | REG_NOSUB))) {
       char buffer[1024];
       regerror(regex_error, &httpd->about_regex, buffer, sizeof(buffer));
       fatal("Error compiling REGEX: %s", buffer);
