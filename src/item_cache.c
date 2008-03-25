@@ -1152,7 +1152,8 @@ static void * feature_extraction_thread_func(void *memo) {
         item->time = entry->updated;
         UpdateJob *job = create_add_job(item);
         q_enqueue(item_cache->update_queue, job);
-        debug("Update added to update_queue");  
+        free_entry(entry);
+        debug("Update added to update_queue");
       }       
     }
   }

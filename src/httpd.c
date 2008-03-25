@@ -321,9 +321,10 @@ static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
         
       if (CLASSIFIER_OK == item_cache_add_entry(request->item_cache, entry)) {
         response->code = MHD_HTTP_CREATED;
-        response->content = request->data->buffer;
+        response->content = strdup(request->data->buffer);
         response->content_type = CONTENT_TYPE;
         response->location = calloc(64, sizeof(char));
+        response->free_content = true;
         snprintf(response->location, 64, "/feed_items/%i", item_cache_entry_id(entry));
       } else {
         HTTP_BAD_ENTRY(response);
@@ -657,7 +658,10 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     info("%s %s %i %.7fs %i", method, raw_url, response.code, tdiff(request->start_time, end_time), ret);
     
     free(request->path);
-    if (request->data) free(request->data);
+    if (request->data) {
+      if (request->data->buffer) free(request->data->buffer);
+      free(request->data);
+    }
     free(request);
   }
   

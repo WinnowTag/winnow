@@ -69,6 +69,7 @@ Item * tokenize_entry(ItemCache * item_cache, const ItemCacheEntry * entry, void
         error("Got %i for tokenization, expected 201", code);
       }  else {
         item = item_from_xml(item_cache, response.data);
+        free(response.data);
       }
 
       curl_easy_cleanup(curl);

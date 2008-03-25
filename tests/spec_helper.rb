@@ -113,7 +113,7 @@ def destroy_entry(id)
   end.destroy!
 end
 
-def start_classifier  
+def start_classifier(malloc_logging = false)
   system("cp -f #{File.join(ROOT, 'fixtures/valid.db')} #{Database}")
   system("chmod 644 #{Database}") 
   classifier = File.join(ROOT, "../src/classifier")
@@ -128,6 +128,11 @@ def start_classifier
                                      "--cache-update-wait-time 1 " +
                                      "--load_items_since 3650 " +
                                      "--db #{Database} 2> /dev/null" 
+                                     
+  if malloc_logging
+    classifier_cmd = "MallocStackLogging=1 #{classifier_cmd}"
+  end
+  
   system(classifier_cmd)
   sleep(0.0001)
 end
@@ -139,4 +144,8 @@ end
 def start_tokenizer
   system("tokenizer_control start -- -p8010 #{Database}")
   sleep(1)
+end
+
+def stop_tokenizer
+  system("tokenizer_control stop")
 end

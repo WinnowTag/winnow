@@ -1,6 +1,8 @@
 === Current
 
  * Fixed about response for classifier.
+ * Added memory leak test harness.
+ * Fixed 3 memory leaks in item addition.
  
 === 1.1.4 (24 March 2008)
 
