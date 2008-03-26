@@ -25,6 +25,17 @@
  *
  * This is basically a log of the development of the classifier.
  *
+ * This section talks about 'seen' and 'unwanted' tags used in the background.
+ * These tags are an artifact of our initial corpus tagging process. A user
+ * was directed to tag an item with 'seen' if they felt ambivalent about it
+ * and 'unwanted' if they definitely didn't want to see items like that.
+ * 
+ * These were partly used to handle tracking moderation completion, so we
+ * knew we were done when all items were tagged, and partly with the idea
+ * that we could use them in the classification of other tags.  However 
+ * the idea is now obsolete and is only referenced below for historical
+ * purposes.
+ *
  * == Handling Backgrounds ==
  *
  * Initially the background was the combination of all other tags however,
