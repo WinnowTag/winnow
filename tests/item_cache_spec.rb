@@ -146,7 +146,7 @@ describe "The Classifier's Item Cache" do
         Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
         
         create_entry
-        sleep(2) # wait for it to be classified
+        sleep(2.5) # wait for it to be classified
         Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 1)
       end
       
