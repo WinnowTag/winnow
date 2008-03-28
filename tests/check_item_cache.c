@@ -563,6 +563,7 @@ static Item * mock_feature_extractor(ItemCache * item_cache, const ItemCacheEntr
 }
 
 static void setup_feature_extraction(void) {
+  tokenizer_called_with = NULL;
   setup_fixture_path();
   system("cp fixtures/valid.db /tmp/valid-copy.db");
   item_cache_create(&item_cache, "/tmp/valid-copy.db", &item_cache_options);
@@ -587,7 +588,7 @@ START_TEST (test_adding_entry_results_in_calling_the_tokenizer_with_the_entry) {
                                               1178551600, 141, 1178551601, NULL);
   item_cache_add_entry(item_cache, entry);
   sleep(1);
-  assert_equal(entry, tokenizer_called_with);  
+  assert_equal(item_cache_entry_id(entry), item_cache_entry_id(tokenizer_called_with));
 } END_TEST
 
 START_TEST (test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_update_queue) {
@@ -805,6 +806,54 @@ START_TEST (test_purging_half_of_the_cache) {
   
   assert_not_null(item_cache_fetch_item(item_cache, 23));
   assert_null(item_cache_fetch_item(item_cache, 24));
+} END_TEST
+
+START_TEST (test_purging_entire_cache_with_multiple_items) {
+  Item *purged_item1 = create_item_with_tokens_and_time(23, tokens, 4, purge_time - 1);
+  Item *purged_item2 = create_item_with_tokens_and_time(24, tokens, 4, purge_time - 2);
+  
+  item_cache_add_item(item_cache, purged_item1);
+  item_cache_add_item(item_cache, purged_item2);
+  
+  assert_not_null(item_cache_fetch_item(item_cache, 23));
+  assert_not_null(item_cache_fetch_item(item_cache, 24));
+  
+  item_cache_purge_old_items(item_cache);
+  
+  assert_null(item_cache_fetch_item(item_cache, 23));
+  assert_null(item_cache_fetch_item(item_cache, 24));
+} END_TEST
+
+START_TEST (test_purging_half_cache_with_multiple_items_from_thread) {
+  Item *non_purged_item1 = create_item_with_tokens_and_time(21, tokens, 4, purge_time + 4);
+  Item *non_purged_item2 = create_item_with_tokens_and_time(22, tokens, 4, purge_time + 5);
+  
+  Item *purged_item1 = create_item_with_tokens_and_time(23, tokens, 4, purge_time - 4);
+  Item *purged_item2 = create_item_with_tokens_and_time(24, tokens, 4, purge_time - 5);
+  
+  item_cache_add_item(item_cache, non_purged_item1);
+  item_cache_add_item(item_cache, non_purged_item2);
+  item_cache_add_item(item_cache, purged_item1);
+  item_cache_add_item(item_cache, purged_item2);
+
+  assert_not_null(item_cache_fetch_item(item_cache, 21));
+  assert_not_null(item_cache_fetch_item(item_cache, 22));  
+  assert_not_null(item_cache_fetch_item(item_cache, 23));
+  assert_not_null(item_cache_fetch_item(item_cache, 24));
+  
+  item_cache_start_purger(item_cache, 1);
+  sleep(2);
+
+  assert_not_null(item_cache_fetch_item(item_cache, 21));
+  assert_not_null(item_cache_fetch_item(item_cache, 22));  
+  assert_null(item_cache_fetch_item(item_cache, 23));
+  assert_null(item_cache_fetch_item(item_cache, 24));
+} END_TEST
+
+START_TEST (test_purge_loaded_cache_doesnt_crash) {
+  item_cache_start_purger(item_cache, 1);
+  item_cache_load(item_cache);
+  sleep(2);
 } END_TEST
 
 /* Atomizer tests */
@@ -1066,6 +1115,9 @@ item_cache_suite(void) {
   tcase_add_test(purging, test_purging_cache_of_one_old_item);
   tcase_add_test(purging, test_purging_cache_does_nothing_with_no_items);
   tcase_add_test(purging, test_purging_half_of_the_cache);
+  tcase_add_test(purging, test_purging_entire_cache_with_multiple_items);
+  tcase_add_test(purging, test_purging_half_cache_with_multiple_items_from_thread);
+  tcase_add_test(purging, test_purge_loaded_cache_doesnt_crash);
   
   TCase *atomization = tcase_create("atomization");
   tcase_add_checked_fixture(atomization, setup_modification, teardown_modification);
