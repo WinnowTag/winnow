@@ -1,3 +1,7 @@
+=== Current Version
+
+ * Include timestamp in logging.
+ 
 === 1.1.5 (25 March 2008)
 
  * Fixed about response for classifier.

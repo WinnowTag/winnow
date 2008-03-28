@@ -9,11 +9,10 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 #if HAVE_STDARG_H
 #include <stdarg.h>
 #endif
-
-#define PREFIX(type) type " (%s:%i): "
 
 static FILE *log_file = NULL;
 
@@ -33,59 +32,54 @@ void close_log() {
   }
 }
 
-void _fatal(const char *file, int line, const char *fmt, ...) {
+static void _log(const char * prefix, const char * file, int line, const char * fmt, va_list argp) {
+  time_t now;
+  struct tm now_tm;
+  char time_s[26];
+  
+  now = time(NULL); 
+  localtime_r(&now, &now_tm);
+  strftime(time_s, sizeof(time_s), "%Y-%m-%dT%H:%M:%S", &now_tm);
+  
   ensure_logfile();
-  va_list argp;
-	fprintf(log_file, PREFIX("FATAL"), file, line);
-	va_start(argp, fmt);
+	fprintf(log_file, "%s [%s] (%s:%i): ", prefix, time_s, file, line);
 	vfprintf(log_file, fmt, argp);
-	vfprintf(stderr, fmt, argp);
-	va_end(argp);
 	fprintf(log_file, "\n");
-  fprintf(stderr, "\n");
+  fflush(log_file);
+}
+
+void _fatal(const char *file, int line, const char *fmt, ...) {
+  va_list argp;
+  va_start(argp, fmt);
+  _log("FATAL", file, line, fmt, argp);
+  va_end(argp);
   exit(1);
 }
 
 void _error(const char *file, int line, const char *fmt, ...) {
-  ensure_logfile();
-	va_list argp;
-	fprintf(log_file, PREFIX("ERROR"), file, line);
-	va_start(argp, fmt);
-	vfprintf(log_file, fmt, argp);
-	va_end(argp);
-	fprintf(log_file, "\n");
-	fflush(log_file);
+  va_list argp;
+  va_start(argp, fmt);
+  _log("ERROR", file, line, fmt, argp);
+  va_end(argp);
 }
 
 void _info(const char *file, int line, const char *fmt, ...) {
-  ensure_logfile();
-	va_list argp;
-	fprintf(log_file, PREFIX("INFO "), file, line);
-	va_start(argp, fmt);
-	vfprintf(log_file, fmt, argp);
-	va_end(argp);
-	fprintf(log_file, "\n");
-	fflush(log_file);
+  va_list argp;
+  va_start(argp, fmt);
+  _log("INFO ", file, line, fmt, argp);
+  va_end(argp);
 }
 
 void _debug(const char *file, int line, const char *fmt, ...) {
-  ensure_logfile();
-	va_list argp;
-	fprintf(log_file, PREFIX("DEBUG"), file, line);
-	va_start(argp, fmt);
-	vfprintf(log_file, fmt, argp);
-	va_end(argp);
-	fprintf(log_file, "\n");
-	fflush(log_file);
+  va_list argp;
+  va_start(argp, fmt);
+  _log("DEBUG", file, line, fmt, argp);
+  va_end(argp);
 }
 
 void _trace(const char *file, int line, const char *fmt, ...) {
-  ensure_logfile();
   va_list argp;
-  fprintf(log_file, PREFIX("TRACE"), file, line);
   va_start(argp, fmt);
-  vfprintf(log_file, fmt, argp);
+  _log("TRACE", file, line, fmt, argp);
   va_end(argp);
-  fprintf(log_file, "\n");
-  fflush(log_file);
 }
