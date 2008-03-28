@@ -223,20 +223,6 @@ static void teardown_modification(void) {
   free_item_cache(item_cache);
 }
 
-START_TEST (test_adding_an_entry_stores_it_in_the_database) {
-  ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
-                                        "http://example.org/11",
-                                        "http://example.org/11.html",
-                                        "http://example.org/11/spider",
-                                        "<p>This is some content</p>",
-                                        1178551600, 141, 1178551601, NULL);
-  int rc = item_cache_add_entry(item_cache, entry);
-  assert_equal(CLASSIFIER_OK, rc);
-  Item *item = item_cache_fetch_item(item_cache, 11);
-  assert_not_null(item);
-  free_item(item);
-} END_TEST
-
 START_TEST (adding_an_entry_saves_all_its_attributes) {
   ItemCacheEntry *entry = create_item_cache_entry(11, "id#11", "Entry 11", "Author 11",
                                           "http://example.org/11",
@@ -1066,7 +1052,6 @@ item_cache_suite(void) {
   
   TCase *modification = tcase_create("modification");
   tcase_add_checked_fixture(modification, setup_modification, teardown_modification);
-  tcase_add_test(modification, test_adding_an_entry_stores_it_in_the_database);
   tcase_add_test(modification, adding_an_entry_twice_does_not_fail);
   tcase_add_test(modification, adding_an_entry_saves_all_its_attributes);
   tcase_add_test(modification, test_destroying_an_entry_removes_it_from_database);

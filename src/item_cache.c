@@ -31,7 +31,6 @@
 #define FETCH_ITEM_SQL "select id, strftime('%s', updated) from entries where id = ?"
 #define FETCH_ITEM_TOKENS_SQL "select token_id, frequency from entry_tokens where entry_id = ?"
 #define FETCH_ALL_ITEMS_SQL "select id, strftime('%s', updated) from entries where updated > (julianday('now') - ?) order by updated desc"
-#define FETCH_ALL_ITEMS_TOKENS_SQL "select entry_id, token_id, frequency from entry_tokens order by entry_id"
 #define FETCH_RANDOM_BACKGROUND "select entry_id from random_backgrounds"
 #define INSERT_ENTRY_SQL "insert or replace into entries (id, full_id, title, author, alternate, self, spider, content, updated, feed_id, created_at) \
                           VALUES (:id, :full_id, :title, :author, :alternate, :self, :spider, :content, julianday(:updated, 'unixepoch'), :feed_id, julianday(:created_at, 'unixepoch'))"
@@ -102,7 +101,6 @@ struct ITEM_CACHE {
   sqlite3_stmt *fetch_item_stmt;
   sqlite3_stmt *fetch_item_tokens_stmt;
   sqlite3_stmt *fetch_all_items_stmt;
-  sqlite3_stmt *fetch_all_item_tokens_stmt;
   sqlite3_stmt *random_background_stmt;
   sqlite3_stmt *insert_entry_stmt;
   sqlite3_stmt *delete_entry_stmt;
@@ -323,7 +321,6 @@ static int create_prepared_statements(ItemCache *item_cache) {
   if (SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_ITEM_SQL,             -1, &item_cache->fetch_item_stmt,            NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_ITEM_TOKENS_SQL,      -1, &item_cache->fetch_item_tokens_stmt,     NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_ALL_ITEMS_SQL,        -1, &item_cache->fetch_all_items_stmt,       NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_ALL_ITEMS_TOKENS_SQL, -1, &item_cache->fetch_all_item_tokens_stmt, NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_RANDOM_BACKGROUND,    -1, &item_cache->random_background_stmt,     NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ENTRY_SQL,           -1, &item_cache->insert_entry_stmt,          NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_ENTRY_SQL,           -1, &item_cache->delete_entry_stmt,          NULL) ||
@@ -468,7 +465,6 @@ void free_item_cache(ItemCache *item_cache) {
       sqlite3_finalize(item_cache->fetch_item_stmt);
       sqlite3_finalize(item_cache->fetch_item_tokens_stmt);
       sqlite3_finalize(item_cache->fetch_all_items_stmt);
-      sqlite3_finalize(item_cache->fetch_all_item_tokens_stmt);
       sqlite3_finalize(item_cache->random_background_stmt);
       sqlite3_finalize(item_cache->insert_entry_stmt);
       sqlite3_finalize(item_cache->delete_entry_stmt);
@@ -529,6 +525,35 @@ const char * item_cache_errmsg(const ItemCache *item_cache) {
   return msg;
 }
 
+/* Fetches the tokens for the given item.
+ *
+ * NOTE: The caller must hold the db_access_mutex.
+ * 
+ * @returns the number of tokens fetched for the the item.
+ */
+static int fetch_tokens_for(ItemCache * item_cache, Item * item) {
+  int tokens_loaded = 0;
+  
+  if (item_cache && item) {
+    int sqlite3_rc = sqlite3_bind_int(item_cache->fetch_item_tokens_stmt, 1, item->id);
+    
+    if (SQLITE_OK != sqlite3_rc) {
+      fatal("fetch_item_tokens_stmt bind error = %s", item_cache_errmsg(item_cache));
+    } else {
+      while (SQLITE_ROW == sqlite3_step(item_cache->fetch_item_tokens_stmt)) {
+        tokens_loaded++;
+        item_add_token(item, sqlite3_column_int(item_cache->fetch_item_tokens_stmt, 0),
+                             sqlite3_column_int(item_cache->fetch_item_tokens_stmt, 1));
+      }
+    }
+    
+    sqlite3_clear_bindings(item_cache->fetch_item_tokens_stmt);
+    sqlite3_reset(item_cache->fetch_item_tokens_stmt);
+  }
+  
+  return tokens_loaded;
+}
+
 /** Load the items from the database into an in-memory cache.
  * 
  * The in memory cache has two structures, the first indexes each 
@@ -544,6 +569,7 @@ int item_cache_load(ItemCache *item_cache) {
   }
   
   info("item_cache_load from %i days ago", item_cache->load_items_since);
+  pthread_mutex_lock(&item_cache->db_access_mutex);
   time_t start_time = time(NULL);
   int rc = CLASSIFIER_OK;
   OrderedItemList *ordered_list = NULL;
@@ -552,6 +578,7 @@ int item_cache_load(ItemCache *item_cache) {
   
   sqlite3_bind_int(item_cache->fetch_all_items_stmt, 1, item_cache->load_items_since);
     
+  /* Load the item ids and timestamp indexing and order them by each. */
   while (SQLITE_ROW == sqlite3_step(item_cache->fetch_all_items_stmt)) {
     int id = sqlite3_column_int(item_cache->fetch_all_items_stmt, 0);
     
@@ -594,22 +621,11 @@ int item_cache_load(ItemCache *item_cache) {
   sqlite3_reset(item_cache->fetch_all_items_stmt);
   
   /* Now load the tokens */
-  while (SQLITE_ROW == sqlite3_step(item_cache->fetch_all_item_tokens_stmt)) {
-    PWord_t item_pointer = NULL;
-    int id = sqlite3_column_int(item_cache->fetch_all_item_tokens_stmt, 0);
-    int token_id = sqlite3_column_int(item_cache->fetch_all_item_tokens_stmt, 1);
-    int frequency = sqlite3_column_int(item_cache->fetch_all_item_tokens_stmt, 2);
-    
-    JLG(item_pointer, itemlist, id);
-    if (NULL != item_pointer) {
-      Item *item = (Item*) (*item_pointer);
-      if (item) {
-        item_add_token(item, token_id, frequency);
-      }
-    }
-  }
-  
-  sqlite3_reset(item_cache->fetch_all_item_tokens_stmt);
+  OrderedItemList *current = ordered_list;
+  while (current) {
+    fetch_tokens_for(item_cache, current->item);
+    current = current->next;
+  }  
     
   /* Now load the random background */
   Pool *rndbg = new_pool();
@@ -627,11 +643,15 @@ int item_cache_load(ItemCache *item_cache) {
   
   sqlite3_reset(item_cache->random_background_stmt);
   
+  pthread_rwlock_wrlock(&item_cache->cache_lock);
   item_cache->random_background = rndbg;
   item_cache->items_by_id = itemlist;
   item_cache->items_in_order = ordered_list;
   item_cache->loaded = true;
   time_t end_time = time(NULL);
+  pthread_rwlock_unlock(&item_cache->cache_lock);
+  
+  pthread_mutex_unlock(&item_cache->db_access_mutex);
   
   info("loaded %i items in %i seconds", item_cache_cached_size(item_cache), end_time - start_time);
   return rc;
@@ -722,22 +742,10 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
     sqlite3_reset(item_cache->fetch_item_stmt);
     
     /* Load up the tokens */
-    if (item) {
-      sqlite3_rc = sqlite3_bind_int(item_cache->fetch_item_tokens_stmt, 1, id);
-      
-      if (SQLITE_OK != sqlite3_rc) {
-        fatal("fetch_item_tokens_stmt bind error = %s", item_cache_errmsg(item_cache));
-        free_item(item); item = NULL;
-      } else {
-        while (SQLITE_ROW == sqlite3_step(item_cache->fetch_item_tokens_stmt)) {
-          item_add_token(item, sqlite3_column_int(item_cache->fetch_item_tokens_stmt, 0),
-                               sqlite3_column_int(item_cache->fetch_item_tokens_stmt, 1));
-        }
-      }
-      
-      sqlite3_clear_bindings(item_cache->fetch_item_tokens_stmt);
-      sqlite3_reset(item_cache->fetch_item_tokens_stmt);
-    }
+    if (0 == fetch_tokens_for(item_cache, item)) {
+      free_item(item);
+      item = NULL;
+    }      
     
     pthread_mutex_unlock(&item_cache->db_access_mutex);
     trace("thread(%i) has unlocked db_access_mutex after fetching %i", pthread_self(), id);
