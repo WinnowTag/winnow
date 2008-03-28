@@ -41,4 +41,4 @@ check_db_LDADD = @CHECK_LIBS@  \
 
 
 dist_check_DATA = fixtures conf spec.opts
-dist_check_SCRIPTS = specs item_cache_spec.rb
+dist_check_SCRIPTS = specs item_cache_spec.rb memory_spec.rb spec_helper.rb
