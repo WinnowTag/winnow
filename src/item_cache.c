@@ -96,6 +96,7 @@ struct ITEM_CACHE {
   /* Item cache's copy of ItemCacheOptions */
   int cache_update_wait_time;
   int load_items_since;
+  int min_tokens;
   
   sqlite3 *db;  
   sqlite3_stmt *fetch_item_stmt;
@@ -409,6 +410,7 @@ int item_cache_create(ItemCache **item_cache, const char * db_file, const ItemCa
   
   (*item_cache)->cache_update_wait_time = options->cache_update_wait_time;
   (*item_cache)->load_items_since = options->load_items_since;
+  (*item_cache)->min_tokens = options->min_tokens;
   (*item_cache)->version_mismatch = 0;
   (*item_cache)->items_by_id = NULL;
   (*item_cache)->items_in_order = NULL;
@@ -622,9 +624,28 @@ int item_cache_load(ItemCache *item_cache) {
   
   /* Now load the tokens */
   OrderedItemList *current = ordered_list;
+  OrderedItemList *previous = NULL;
+  
   while (current) {
-    fetch_tokens_for(item_cache, current->item);
-    current = current->next;
+    if (item_cache->min_tokens > fetch_tokens_for(item_cache, current->item)) {
+      OrderedItemList *next = current->next;
+            
+      if (!previous) {
+        ordered_list = next;
+      } else {
+        previous->next = next;
+      }
+      
+      int judyrc;      
+      JLD(judyrc, itemlist, current->item->id);
+      free_item(current->item);
+      free(current);
+      
+      current = next;
+    } else {
+      previous = current;
+      current = current->next;
+    }
   }  
     
   /* Now load the random background */

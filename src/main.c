@@ -32,12 +32,14 @@
 #define DEFAULT_TOKENIZER_URL "http://localhost"
 #define DEFAULT_CACHE_UPDATE_WAIT_TIME 60
 #define DEFAULT_LOAD_ITEMS_SINCE 30
+#define DEFAULT_MIN_TOKENS 50
 
 #define PID_VAL 512
 #define DB_VAL  513
 #define CREATE_DB_VAL 514
 #define CACHE_UPDATE_WAIT_TIME_VAL 515
 #define LOAD_ITEMS_SINCE_VAL 516
+#define MIN_TOKENS_VAL 517
 #define SHORT_OPTS "hvdc:l:t:"
 #define USAGE "Usage: classifier [-dvh] [-c CONFIGFILE] [-l LOGFILE] [--db DATABASE_FILE] [--pid PIDFILE] [-t tokenizer_url] [--create-db]\n"
 
@@ -146,6 +148,7 @@ int main(int argc, char **argv) {
   char real_db_file[MAXPATHLEN];
   item_cache_options.cache_update_wait_time = DEFAULT_CACHE_UPDATE_WAIT_TIME;
   item_cache_options.load_items_since = DEFAULT_LOAD_ITEMS_SINCE;
+  item_cache_options.min_tokens = DEFAULT_MIN_TOKENS;
   
   int longindex;
   int opt;
@@ -159,7 +162,8 @@ int main(int argc, char **argv) {
       {"db", required_argument, 0, DB_VAL},      
       {"create-db", no_argument, 0, CREATE_DB_VAL},
       {"cache-update-wait-time", required_argument, 0, CACHE_UPDATE_WAIT_TIME_VAL},
-      {"load_items_since", required_argument, 0, LOAD_ITEMS_SINCE_VAL},
+      {"load-items-since", required_argument, 0, LOAD_ITEMS_SINCE_VAL},
+      {"min-tokens", required_argument, 0, MIN_TOKENS_VAL},
       {0, 0, 0, 0}
   };
   
@@ -195,6 +199,9 @@ int main(int argc, char **argv) {
       break;
       case LOAD_ITEMS_SINCE_VAL:
         item_cache_options.load_items_since = strtol(optarg, NULL, 10);
+      break;
+      case MIN_TOKENS_VAL:
+        item_cache_options.min_tokens = strtol(optarg, NULL, 10);
       break;
       case 'h':
         // TODO Add help

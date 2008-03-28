@@ -1,7 +1,9 @@
 === Current Version
 
  * Include timestamp in logging.
- 
+ * Optimized item loading.
+ * Prune small items from cache on load.
+
 === 1.1.5 (25 March 2008)
 
  * Fixed about response for classifier.

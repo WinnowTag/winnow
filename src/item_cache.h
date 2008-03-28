@@ -21,6 +21,7 @@ typedef struct TOKEN {
 typedef struct ITEM_CACHE_OPTIONS {
   int cache_update_wait_time;
   int load_items_since;
+  int min_tokens;
 } ItemCacheOptions;
 
 typedef struct ITEM Item;

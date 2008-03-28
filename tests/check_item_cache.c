@@ -15,7 +15,7 @@
 #include "../src/item_cache.h"
 #include "../src/logging.h"
 
-static ItemCacheOptions item_cache_options = {1, 3650};
+static ItemCacheOptions item_cache_options = {1, 3650, 0};
  
 START_TEST (creating_with_missing_db_file_fails) {
   ItemCache *item_cache;
@@ -118,6 +118,16 @@ START_TEST (test_load_sets_cache_loaded_to_true) {
   int rc = item_cache_load(item_cache);
   assert_equal(CLASSIFIER_OK, rc);
   assert_equal(true, item_cache_loaded(item_cache));
+} END_TEST
+
+START_TEST (test_load_respects_min_tokens) {
+  ItemCache *min_token_item_cache;
+  item_cache_options.min_tokens = 80;
+  item_cache_create(&min_token_item_cache, "/tmp/valid-copy.db", &item_cache_options);
+  int rc = item_cache_load(min_token_item_cache);
+  assert_equal(CLASSIFIER_OK, rc);
+  assert_equal(6, item_cache_cached_size(min_token_item_cache));
+  free_item_cache(min_token_item_cache);
 } END_TEST
 
 /* Test iteration */
@@ -1036,6 +1046,7 @@ item_cache_suite(void) {
   tcase_add_checked_fixture(load, setup_cache, teardown_item_cache);
   tcase_add_test(load, test_load_loads_the_right_number_of_items);  
   tcase_add_test(load, test_load_sets_cache_loaded_to_true);
+  tcase_add_test(load, test_load_respects_min_tokens);
   
   TCase *iteration = tcase_create("iteration");
   tcase_add_checked_fixture(iteration, setup_iteration, teardown_iteration);

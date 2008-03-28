@@ -11,7 +11,7 @@ require File.dirname(__FILE__) + '/spec_helper'
 #
 describe 'the classifier' do
   before(:each) do
-    start_classifier(true)
+    start_classifier(:malloc_log => true)
     start_tokenizer
   end
   
@@ -51,31 +51,18 @@ describe 'the classifier' do
     # There is a weird one off memory leak on OSX with the regex in add_feed.
     'classifier'.should have_no_more_than_leaks(1) 
   end
-  
-  def not_leak
-    return have_no_more_than_leaks(0)
+end
+
+describe 'the classifier with a high mintokens' do
+  before(:each) do
+    start_classifier(:malloc_log => true, :min_tokens => 100)
   end
   
-  def have_no_more_than_leaks(n)
-    return MemoryLeaks.new(n)
+  after(:each) do
+    stop_classifier
   end
   
-  class MemoryLeaks
-    def initialize(n)
-      @n = n
-    end
-    
-    def matches?(target)
-      @target = target
-      @result = `leaks #{@target}`
-      if @result =~ /(\d+) leaks?/
-        @leaks = $1.to_i
-        @leaks <= @n
-      end
-    end
-    
-    def failure_message
-      "#{@target} has #{@leaks} memory leaks, expected less than or equal to #{@n}\n#{@result}"
-    end
+  it "should not leak memory after removing up small items" do
+    'classifier'.should not_leak
   end
 end

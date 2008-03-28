@@ -113,7 +113,7 @@ def destroy_entry(id)
   end.destroy!
 end
 
-def start_classifier(malloc_logging = false)
+def start_classifier(options = {:min_tokens => 0})
   system("cp -f #{File.join(ROOT, 'fixtures/valid.db')} #{Database}")
   system("chmod 644 #{Database}") 
   classifier = File.join(ROOT, "../src/classifier")
@@ -126,10 +126,11 @@ def start_classifier(malloc_logging = false)
                                      "-l /tmp/classifier-item_cache_spec.log " +
                                      "-c #{File.join(ROOT, "fixtures/real-db.conf")} " +
                                      "--cache-update-wait-time 1 " +
-                                     "--load_items_since 3650 " +
+                                     "--load-items-since 3650 " +
+                                     "--min-tokens #{options[:min_tokens] or 0} " +
                                      "--db #{Database} 2> /dev/null" 
                                      
-  if malloc_logging
+  if options[:malloc_log]
     classifier_cmd = "MallocStackLogging=1 #{classifier_cmd}"
   end
   
@@ -138,7 +139,7 @@ def start_classifier(malloc_logging = false)
 end
 
 def stop_classifier
-  system("kill `cat /tmp/classifier-test.pid`")
+  system("kill -9 `cat /tmp/classifier-test.pid`")
 end
 
 def start_tokenizer
@@ -148,4 +149,31 @@ end
 
 def stop_tokenizer
   system("tokenizer_control stop")
+end
+
+def not_leak
+  return have_no_more_than_leaks(0)
+end
+
+def have_no_more_than_leaks(n)
+  return MemoryLeaks.new(n)
+end
+
+class MemoryLeaks
+  def initialize(n)
+    @n = n
+  end
+  
+  def matches?(target)
+    @target = target
+    @result = `leaks #{@target}`
+    if @result =~ /(\d+) leaks?/
+      @leaks = $1.to_i
+      @leaks <= @n
+    end
+  end
+  
+  def failure_message
+    "#{@target} has #{@leaks} memory leaks, expected less than or equal to #{@n}\n#{@result}"
+  end
 end
