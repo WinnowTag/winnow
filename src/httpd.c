@@ -319,7 +319,9 @@ static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
     } else {
       ItemCacheEntry *entry = entry_from_xml(feed_id, doc, request->data->buffer);
         
-      if (CLASSIFIER_OK == item_cache_add_entry(request->item_cache, entry)) {
+      if (!entry) {
+        HTTP_BAD_ENTRY(response);
+      } else if (CLASSIFIER_OK == item_cache_add_entry(request->item_cache, entry)) {
         response->code = MHD_HTTP_CREATED;
         response->content = strdup(request->data->buffer);
         response->content_type = CONTENT_TYPE;

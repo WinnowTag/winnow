@@ -36,15 +36,16 @@ def create_feed(opts = {:title => 'My new feed', :id => 'urn:peerworks.org:feeds
   collection.publish(feed_entry)
 end
 
-def create_entry(id = "1111")
+def create_entry(opts = {})
+  opts = {:id => '1111', :title => 'My Entry', :content => "this is the html content for entry 1111 there should be enough to tokenize"}.merge(opts)
   collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feeds/426/feed_items')
   entry = Atom::Entry.new do |entry|
-    entry.title = 'My Feed'
-    entry.id = "urn:peerworks.org:entries##{id}"
+    entry.title = opts[:title]
+    entry.id = "urn:peerworks.org:entries##{opts[:id]}"
     entry.links << Atom::Link.new(:href => 'http://example.org/1111.html', :rel => 'alternate')
     entry.links << Atom::Link.new(:href => 'http://example.org/1111.atom', :rel => 'self')
     entry.updated = Time.now
-    entry.content = Atom::Content::Html.new("this is the html content for entry 1111 there should be enough to tokenize")
+    entry.content = Atom::Content::Html.new(opts[:content])
   end
   
   collection.publish(entry)

@@ -68,6 +68,10 @@ describe "The Classifier's Item Cache" do
       create_entry
       @sqlite.get_first_value("select count(*) from entries where id = 1111").should == "1"
     end
+    
+    it "should raise protocol error when creating an item with no content" do
+      lambda { create_entry(:content => nil) }.should raise_error(Atom::Pub::ProtocolError)
+    end
   end
   
   describe "entry tokenization" do
@@ -158,8 +162,8 @@ describe "The Classifier's Item Cache" do
         
         Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
         
-        create_entry("1111")
-        create_entry("1112")
+        create_entry(:id => "1111")
+        create_entry(:id => "1112")
         sleep(2)
         Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 2)
         `wc -l /tmp/perf.log`.to_i.should == Tagging.count(:select => 'distinct tag_id') + 2 # +1 for header, +1 for previous job

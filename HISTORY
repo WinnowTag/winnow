@@ -1,3 +1,7 @@
+=== 1.1.7 (29 March 2008)
+
+ * Fixed segfault when an invalid item is published.
+ 
 === 1.1.6 (28 March 2008)
 
  * Include timestamp in logging.
