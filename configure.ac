@@ -74,7 +74,7 @@ AX_LIB_SQLITE3([3.5.6])
 
 # Unit testing library
 if test "x$PKG_CONFIG" != "x"; then
-PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
+PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [AC_MSG_WARN(check not available, tests will not run)])
 fi
 
 # libcurl (required for testing)
