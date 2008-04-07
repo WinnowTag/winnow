@@ -1,3 +1,7 @@
+=== 1.1.8 (7 April 2008)
+
+ * Fixed memory leak when fetching non-memory-cached items during classification.
+ 
 === 1.1.7 (29 March 2008)
 
  * Fixed segfault when an invalid item is published.
