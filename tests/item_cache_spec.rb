@@ -72,6 +72,12 @@ describe "The Classifier's Item Cache" do
     it "should raise protocol error when creating an item with no content" do
       lambda { create_entry(:content => nil) }.should raise_error(Atom::Pub::ProtocolError)
     end
+    
+    it "should properly parse the updated date" do
+      create_entry(:updated => Time.now.yesterday.yesterday)
+      r = @sqlite.get_first_row("select updated, created_at from entries where id = 1111")
+      r[0].to_f.should < r[1].to_f
+    end
   end
   
   describe "entry tokenization" do

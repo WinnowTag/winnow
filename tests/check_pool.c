@@ -15,6 +15,7 @@
 
 ItemCacheOptions item_cache_options;
 ItemCache *item_cache;
+int free_when_done;
 
 static void setup(void) {
   item_cache_options.cache_update_wait_time = 1;
@@ -43,7 +44,7 @@ START_TEST (new_pool_is_empty) {
 
 START_TEST (add_1_item) {
   Pool *pool = new_pool();
-  pool_add_item(pool, item_cache_fetch_item(item_cache, 878944));
+  pool_add_item(pool, item_cache_fetch_item(item_cache, 878944, &free_when_done));
   assert_equal(186, pool_num_tokens(pool));
   assert_equal(336, pool_total_tokens(pool));
   assert_equal(9, pool_token_frequency(pool, 7982));
@@ -54,8 +55,8 @@ START_TEST (add_1_item) {
 
 START_TEST (add_2_items_with_same_tokens) {
   Pool *pool = new_pool();
-  pool_add_item(pool, item_cache_fetch_item(item_cache, 709254));
-  pool_add_item(pool, item_cache_fetch_item(item_cache, 753459));
+  pool_add_item(pool, item_cache_fetch_item(item_cache, 709254, &free_when_done));
+  pool_add_item(pool, item_cache_fetch_item(item_cache, 753459, &free_when_done));
   assert_equal(196, pool_num_tokens(pool));
   assert_equal(323, pool_total_tokens(pool));
   assert_equal(3, pool_token_frequency(pool, 665));
@@ -68,8 +69,8 @@ START_TEST (add_2_items_with_same_tokens) {
 START_TEST (token_iteration) {
   int ret_val;
   Pool *pool = new_pool();
-  pool_add_item(pool, item_cache_fetch_item(item_cache, 709254));
-  pool_add_item(pool, item_cache_fetch_item(item_cache, 753459));
+  pool_add_item(pool, item_cache_fetch_item(item_cache, 709254, &free_when_done));
+  pool_add_item(pool, item_cache_fetch_item(item_cache, 753459, &free_when_done));
   
   Token token;
   token.id = 0;

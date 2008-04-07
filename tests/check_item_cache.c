@@ -46,6 +46,7 @@ START_TEST (create_with_valid_db) {
 /* Tests for fetching an item */
 
 ItemCache *item_cache;
+int free_when_done;
 
 static void setup_cache(void) {
   setup_fixture_path();
@@ -59,34 +60,34 @@ static void teardown_item_cache(void) {
 }
 
 START_TEST (test_fetch_item_returns_null_when_item_doesnt_exist) {
-  Item *item = item_cache_fetch_item(item_cache, 111);
+  Item *item = item_cache_fetch_item(item_cache, 111, &free_when_done);
   assert_null(item);
   free_item(item);
 } END_TEST
 
 START_TEST (test_fetch_item_contains_item_id) {
-  Item *item = item_cache_fetch_item(item_cache, 890806);
+  Item *item = item_cache_fetch_item(item_cache, 890806, &free_when_done);
   assert_not_null(item);
   assert_equal(890806, item_get_id(item));
   free_item(item);
 } END_TEST
 
 START_TEST (test_fetch_item_contains_item_time) {
-  Item *item = item_cache_fetch_item(item_cache, 890806);
+  Item *item = item_cache_fetch_item(item_cache, 890806, &free_when_done);
   assert_not_null(item);
   assert_equal(1178551672, item_get_time(item));
   free_item(item);
 } END_TEST
 
 START_TEST (test_fetch_item_contains_the_right_number_of_tokens) {
- Item *item = item_cache_fetch_item(item_cache, 890806);
+ Item *item = item_cache_fetch_item(item_cache, 890806, &free_when_done);
  assert_not_null(item);
  assert_equal(76, item_get_num_tokens(item));
  free_item(item);
 } END_TEST
 
 START_TEST (test_fetch_item_contains_the_right_frequency_for_a_given_token) {
-  Item *item = item_cache_fetch_item(item_cache, 890806);
+  Item *item = item_cache_fetch_item(item_cache, 890806, &free_when_done);
   assert_not_null(item);
   Token token;
   item_get_token(item, 9949, &token);
@@ -94,15 +95,26 @@ START_TEST (test_fetch_item_contains_the_right_frequency_for_a_given_token) {
   assert_equal(3, token.frequency);
 } END_TEST
 
+START_TEST (test_free_when_done_is_true_when_the_item_is_not_in_the_memory_cache) {
+  Item *item = item_cache_fetch_item(item_cache, 890806, &free_when_done);
+  assert_equal(true, free_when_done);
+} END_TEST
+
 START_TEST (test_fetch_item_after_load) {
   item_cache_load(item_cache);
-  Item *item = item_cache_fetch_item(item_cache, 890806);
+  Item *item = item_cache_fetch_item(item_cache, 890806, &free_when_done);
   assert_not_null(item);
+} END_TEST
+
+START_TEST (test_free_when_done_is_false_when_the_item_is_in_the_memory_cache) {
+  item_cache_load(item_cache);
+  Item *item = item_cache_fetch_item(item_cache, 890806, &free_when_done);
+  assert_equal(false, free_when_done);
 } END_TEST
 
 START_TEST (test_fetch_item_after_load_contains_tokens) {
   item_cache_load(item_cache);
-  Item *item = item_cache_fetch_item(item_cache, 890806);
+  Item *item = item_cache_fetch_item(item_cache, 890806, &free_when_done);
   assert_not_null(item);
   assert_equal(76, item_get_num_tokens(item));
 } END_TEST
@@ -279,20 +291,20 @@ START_TEST (adding_an_entry_twice_does_not_fail) {
 } END_TEST
 
 START_TEST (test_destroying_an_entry_removes_it_from_database) {
-  Item *item = item_cache_fetch_item(item_cache, 753459);
+  Item *item = item_cache_fetch_item(item_cache, 753459, &free_when_done);
   assert_not_null(item);
   free_item(item);
   
   int rc = item_cache_remove_entry(item_cache, 753459);
   assert_equal(CLASSIFIER_OK, rc);
-  item = item_cache_fetch_item(item_cache, 753459);
+  item = item_cache_fetch_item(item_cache, 753459, &free_when_done);
   assert_null(item);  
 } END_TEST
 
 START_TEST (test_destroying_an_entry_removes_it_from_the_database_file) {
   int rc = item_cache_remove_entry(item_cache, 753459);
   assert_equal(CLASSIFIER_OK, rc);
-  Item *item = item_cache_fetch_item(item_cache, 753459);
+  Item *item = item_cache_fetch_item(item_cache, 753459, &free_when_done);
   assert_null(item);
     
   sqlite3 *db;
@@ -454,7 +466,7 @@ START_TEST (test_add_item_to_in_memory_arrays_adds_an_item) {
 
 START_TEST (test_add_item_makes_it_fetchable) {
   item_cache_add_item(item_cache, item);
-  assert_equal(item, item_cache_fetch_item(item_cache, 9));  
+  assert_equal(item, item_cache_fetch_item(item_cache, 9, &free_when_done));  
 } END_TEST
 
 static int adding_item_iterator(const Item *iter_item, void *memo) {
@@ -775,17 +787,17 @@ START_TEST (test_purging_cache_of_one_old_item) {
   Item *old_item = create_item_with_tokens_and_time(23, tokens, 4, purge_time - 2);
   mark_point();
   item_cache_add_item(item_cache, old_item);
-  assert_not_null(item_cache_fetch_item(item_cache, 23));
+  assert_not_null(item_cache_fetch_item(item_cache, 23, &free_when_done));
   item_cache_purge_old_items(item_cache);
-  assert_null(item_cache_fetch_item(item_cache, 23));
+  assert_null(item_cache_fetch_item(item_cache, 23, &free_when_done));
 } END_TEST
 
 START_TEST (test_purging_cache_does_nothing_with_one_new_item) {
   Item *non_purged_item = create_item_with_tokens_and_time(23, tokens, 4, purge_time + 2);
   item_cache_add_item(item_cache, non_purged_item);
-  assert_not_null(item_cache_fetch_item(item_cache, 23));
+  assert_not_null(item_cache_fetch_item(item_cache, 23, &free_when_done));
   item_cache_purge_old_items(item_cache);
-  assert_not_null(item_cache_fetch_item(item_cache, 23));
+  assert_not_null(item_cache_fetch_item(item_cache, 23, &free_when_done));
 } END_TEST
 
 START_TEST (test_purging_half_of_the_cache) {
@@ -795,13 +807,13 @@ START_TEST (test_purging_half_of_the_cache) {
   item_cache_add_item(item_cache, non_purged_item);
   item_cache_add_item(item_cache, purged_item);
   
-  assert_not_null(item_cache_fetch_item(item_cache, 23));
-  assert_not_null(item_cache_fetch_item(item_cache, 24));
+  assert_not_null(item_cache_fetch_item(item_cache, 23, &free_when_done));
+  assert_not_null(item_cache_fetch_item(item_cache, 24, &free_when_done));
   
   item_cache_purge_old_items(item_cache);
   
-  assert_not_null(item_cache_fetch_item(item_cache, 23));
-  assert_null(item_cache_fetch_item(item_cache, 24));
+  assert_not_null(item_cache_fetch_item(item_cache, 23, &free_when_done));
+  assert_null(item_cache_fetch_item(item_cache, 24, &free_when_done));
 } END_TEST
 
 START_TEST (test_purging_entire_cache_with_multiple_items) {
@@ -811,13 +823,13 @@ START_TEST (test_purging_entire_cache_with_multiple_items) {
   item_cache_add_item(item_cache, purged_item1);
   item_cache_add_item(item_cache, purged_item2);
   
-  assert_not_null(item_cache_fetch_item(item_cache, 23));
-  assert_not_null(item_cache_fetch_item(item_cache, 24));
+  assert_not_null(item_cache_fetch_item(item_cache, 23, &free_when_done));
+  assert_not_null(item_cache_fetch_item(item_cache, 24, &free_when_done));
   
   item_cache_purge_old_items(item_cache);
   
-  assert_null(item_cache_fetch_item(item_cache, 23));
-  assert_null(item_cache_fetch_item(item_cache, 24));
+  assert_null(item_cache_fetch_item(item_cache, 23, &free_when_done));
+  assert_null(item_cache_fetch_item(item_cache, 24, &free_when_done));
 } END_TEST
 
 START_TEST (test_purging_half_cache_with_multiple_items_from_thread) {
@@ -832,18 +844,18 @@ START_TEST (test_purging_half_cache_with_multiple_items_from_thread) {
   item_cache_add_item(item_cache, purged_item1);
   item_cache_add_item(item_cache, purged_item2);
 
-  assert_not_null(item_cache_fetch_item(item_cache, 21));
-  assert_not_null(item_cache_fetch_item(item_cache, 22));  
-  assert_not_null(item_cache_fetch_item(item_cache, 23));
-  assert_not_null(item_cache_fetch_item(item_cache, 24));
+  assert_not_null(item_cache_fetch_item(item_cache, 21, &free_when_done));
+  assert_not_null(item_cache_fetch_item(item_cache, 22, &free_when_done));  
+  assert_not_null(item_cache_fetch_item(item_cache, 23, &free_when_done));
+  assert_not_null(item_cache_fetch_item(item_cache, 24, &free_when_done));
   
   item_cache_start_purger(item_cache, 1);
   sleep(2);
 
-  assert_not_null(item_cache_fetch_item(item_cache, 21));
-  assert_not_null(item_cache_fetch_item(item_cache, 22));  
-  assert_null(item_cache_fetch_item(item_cache, 23));
-  assert_null(item_cache_fetch_item(item_cache, 24));
+  assert_not_null(item_cache_fetch_item(item_cache, 21, &free_when_done));
+  assert_not_null(item_cache_fetch_item(item_cache, 22, &free_when_done));  
+  assert_null(item_cache_fetch_item(item_cache, 23, &free_when_done));
+  assert_null(item_cache_fetch_item(item_cache, 24, &free_when_done));
 } END_TEST
 
 START_TEST (test_purge_loaded_cache_doesnt_crash) {
@@ -1041,6 +1053,8 @@ item_cache_suite(void) {
   tcase_add_test(fetch_item_case, test_fetch_item_contains_the_right_frequency_for_a_given_token);
   tcase_add_test(fetch_item_case, test_fetch_item_after_load);
   tcase_add_test(fetch_item_case, test_fetch_item_after_load_contains_tokens);
+  tcase_add_test(fetch_item_case, test_free_when_done_is_true_when_the_item_is_not_in_the_memory_cache);
+  tcase_add_test(fetch_item_case, test_free_when_done_is_false_when_the_item_is_in_the_memory_cache);
   
   TCase *load = tcase_create("load");
   tcase_add_checked_fixture(load, setup_cache, teardown_item_cache);

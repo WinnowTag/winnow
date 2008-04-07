@@ -69,9 +69,13 @@ int pool_add_items(Pool *pool, const int items[], int size, const ItemCache *ite
   int i;
   
   for (i = 0; i < size; i++) {
-    Item *item = item_cache_fetch_item(item_cache, items[i]);
-    if (NULL != item) {
+    int should_free_item = false;
+    Item *item = item_cache_fetch_item(item_cache, items[i], &should_free_item);
+    if (NULL != item) {      
       pool_add_item(pool, item);
+      if (should_free_item) {
+        free_item(item);
+      }
     } else {
       success = false;
       trace("Missing item when adding to pool %d", items[i]);

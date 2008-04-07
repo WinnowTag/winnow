@@ -11,7 +11,7 @@ require File.dirname(__FILE__) + '/spec_helper'
 #
 describe 'the classifier' do
   before(:each) do
-    start_classifier(:malloc_log => true)
+    start_classifier(:malloc_log => true, :load_items_since => 336)
     start_tokenizer
   end
   
@@ -22,7 +22,7 @@ describe 'the classifier' do
   
   it 'should not leak memory after adding an item' do
     create_entry
-    sleep(1)
+    sleep(3)
     'classifier'.should not_leak
   end
   
@@ -33,15 +33,9 @@ describe 'the classifier' do
     'classifier'.should not_leak
   end
   
-  it 'should not leak memory after adding an item and waiting for classification' do
-    create_entry
-    sleep(1.5)
-    'classifier'.should not_leak
-  end
-  
   it "should not leak memory after adding a large item" do
     create_big_entry
-    sleep(1)
+    sleep(3)
     'classifier'.should not_leak
   end
   
@@ -50,6 +44,16 @@ describe 'the classifier' do
     create_feed(:title => 'My new feed', :id => 'urn:peerworks.org:feeds#1338')
     # There is a weird one off memory leak on OSX with the regex in add_feed.
     'classifier'.should have_no_more_than_leaks(1) 
+  end
+  
+  it "should not leak memory while processing a classification job" do
+    job = Job.create(:tag_id => 48)
+    while job.progress < 100
+      job.reload
+    end
+    job.destroy
+    
+    'classifier'.should have_no_more_than_leaks(1)
   end
 end
 

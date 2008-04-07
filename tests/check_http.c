@@ -54,6 +54,7 @@ static void setup_httpd() {
   setup_fixture_path();
   system("cp fixtures/valid.db /tmp/valid-copy.db");
   item_cache_create(&item_cache, "/tmp/valid-copy.db", &item_cache_options);
+  item_cache_load(item_cache);
   config = load_config("fixtures/real-db.conf");
   ce = create_classification_engine(item_cache, config);  
   httpd = httpd_start(config, ce, item_cache);
@@ -479,7 +480,7 @@ Suite * http_suite(void) {
   tcase_add_test(tc_case, test_completed_job_status); 
   tcase_add_test(tc_case, test_missing_job_returns_404);
   tcase_add_test(tc_case, test_missing_job_id_returns_405);
-  
+    
   tcase_add_test(tc_case, test_post_to_create_job_without_xml_returns_415);
   tcase_add_test(tc_case, test_post_to_create_job_with_invalid_xml_returns_400);
   tcase_add_test(tc_case, test_post_to_create_job_with_tag_id_missing_returns_422);
@@ -495,7 +496,7 @@ Suite * http_suite(void) {
   tcase_add_test(tc_item_cache, test_adding_a_feed_returns_201);
   tcase_add_test(tc_item_cache, test_adding_a_feed_responds_with_the_location_in_the_header);
   tcase_add_test(tc_item_cache, test_removing_a_feed_removes_it_from_the_database);
-  //tcase_add_test(tc_item_cache, test_removing_a_feed_that_doesnt_exist_returns_404);
+   //tcase_add_test(tc_item_cache, test_removing_a_feed_that_doesnt_exist_returns_404);
   tcase_add_test(tc_item_cache, test_removing_a_feed_returns_204);
   tcase_add_test(tc_item_cache, test_adding_an_entry_using_get_returns_405);
   tcase_add_test(tc_item_cache, test_adding_an_entry_returns_201);

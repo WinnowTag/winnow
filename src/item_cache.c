@@ -720,7 +720,8 @@ int item_cache_loaded(const ItemCache *item_cache) {
  *          caller to free the item.
  * TODO Handle SQLITE_BUSY in case another process locks the database.
  */
-Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
+Item * item_cache_fetch_item(ItemCache *item_cache, int id, int * free_when_done) {
+  debug("fetching item %i", id);
   int sqlite3_rc;
   Item *item = NULL;
   
@@ -734,11 +735,13 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id) {
   JLG(item_pointer, item_cache->items_by_id, id);
   if (NULL != item_pointer) {
     item = (Item*)(*item_pointer);
+    *free_when_done = false;
   }
   pthread_rwlock_unlock(&item_cache->cache_lock);
   
   
   if (NULL == item) {
+    *free_when_done = true;
     pthread_mutex_lock(&item_cache->db_access_mutex);
     trace("thread(%i) has locked db_access_mutex to fetch %i", pthread_self(), id);
     

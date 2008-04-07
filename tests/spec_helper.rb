@@ -44,7 +44,7 @@ def create_entry(opts = {})
     entry.id = "urn:peerworks.org:entries##{opts[:id]}"
     entry.links << Atom::Link.new(:href => 'http://example.org/1111.html', :rel => 'alternate')
     entry.links << Atom::Link.new(:href => 'http://example.org/1111.atom', :rel => 'self')
-    entry.updated = Time.now
+    entry.updated = (opts[:updated] or Time.now)
     entry.content = Atom::Content::Html.new(opts[:content])
   end
   
@@ -114,7 +114,8 @@ def destroy_entry(id)
   end.destroy!
 end
 
-def start_classifier(options = {:min_tokens => 0})
+def start_classifier(opts = {})
+  options = {:min_tokens => 0, :load_items_since => 3650}.update(opts)
   system("cp -f #{File.join(ROOT, 'fixtures/valid.db')} #{Database}")
   system("chmod 644 #{Database}") 
   classifier = File.join(ROOT, "../src/classifier")
@@ -127,7 +128,7 @@ def start_classifier(options = {:min_tokens => 0})
                                      "-l /tmp/classifier-item_cache_spec.log " +
                                      "-c #{File.join(ROOT, "fixtures/real-db.conf")} " +
                                      "--cache-update-wait-time 1 " +
-                                     "--load-items-since 3650 " +
+                                     "--load-items-since #{options[:load_items_since]} " +
                                      "--min-tokens #{options[:min_tokens] or 0} " +
                                      "--db #{Database} 2> /dev/null" 
                                      
@@ -167,7 +168,7 @@ class MemoryLeaks
   
   def matches?(target)
     @target = target
-    @result = `leaks #{@target}`
+    @result = `leaks -exclude regcomp #{@target}`
     if @result =~ /(\d+) leaks?/
       @leaks = $1.to_i
       @leaks <= @n

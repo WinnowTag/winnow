@@ -40,7 +40,7 @@ extern int          item_cache_set_feature_extractor (ItemCache * item_cache, Fe
 extern int          item_cache_load               (ItemCache *item_cache);
 extern int          item_cache_loaded             (const ItemCache *item_cache);
 extern int          item_cache_cached_size        (ItemCache *item_cache);
-extern Item *       item_cache_fetch_item         (ItemCache *is, int item_id);  
+extern Item *       item_cache_fetch_item         (ItemCache *is, int item_id, int * free_when_done);  
 extern const char * item_cache_errmsg             (const ItemCache *is);
 extern int          item_cache_each_item          (ItemCache *item_cache, ItemIterator iterator, void *memo);
 extern const Pool * item_cache_random_background  (const ItemCache *item_cache);
