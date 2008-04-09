@@ -1,4 +1,4 @@
-=== Current
+=== 1.1.9 (9 April 2008)
 
  * Don't add items with less than min_tokens tokens in response to Atom PP calls.
  * Fixed a couple more memory leaks.
