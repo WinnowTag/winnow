@@ -60,13 +60,23 @@ end
 describe 'the classifier with a high mintokens' do
   before(:each) do
     start_classifier(:malloc_log => true, :min_tokens => 100)
+    start_tokenizer
+    sleep(0.5)
   end
   
   after(:each) do
+    stop_tokenizer
     stop_classifier
   end
   
-  it "should not leak memory after removing up small items" do
+  it "should not leak memory after removing all small items" do
+    'classifier'.should not_leak
+  end
+  
+  it "should not leak memory after adding a small item" do
+    create_entry
+    create_entry(:id => '1112')
+    sleep(4)
     'classifier'.should not_leak
   end
 end

@@ -1285,30 +1285,34 @@ void * cache_updating_func(void *memo) {
   
   while (true) {
     UpdateJob *job = q_dequeue_or_wait(item_cache->update_queue, item_cache->cache_update_wait_time);
+    int items_added = 0;
     
-    if (job) {
-      int jobs_processed = 0;
-      
+    if (job) {      
       do {
         switch (job->type) {
           case ADD:
             if (CLASSIFIER_OK == item_cache_save_item(item_cache, job->item)) {              
-              item_cache_add_item(item_cache, job->item);
+              if (CLASSIFIER_OK == item_cache_add_item(item_cache, job->item)) {
+                items_added++;
+              } else {
+                debug("No enough tokens to add to the classification item cache: %i", job->item->id);
+                free_item(job->item);
+              }
             }
             break;
           default:
             fatal("Got unknown cache updating job type");
             break;
         }
-        
-        jobs_processed++;
-        
+              
+        free(job);
+          
         /* When we have added 200 items to the queue
          * skip to calling the callback. Otherwise
          * try an get another job, possibly waiting
          * one second for it to arrive.
          */
-        if (jobs_processed >= PROCESSING_LIMIT) {
+        if (items_added >= PROCESSING_LIMIT) {
           debug("Hit PROCESSING_LIMIT(%i)", PROCESSING_LIMIT);
           break;
         } else {
@@ -1319,8 +1323,8 @@ void * cache_updating_func(void *memo) {
         /* Is one second long enough? This might need to be a parameter. */
       } while (job != NULL);
             
-      if (item_cache->update_callback) {
-        debug("Trigger update callback for %i items", jobs_processed);
+      if (item_cache->update_callback && items_added > 0) {
+        debug("Trigger update callback for %i items", items_added);
         item_cache->update_callback(item_cache, item_cache->update_callback_memo);
       }
     }    
