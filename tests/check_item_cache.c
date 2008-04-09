@@ -15,7 +15,7 @@
 #include "../src/item_cache.h"
 #include "../src/logging.h"
 
-static ItemCacheOptions item_cache_options = {1, 3650, 0};
+static ItemCacheOptions item_cache_options = {1, 3650, 2};
  
 START_TEST (creating_with_missing_db_file_fails) {
   ItemCache *item_cache;
@@ -458,6 +458,24 @@ static void teardown_loaded_modification(void) {
   teardown_fixture_path();
   free_item_cache(item_cache);
 }
+
+START_TEST (item_cache_add_item_returns_CLASSIFIER_OK_if_the_item_is_added) {
+  int rc = item_cache_add_item(item_cache, item);
+  assert_equal(CLASSIFIER_OK, rc);
+} END_TEST
+
+START_TEST (item_cache_add_item_returns_CLASSIFIER_FAIL_if_the_item_is_not_added_because_it_doesn_have_enough_tokens) {
+  Item *small_item = create_item_with_tokens_and_time(9, tokens, 1, (time_t) 1178683198L);
+  int rc = item_cache_add_item(item_cache, small_item);
+  assert_equal(CLASSIFIER_FAIL, rc);
+  free_item(small_item);
+} END_TEST
+
+START_TEST (item_cache_add_item_doesnt_add_small_items) {
+  Item *small_item = create_item_with_tokens_and_time(9, tokens, 1, (time_t) 1178683198L);
+  item_cache_add_item(item_cache, small_item);
+  assert_equal(10, item_cache_cached_size(item_cache));
+} END_TEST
 
 START_TEST (test_add_item_to_in_memory_arrays_adds_an_item) {
   item_cache_add_item(item_cache, item);
@@ -1093,6 +1111,9 @@ item_cache_suite(void) {
   
   TCase *loaded_modification = tcase_create("loaded modification");
   tcase_add_checked_fixture(loaded_modification, setup_loaded_modification, teardown_loaded_modification);
+  tcase_add_test(loaded_modification, item_cache_add_item_returns_CLASSIFIER_OK_if_the_item_is_added);
+  tcase_add_test(loaded_modification, item_cache_add_item_returns_CLASSIFIER_FAIL_if_the_item_is_not_added_because_it_doesn_have_enough_tokens);
+  tcase_add_test(loaded_modification, item_cache_add_item_doesnt_add_small_items);
   tcase_add_test(loaded_modification, test_add_item_to_in_memory_arrays_adds_an_item);
   tcase_add_test(loaded_modification, test_add_item_makes_it_fetchable);
   tcase_add_test(loaded_modification, test_add_item_makes_it_iteratable);

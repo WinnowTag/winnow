@@ -1,3 +1,7 @@
+=== Current
+
+ * Don't add items with less than min_tokens tokens in response to Atom PP calls.
+
 === 1.1.8 (7 April 2008)
 
  * Fixed memory leak when fetching non-memory-cached items during classification.

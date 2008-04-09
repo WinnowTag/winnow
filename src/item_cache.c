@@ -977,45 +977,49 @@ int item_cache_add_item(ItemCache *item_cache, Item *item) {
   int rc = CLASSIFIER_OK;
   
   if (item_cache && item) {
-    pthread_rwlock_wrlock(&item_cache->cache_lock);
-    
-    PWord_t item_pointer;
-    JLI(item_pointer, item_cache->items_by_id, item->id);
-    if (item_pointer) {
-      (*item_pointer) = (Word_t) item;
-      OrderedItemList *new_node = calloc(1, sizeof(struct ORDERED_ITEM_LIST));
-      
-      if (new_node) {        
-        new_node->item = item;
-        // Is it the first one?
-        if (item_cache->items_in_order == NULL) {
-          item_cache->items_in_order = new_node;
-        } else if (item_cache->items_in_order->item->time < item->time) {
-          new_node->next = item_cache->items_in_order;
-          item_cache->items_in_order = new_node;
-        } else {
-          OrderedItemList *current = item_cache->items_in_order;
-          while (current->next != NULL) {
-            if (current->next->item->time < item->time) {
-              new_node->next = current->next;
+    if (item_get_num_tokens(item) < item_cache->min_tokens) {
+      rc = CLASSIFIER_FAIL;
+    } else {
+      pthread_rwlock_wrlock(&item_cache->cache_lock);
+
+      PWord_t item_pointer;
+      JLI(item_pointer, item_cache->items_by_id, item->id);
+      if (item_pointer) {
+        (*item_pointer) = (Word_t) item;
+        OrderedItemList *new_node = calloc(1, sizeof(struct ORDERED_ITEM_LIST));
+
+        if (new_node) {        
+          new_node->item = item;
+          // Is it the first one?
+          if (item_cache->items_in_order == NULL) {
+            item_cache->items_in_order = new_node;
+          } else if (item_cache->items_in_order->item->time < item->time) {
+            new_node->next = item_cache->items_in_order;
+            item_cache->items_in_order = new_node;
+          } else {
+            OrderedItemList *current = item_cache->items_in_order;
+            while (current->next != NULL) {
+              if (current->next->item->time < item->time) {
+                new_node->next = current->next;
+                current->next = new_node;
+                break;
+              } else {
+                current = current->next;
+              }
+            }
+
+            if (current->next == NULL) {
               current->next = new_node;
-              break;
-            } else {
-              current = current->next;
             }
           }
-          
-          if (current->next == NULL) {
-            current->next = new_node;
-          }
         }
+      } else {
+        fatal("Malloc error inserting into items_by_id");
+        rc = CLASSIFIER_FAIL;
       }
-    } else {
-      fatal("Malloc error inserting into items_by_id");
-      rc = CLASSIFIER_FAIL;
-    }
-    
-    pthread_rwlock_unlock(&item_cache->cache_lock);
+
+      pthread_rwlock_unlock(&item_cache->cache_lock);      
+    }    
   }
   
   return rc;
