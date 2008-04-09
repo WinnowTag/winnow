@@ -1417,7 +1417,7 @@ char * item_cache_globalize(ItemCache * item_cache, int atom) {
     sqlite3_bind_int(item_cache->find_token_stmt, 1, atom);
     
     if (SQLITE_ROW == sqlite3_step(item_cache->find_token_stmt)) {
-      char *token = sqlite3_column_text(item_cache->find_token_stmt, 0);
+      const char *token = (char*) sqlite3_column_text(item_cache->find_token_stmt, 0);
       if (token) {
         s = strdup(token);
       }
@@ -1471,8 +1471,8 @@ Item * item_from_xml(ItemCache * item_cache, const char * xml) {
         
         for (i = 0; i < xp->nodesetval->nodeNr; i++) {
           int failed = false;
-          char *key = xmlGetProp(xp->nodesetval->nodeTab[i], BAD_CAST "key");
-          char *value = xmlGetProp(xp->nodesetval->nodeTab[i], BAD_CAST "value");
+          char *key = (char *) xmlGetProp(xp->nodesetval->nodeTab[i], BAD_CAST "key");
+          char *value = (char *) xmlGetProp(xp->nodesetval->nodeTab[i], BAD_CAST "value");
          
           if (!(key && value && *key != '\0' && *value != '\0')) {
             error("Got malformed features in item xml: %s", xml);
