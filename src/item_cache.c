@@ -58,7 +58,10 @@ struct ITEM {
   int id;
   /* The number of tokens in the item */
   int total_tokens;
-  /* The timestamp the item was created or published */
+  /* The timestamp the item. This is sort of overloaded, if the item is loaded from the database it is
+   * the time the item was added to the database. If the item was added to a live cache via a REST operation
+   * it will be the time the item was added to the cache.
+   */
   time_t time;
   /* The tokens of the item. This is a Judy array of token_id -> frequency. */
   Pvoid_t tokens;
@@ -1192,13 +1195,11 @@ static void * feature_extraction_thread_func(void *memo) {
       debug("Got entry off feature_extraction_queue");
       Item *item = item_cache->feature_extractor(item_cache, entry, item_cache->feature_extractor_memo);
       if (item) {
-        // Make sure the item has the right timestamp
-        item->time = entry->updated;
         UpdateJob *job = create_add_job(item);
         q_enqueue(item_cache->update_queue, job);
-        free_entry(entry);
         debug("Update added to update_queue");
       }       
+      free_entry(entry);
     }
   }
   
@@ -1291,6 +1292,7 @@ void * cache_updating_func(void *memo) {
       do {
         switch (job->type) {
           case ADD:
+            job->item->time = time(NULL);
             if (CLASSIFIER_OK == item_cache_save_item(item_cache, job->item)) {              
               if (CLASSIFIER_OK == item_cache_add_item(item_cache, job->item)) {
                 items_added++;
