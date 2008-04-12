@@ -12,10 +12,10 @@
 #include "assertions.h"
 #include "../src/tagging.h"
 
-DBConfig config;
-MYSQL *mysql;
-MYSQL_STMT *tagging_stmt;
-MYSQL_STMT *tagging_count_stmt;
+static DBConfig config;
+static MYSQL *mysql;
+static MYSQL_STMT *tagging_stmt;
+static MYSQL_STMT *tagging_count_stmt;
 
 #define TAGGING_STMT "select id from taggings where feed_item_id = ? and user_id = ? and tag_id = ? and strength = ? and classifier_tagging = 1"
 #define COUNT_TAGGINGS "select count(*) from taggings where classifier_tagging = 1"

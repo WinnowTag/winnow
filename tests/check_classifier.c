@@ -20,8 +20,8 @@
  *
  *************************************************************/
  
-ItemCacheOptions item_cache_options;
-ItemCache *item_cache;
+static ItemCacheOptions item_cache_options;
+static ItemCache *item_cache;
 
 void setup_train(void) {
   item_cache_options.cache_update_wait_time = 1;

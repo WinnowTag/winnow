@@ -13,9 +13,9 @@
 #include "../src/misc.h"
 #include "assertions.h"
 
-ItemCacheOptions item_cache_options;
-ItemCache *item_cache;
-int free_when_done;
+static ItemCacheOptions item_cache_options;
+static ItemCache *item_cache;
+static int free_when_done;
 
 static void setup(void) {
   item_cache_options.cache_update_wait_time = 1;

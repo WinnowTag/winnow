@@ -14,10 +14,10 @@
 #include "mysql.h"
 #include "fixtures.h"
 
-Config *config;
-DBConfig dbconfig;
-TagDB *tag_db;
-MYSQL *mysql;
+static Config *config;
+static DBConfig dbconfig;
+static TagDB *tag_db;
+static MYSQL *mysql;
 
 static void setup() {
   setup_fixture_path();

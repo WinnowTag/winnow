@@ -23,9 +23,9 @@
  * End to End tests
  ************************************************************************/
 static ItemCacheOptions item_cache_options = {1, 3650};
-ItemCache *item_cache;
-ClassificationEngine *ce;
-Config *ce_config;
+static ItemCache *item_cache;
+static ClassificationEngine *ce;
+static Config *ce_config;
 
 static void setup_end_to_end(void) {
   setup_fixture_path();

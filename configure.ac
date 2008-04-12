@@ -73,9 +73,11 @@ AC_CHECK_LIB(mysqlclient_r, mysql_real_connect,
 AX_LIB_SQLITE3([3.5.6])
 
 # Unit testing library
-if test "x$PKG_CONFIG" != "x"; then
-PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [AC_MSG_WARN(check not available, tests will not run)])
-fi
+# if test "x$PKG_CONFIG" != "x"; then
+# PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])
+# fi
+
+AM_PATH_CHECK()
 
 # libcurl (required for testing)
 AC_CHECK_LIB(curl, curl_easy_init, [], [])
