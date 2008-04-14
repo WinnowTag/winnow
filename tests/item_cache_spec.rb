@@ -11,7 +11,7 @@ require File.dirname(__FILE__) + "/spec_helper.rb"
 
 describe "The Classifier's Item Cache" do
   before(:all) do
-    Tagging.establish_connection(:adapter => 'mysql', :database => 'classifier_test', :username => 'seangeo', :password => 'seangeo')
+    Tagging.establish_connection(:adapter => 'mysql', :database => 'classifier_test', :username => 'classifier', :password => 'classifier')
   end
   
   before(:each) do

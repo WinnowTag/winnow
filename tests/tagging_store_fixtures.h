@@ -64,8 +64,8 @@ static void assert_tagging_count_is(int n) {
 
 static void setup_tagging_store() {
   config.host = "localhost";
-  config.user = "seangeo";
-  config.password = "seangeo";
+  config.user = "classifier";
+  config.password = "classifier";
   config.database = "classifier_test";
   mysql = mysql_init(NULL);
   mysql_real_connect(mysql, config.host, config.user, config.password, config.database, 0, NULL, 0);
