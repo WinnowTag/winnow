@@ -231,8 +231,12 @@ static ItemCacheEntry * entry_from_xml(int feed_id, xmlDocPtr doc, const char * 
     memset(&updated_tm, 0, sizeof(updated_tm));
     time_t updated_time = time(NULL);
     
-    if (NULL != strptime(updated, "%Y-%m-%dT%H:%M:%S%z", &updated_tm)) {
+    if (NULL != strptime(updated, "%Y-%m-%dT%H:%M:%S%Z", &updated_tm)) {
       updated_time = timegm(&updated_tm);
+    } else if (NULL != strptime(updated, "%Y-%m-%dT%H:%M:%S", &updated_tm)) {
+      updated_time = timegm(&updated_tm);
+    } else {
+      error("Couldn't parse datetime: %s", updated);
     }
    
     if (id_i > 0) {      
