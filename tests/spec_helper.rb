@@ -137,7 +137,7 @@ def start_classifier(opts = {})
   end
   
   system(classifier_cmd)
-  sleep(0.0001)
+  sleep(0.1)
 end
 
 def stop_classifier
