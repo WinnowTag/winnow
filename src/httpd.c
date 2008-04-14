@@ -225,7 +225,7 @@ static ItemCacheEntry * entry_from_xml(int feed_id, xmlDocPtr doc, const char * 
   char *spider = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'http://peerworks.org/rel/spider']", "href");
   
   // Must have all of these to create the item
-  if (id && title && updated && content) {
+  if (id && title && updated) {
     int id_i = get_atom_id(id);
     struct tm updated_tm;
     memset(&updated_tm, 0, sizeof(updated_tm));

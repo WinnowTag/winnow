@@ -56,6 +56,10 @@ describe "The Classifier's Item Cache" do
       lambda { create_entry }.should_not raise_error
     end
     
+    it "should create an content-less entry without error" do
+      lambda { create_empty_entry }.should_not raise_error
+    end
+    
     it "should create an big entry without error" do
       lambda { create_big_entry }.should_not raise_error
     end
@@ -68,11 +72,7 @@ describe "The Classifier's Item Cache" do
       create_entry
       @sqlite.get_first_value("select count(*) from entries where id = 1111").should == "1"
     end
-    
-    it "should raise protocol error when creating an item with no content" do
-      lambda { create_entry(:content => nil) }.should raise_error(Atom::Pub::ProtocolError)
-    end
-    
+  
     it "should properly parse the updated date" do
       create_entry(:updated => Time.now.yesterday.yesterday)
       r = @sqlite.get_first_row("select updated, created_at from entries where id = 1111")

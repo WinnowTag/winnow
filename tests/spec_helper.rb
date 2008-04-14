@@ -51,6 +51,20 @@ def create_entry(opts = {})
   collection.publish(entry)
 end
 
+def create_empty_entry(opts = {})
+  opts = {:id => '1111', :title => 'My Entry'}.merge(opts)
+  collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feeds/426/feed_items')
+  entry = Atom::Entry.new do |entry|
+    entry.title = opts[:title]
+    entry.id = "urn:peerworks.org:entries##{opts[:id]}"
+    entry.links << Atom::Link.new(:href => 'http://example.org/1111.html', :rel => 'alternate')
+    entry.links << Atom::Link.new(:href => 'http://example.org/1111.atom', :rel => 'self')
+    entry.updated = (opts[:updated] or Time.now)
+  end
+  
+  collection.publish(entry)
+end
+
 def create_big_entry  
   collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feeds/426/feed_items')
   entry = Atom::Entry.new do |entry|
