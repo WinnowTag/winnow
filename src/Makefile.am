@@ -34,7 +34,8 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            git_revision.h            \
                            feature_extractor.c       \
                            feature_extractor.h       \
-                           xml.c xml.h
+                           xml.c xml.h \
+                           uri.h
 
 libclassifier_la_LIBADD = @LTLIBOBJS@
        

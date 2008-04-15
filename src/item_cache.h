@@ -10,6 +10,7 @@
 #define SQLITE_ITEM_SOURCE_H_
 
 #include <time.h>
+#include <libxml/tree.h>
 
 #define ITEM_CACHE_ENTRY_PROTECTED 2
 
@@ -73,7 +74,7 @@ extern ItemCacheEntry * create_item_cache_entry(int id,
                                                  int feed_id,
                                                  time_t created_at,
                                                  const char * atom);
-                                                 
+extern ItemCacheEntry * create_entry_from_atom_xml_document(int feed_id, xmlDocPtr doc, const char * xml_source);
 extern int item_cache_entry_id(const ItemCacheEntry *entry);
 extern void free_entry(ItemCacheEntry *entry);
 extern const char * item_cache_entry_atom(const ItemCacheEntry *entry);

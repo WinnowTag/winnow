@@ -26,6 +26,7 @@
 #include "misc.h"
 #include "job_queue.h"
 #include "xml.h"
+#include "uri.h"
 
 #define CURRENT_USER_VERSION 1
 #define FETCH_ITEM_SQL "select id, strftime('%s', updated) from entries where id = ?"
@@ -248,6 +249,54 @@ static ItemCacheEntry * copy_entry(const ItemCacheEntry * entry) {
                                  entry->self, entry->spider, entry->content, entry->updated, entry->feed_id,
                                  entry->created_at, entry->atom);
   
+}
+
+/** Create an entry from atom XML.
+ */
+ItemCacheEntry * create_entry_from_atom_xml_document(int feed_id, xmlDocPtr doc, const char * xml_source) {  
+  ItemCacheEntry *entry = NULL;
+  xmlXPathContextPtr context = xmlXPathNewContext(doc);    
+  xmlXPathRegisterNs(context, BAD_CAST "atom", BAD_CAST "http://www.w3.org/2005/Atom");
+  
+  char *id = get_element_value(context, "/atom:entry/atom:id/text()");
+  char *title = get_element_value(context, "/atom:entry/atom:title/text()");
+  char *updated = get_element_value(context, "/atom:entry/atom:updated/text()");
+  char *content = get_element_value(context, "/atom:entry/atom:content/text()");
+  char *author = get_element_value(context, "/atom:entry/atom:author/atom:name/text()");
+  char *alternate = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'alternate']", "href");;
+  char *self = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'self']", "href");
+  char *spider = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'http://peerworks.org/rel/spider']", "href");
+  
+  // Must have all of these to create the item
+  if (id && title && updated) {
+    int id_i = uri_fragment_id(id);
+    struct tm updated_tm;
+    memset(&updated_tm, 0, sizeof(updated_tm));
+    time_t updated_time = time(NULL);
+    
+    if (NULL != strptime(updated, "%Y-%m-%dT%H:%M:%S%Z", &updated_tm)) {
+      updated_time = timegm(&updated_tm);
+    } else if (NULL != strptime(updated, "%Y-%m-%dT%H:%M:%S", &updated_tm)) {
+      updated_time = timegm(&updated_tm);
+    } else {
+      error("Couldn't parse datetime: %s", updated);
+    }
+   
+    if (id_i > 0) {      
+      entry = create_item_cache_entry(id_i, id, title, author, alternate, self, spider, content, updated_time, feed_id, time(NULL), xml_source);
+    }
+  }
+   
+  if (alternate) xmlFree(alternate);
+  if (self) xmlFree(self);
+  if (author) free(author);
+  if (content) free(content);
+  if (id) free(id);
+  if (title) free(title);
+  if (updated) free(updated);
+  xmlXPathFreeContext(context);
+  
+  return entry;
 }
 
 int item_cache_entry_id(const ItemCacheEntry * entry) {

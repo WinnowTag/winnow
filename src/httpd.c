@@ -34,6 +34,7 @@
 #include <libxml/uri.h>
 
 #include "xml.h"
+#include "uri.h"
 
 #define HTTP_NOT_FOUND(response)         \
   response->code = 404;                  \
@@ -198,64 +199,6 @@ static xmlChar * xml_for_about(const ClassificationEngine *ce) {
   return buffer;
 }
 
-static int get_atom_id(const char *uri) {
-  int id = 0;
-  xmlURIPtr id_uri = xmlParseURI(uri);
-          
-  if (id_uri && id_uri->fragment) {
-    id = strtol(id_uri->fragment, NULL, 10);
-  }
-  
-  xmlFreeURI(id_uri);
-  return id;
-}
-
-static ItemCacheEntry * entry_from_xml(int feed_id, xmlDocPtr doc, const char * xml_source) {  
-  ItemCacheEntry *entry = NULL;
-  xmlXPathContextPtr context = xmlXPathNewContext(doc);    
-  xmlXPathRegisterNs(context, BAD_CAST "atom", BAD_CAST "http://www.w3.org/2005/Atom");
-  
-  char *id = get_element_value(context, "/atom:entry/atom:id/text()");
-  char *title = get_element_value(context, "/atom:entry/atom:title/text()");
-  char *updated = get_element_value(context, "/atom:entry/atom:updated/text()");
-  char *content = get_element_value(context, "/atom:entry/atom:content/text()");
-  char *author = get_element_value(context, "/atom:entry/atom:author/atom:name/text()");
-  char *alternate = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'alternate']", "href");;
-  char *self = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'self']", "href");
-  char *spider = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'http://peerworks.org/rel/spider']", "href");
-  
-  // Must have all of these to create the item
-  if (id && title && updated) {
-    int id_i = get_atom_id(id);
-    struct tm updated_tm;
-    memset(&updated_tm, 0, sizeof(updated_tm));
-    time_t updated_time = time(NULL);
-    
-    if (NULL != strptime(updated, "%Y-%m-%dT%H:%M:%S%Z", &updated_tm)) {
-      updated_time = timegm(&updated_tm);
-    } else if (NULL != strptime(updated, "%Y-%m-%dT%H:%M:%S", &updated_tm)) {
-      updated_time = timegm(&updated_tm);
-    } else {
-      error("Couldn't parse datetime: %s", updated);
-    }
-   
-    if (id_i > 0) {      
-      entry = create_item_cache_entry(id_i, id, title, author, alternate, self, spider, content, updated_time, feed_id, time(NULL), xml_source);
-    }
-  }
-   
-  if (alternate) xmlFree(alternate);
-  if (self) xmlFree(self);
-  if (author) free(author);
-  if (content) free(content);
-  if (id) free(id);
-  if (title) free(title);
-  if (updated) free(updated);
-  xmlXPathFreeContext(context);
-  
-  return entry;
-}
-
 /********************************************************************************
  * HTTP Interface Handlers
  ********************************************************************************/
@@ -321,7 +264,7 @@ static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
     if (feed_id <= 0) {
       HTTP_BAD_ENTRY(response);
     } else {
-      ItemCacheEntry *entry = entry_from_xml(feed_id, doc, request->data->buffer);
+      ItemCacheEntry *entry = create_entry_from_atom_xml_document(feed_id, doc, request->data->buffer);
         
       if (!entry) {
         HTTP_BAD_ENTRY(response);
@@ -371,8 +314,7 @@ static int entry_handler(const HTTPRequest * request, HTTPResponse * response) {
 }
 
 static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
-  regex_t regex;
-  
+  regex_t regex;  
 
   if (regcomp(&regex, "^/feeds/?$", REG_EXTENDED | REG_NOSUB)) {
     fatal("Error compiling regex");
@@ -397,7 +339,7 @@ static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
         error("Missing id for feed: %s", request->data->buffer);
         HTTP_BAD_FEED(response);
       } else {
-        int feed_id = get_atom_id(id);
+        int feed_id = uri_fragment_id(id);
         
         if (feed_id <= 0) {
           HTTP_BAD_FEED(response);
