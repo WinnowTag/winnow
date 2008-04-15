@@ -6,9 +6,14 @@
 Makefile
 Makefile.in
 .deps
-check_all
-check_db
+check_classifier
+check_queue
 check_http
+check_pool
+check_item_cache
+check_clue
+check_config
+check_classification_engine
 aclocal.m4
 autom4te.cache
 configure

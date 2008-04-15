@@ -5,6 +5,7 @@
 //
 // Please contact info@peerworks.org for further information.
 
+#include <stdlib.h>
 #include <check.h>
 #include "../src/clue.h"
 #include "assertions.h"
@@ -29,4 +30,16 @@ clue_suite(void) {
 
   suite_add_tcase(s, tc_clue);
   return s;
+}
+
+int main(void) {
+  initialize_logging("test.log");
+  int number_failed;
+  
+  SRunner *sr = srunner_create(clue_suite());
+  srunner_run_all(sr, CK_NORMAL);
+  number_failed = srunner_ntests_failed(sr);
+  srunner_free(sr);
+  close_log();
+  return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

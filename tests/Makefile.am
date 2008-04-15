@@ -1,38 +1,19 @@
-TESTS = check_all check_db check_http specs
+TESTS = check_classifier check_pool check_queue check_config check_item_cache check_classification_engine check_http check_clue specs
 CLEANFILES = http_test.log http_test_data.log test.log
 
-LDFLAGS = -static @SQLITE3_LDFLAGS@
-CFLAGS = -g -DDEBUG @SQLITE3_CFLAGS@
-check_PROGRAMS = check_all check_db check_http 
+LDFLAGS = -static @SQLITE3_LDFLAGS@ @CHECK_LIBS@
+CFLAGS = -g -DDEBUG @SQLITE3_CFLAGS@ @CHECK_CFLAGS@
+LDADD =  $(top_builddir)/src/libclassifier.la 
+check_PROGRAMS = check_classifier check_pool check_queue check_config check_item_cache check_classification_engine check_http check_clue
 
-check_http_SOURCE = check_http.c
-check_http_LDADD  = @CHECK_LIBS@ $(top_builddir)/src/libclassifier.la
-
-check_all_SOURCES = check_all.c \
-                check_classifier.c $(top_builddir)/src/classifier.h \
-                check_pool.c \
-                check_clue.c $(top_builddir)/src/clue.h \
-                check_queue.c $(top_builddir)/src/job_queue.h \
-                check_config.c $(top_builddir)/src/cls_config.h \
-                check_item_cache.c $(top_builddir)/src/item_cache.h \
-                assertions.h  \
-                fixtures.h \
-                mock_items.h
-                
-                
-check_all_CFLAGS = @CHECK_CFLAGS@
-check_all_LDADD = @CHECK_LIBS@  \
-              $(top_builddir)/src/libclassifier.la
-              
-check_db_SOURCES = check_db.c                    \
-            check_classification_engine.c        \
-            $(top_builddir)/src/classification_engine.h \
-            $(top_builddir)/src/tag.h
-              
-check_db_CFLAGS = @CHECK_CFLAGS@
-check_db_LDADD = @CHECK_LIBS@  \
-            $(top_builddir)/src/libclassifier.la 
-
+check_classifier_SOURCES = check_classifier.c $(top_builddir)/src/classifier.h
+check_pool_SOURCES       = check_pool.c
+check_queue_SOURCES      = check_queue.c
+check_clue_SOURCES       = check_clue.c $(top_builddir)/src/clue.h
+check_config_SOURCES     = check_config.c $(top_builddir)/src/cls_config.h
+check_item_cache_SOURCES = check_item_cache.c $(top_builddir)/src/item_cache.h
+check_http_SOURCE        = check_http.c
+check_classification_engine_SOURCES = check_classification_engine.c $(top_builddir)/src/classification_engine.h
 
 dist_check_DATA = fixtures conf spec.opts
 dist_check_SCRIPTS = specs item_cache_spec.rb memory_spec.rb spec_helper.rb

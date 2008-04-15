@@ -26,22 +26,22 @@ static ItemCache *item_cache;
 static ClassificationEngine *ce;
 static Config *ce_config;
 
-static void setup_end_to_end(void) {
-  setup_fixture_path();
-  setup_tagging_store();
-  item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
-  item_cache_load(item_cache);
-  ce_config = load_config("conf/test.conf");
-  ce = create_classification_engine(item_cache, ce_config);
-}
-
-static void teardown_end_to_end(void) {
-  setup_fixture_path();
-  setup_tagging_store();
-  free_classification_engine(ce);
-  free_config(ce_config);
-  free_item_cache(item_cache);
-}
+// static void setup_end_to_end(void) {
+//   setup_fixture_path();
+//   setup_tagging_store();
+//   item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
+//   item_cache_load(item_cache);
+//   ce_config = load_config("conf/test.conf");
+//   ce = create_classification_engine(item_cache, ce_config);
+// }
+// 
+// static void teardown_end_to_end(void) {
+//   setup_fixture_path();
+//   setup_tagging_store();
+//   free_classification_engine(ce);
+//   free_config(ce_config);
+//   free_item_cache(item_cache);
+// }
 
 // TODO START_TEST(inserts_taggings) {
 //   assert_tagging_count_is(0);  
@@ -96,37 +96,37 @@ static void teardown_end_to_end(void) {
 // } END_TEST
 
 
-START_TEST(cancelled_job_doesnt_insert_taggings_if_cancelled_before_processed) {
-  ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
-  info("cancelled job: %s", cjob_id(job));
-  cjob_cancel(job);
-  ce_start(ce);
-  ce_stop(ce);
-  mark_point();
-  //assert_tagging_count_is(0);
-} END_TEST
-
-START_TEST(can_send_bogus_tag_id_without_taking_down_the_server) {
-  ClassificationJob *job = ce_add_classification_job_for_tag(ce, BOGUS_TAG_ID);
-  
-  ce_start(ce);
-  ce_stop(ce);
-  assert_tagging_count_is(0);
-  assert_equal(CJOB_STATE_ERROR, cjob_state(job));
-  assert_equal(CJOB_ERROR_NO_SUCH_TAG, cjob_error(job));
-  
-} END_TEST
-
-START_TEST(can_send_bogus_user_id_without_taking_down_the_server) {
-  ClassificationJob *job = ce_add_classification_job_for_user(ce, 10);
-  
-  ce_start(ce);
-  ce_stop(ce);
-  assert_tagging_count_is(0);
-  assert_equal(CJOB_STATE_ERROR, cjob_state(job));
-  assert_equal(CJOB_ERROR_NO_TAGS_FOR_USER, cjob_error(job));
-  
-} END_TEST
+// START_TEST(cancelled_job_doesnt_insert_taggings_if_cancelled_before_processed) {
+//   ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
+//   info("cancelled job: %s", cjob_id(job));
+//   cjob_cancel(job);
+//   ce_start(ce);
+//   ce_stop(ce);
+//   mark_point();
+//   //assert_tagging_count_is(0);
+// } END_TEST
+// 
+// START_TEST(can_send_bogus_tag_id_without_taking_down_the_server) {
+//   ClassificationJob *job = ce_add_classification_job_for_tag(ce, BOGUS_TAG_ID);
+//   
+//   ce_start(ce);
+//   ce_stop(ce);
+//   assert_tagging_count_is(0);
+//   assert_equal(CJOB_STATE_ERROR, cjob_state(job));
+//   assert_equal(CJOB_ERROR_NO_SUCH_TAG, cjob_error(job));
+//   
+// } END_TEST
+// 
+// START_TEST(can_send_bogus_user_id_without_taking_down_the_server) {
+//   ClassificationJob *job = ce_add_classification_job_for_user(ce, 10);
+//   
+//   ce_start(ce);
+//   ce_stop(ce);
+//   assert_tagging_count_is(0);
+//   assert_equal(CJOB_STATE_ERROR, cjob_state(job));
+//   assert_equal(CJOB_ERROR_NO_TAGS_FOR_USER, cjob_error(job));
+//   
+// } END_TEST
 
 /************************************************************************
  * Job Tracking tests
@@ -321,4 +321,16 @@ Suite * classification_engine_suite(void) {
   suite_add_tcase(s, tc_jt_case);
   // TODO suite_add_tcase(s, tc_end_to_end);
   return s;
+}
+
+int main(void) {
+  initialize_logging("test.log");
+  int number_failed;
+  
+  SRunner *sr = srunner_create(classification_engine_suite());
+  srunner_run_all(sr, CK_NORMAL);
+  number_failed = srunner_ntests_failed(sr);
+  srunner_free(sr);
+  close_log();
+  return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

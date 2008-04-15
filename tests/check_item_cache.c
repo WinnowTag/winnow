@@ -1188,3 +1188,15 @@ item_cache_suite(void) {
   suite_add_tcase(s, item_from_xml);
   return s;
 }
+
+int main(void) {
+  initialize_logging("test.log");
+  int number_failed;
+  
+  SRunner *sr = srunner_create(item_cache_suite());
+  srunner_run_all(sr, CK_NORMAL);
+  number_failed = srunner_ntests_failed(sr);
+  srunner_free(sr);
+  close_log();
+  return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+}
