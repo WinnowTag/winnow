@@ -1,3 +1,9 @@
+=== 1.1.10 (14 April 2008)
+
+ * Fixed build errors under Leopard.
+ * Fixed date parsing under Leopard.
+ * Allow addition of items without content in the hope that they will be spidered.
+ 
 === 1.1.9 (9 April 2008)
 
  * Don't add items with less than min_tokens tokens in response to Atom PP calls.
