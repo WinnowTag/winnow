@@ -16,7 +16,6 @@
 #include "uuid.h"
 #include "classifier.h"
 #include "item_cache.h"
-#include "tagging.h"
 #include "tag.h"
 #include "job_queue.h"
 #include "misc.h"
@@ -149,7 +148,7 @@ static ClassificationJob * create_user_classification_job(int tag_id);
 static void *classification_worker_func(void *engine_vp);
 static void *insertion_worker_func(void *engine_vp);
 //static void *flusher_func(void *engine_vp);
-static void cjob_process(ClassificationJob *job, ItemCache *is, TagDB *tagdb);
+static void cjob_process(ClassificationJob *job, ItemCache *is);
 static void cjob_free_taggings(ClassificationJob *job);
 static float tdiff(struct timeval from, struct timeval to);
 static void item_cache_updated_hook(ItemCache * item_cache, void * memo);
@@ -559,7 +558,7 @@ void *classification_worker_func(void *engine_vp) {
   /* Create thread specific resources */
   DBConfig tag_db_config;
   cfg_tag_db_config(ce->config, &tag_db_config);
-  TagDB *tag_db = create_tag_db(&tag_db_config);
+  // TODO TagDB *tag_db = create_tag_db(&tag_db_config);
   
   while (!q_empty(job_queue) || ce->is_running) {
     /* Check if the engine is suspended.
@@ -597,7 +596,7 @@ void *classification_worker_func(void *engine_vp) {
       /* Get the reference to the item source here so we get it fresh for each job. This means that if
        * the item source is flushed we get a new copy on the next job.
        */
-      cjob_process(job, ce->item_cache, tag_db);
+      // TODO cjob_process(job, ce->item_cache, tag_db);
       
       if (CJOB_STATE_ERROR != job->state) {
         q_enqueue(ce->tagging_store_queue, job);
@@ -606,7 +605,7 @@ void *classification_worker_func(void *engine_vp) {
   }
 
   info("classification_worker %i ending", pthread_self());
-  free_tag_db(tag_db);
+  // TODO free_tag_db(tag_db);
   
   DB_THREAD_END;
   return EXIT_SUCCESS;
@@ -621,7 +620,7 @@ void *insertion_worker_func(void *engine_vp) {
   
   DBConfig tagging_store_config;
   cfg_tagging_store_db_config(ce->config, &tagging_store_config);
-  TaggingStore *store = create_db_tagging_store(&tagging_store_config, econfig.insertion_threshold);
+  // TODO TaggingStore *store = create_db_tagging_store(&tagging_store_config, econfig.insertion_threshold);
       
   while(!q_empty(ce->tagging_store_queue) || ce->is_inserting) {
     ClassificationJob *job = q_dequeue_or_wait(ce->tagging_store_queue, 1);
@@ -632,9 +631,9 @@ void *insertion_worker_func(void *engine_vp) {
       NEXT_IF_CANCELLED(ce, job);
       
       if (job->item_scope == ITEM_SCOPE_ALL) {
-        tagging_store_replace_taggings(store, job->taglist, job->taggings, job->num_taggings, &(job->progress));
+        // TODO tagging_store_replace_taggings(store, job->taglist, job->taggings, job->num_taggings, &(job->progress));
       } else {
-        tagging_store_replace_taggings(store, NULL, job->taggings, job->num_taggings, &(job->progress));
+        // TODO tagging_store_replace_taggings(store, NULL, job->taggings, job->num_taggings, &(job->progress));
       }
       
       job->state = CJOB_STATE_COMPLETE;
@@ -653,39 +652,39 @@ void *insertion_worker_func(void *engine_vp) {
   }
   
   info("insertion worker function ending");
-  free_tagging_store(store);
+  // TODO free_tagging_store(store);
   DB_THREAD_END;
   return EXIT_SUCCESS;
 }
 
-static void create_classify_new_item_jobs_for_all_tags(ClassificationEngine *ce) {
- if (ce) {
-   DBConfig dbConfig;
-   cfg_tag_db_config(ce->config, &dbConfig);
-   TagDB *tag_db = create_tag_db(&dbConfig);
-   if (tag_db) {
-     int i;
-     int size;
-     int *ids = tag_db_get_all_tag_ids(tag_db, &size);
-     
-     for (i = 0; i < size; i++) {
-       ce_add_classify_new_items_job_for_tag(ce, ids[i]);
-     }
-     
-     free(ids);
-     info("Created %i classify new items jobs", size);
-   } else {
-     error("Could not create tag_db in create_classify_new_item_jobs_for_all_tags");
-   }
-   
-   free_tag_db(tag_db);
- }
-}
+// TODO static void create_classify_new_item_jobs_for_all_tags(ClassificationEngine *ce) {
+//  if (ce) {
+//    DBConfig dbConfig;
+//    cfg_tag_db_config(ce->config, &dbConfig);
+//    TagDB *tag_db = create_tag_db(&dbConfig);
+//    if (tag_db) {
+//      int i;
+//      int size;
+//      int *ids = tag_db_get_all_tag_ids(tag_db, &size);
+//      
+//      for (i = 0; i < size; i++) {
+//        ce_add_classify_new_items_job_for_tag(ce, ids[i]);
+//      }
+//      
+//      free(ids);
+//      info("Created %i classify new items jobs", size);
+//    } else {
+//      error("Could not create tag_db in create_classify_new_item_jobs_for_all_tags");
+//    }
+//    
+//    free_tag_db(tag_db);
+//  }
+// }
 
 void item_cache_updated_hook(ItemCache * item_cache, void *memo) {
   ClassificationEngine *ce = memo;
   if (ce) {
-    create_classify_new_item_jobs_for_all_tags(ce);
+    // TODO create_classify_new_item_jobs_for_all_tags(ce);
   }
 }
 
@@ -1044,7 +1043,7 @@ malloc_error:
   goto exit;
 }
 
-static void cjob_process(ClassificationJob *job, ItemCache *item_cache, TagDB *tag_db) {
+static void cjob_process(ClassificationJob *job, ItemCache *item_cache) {
   /* If the job is cancelled bail out before doing anything */
   if (job->state == CJOB_STATE_CANCELLED) return;
   
@@ -1052,7 +1051,8 @@ static void cjob_process(ClassificationJob *job, ItemCache *item_cache, TagDB *t
   
   switch (job->type) {
     case CJOB_TYPE_TAG_JOB: {
-      Tag *tag = tag_db_load_tag_by_id(tag_db, job->tag_id);
+      // TODO Tag *tag = tag_db_load_tag_by_id(tag_db, job->tag_id);
+      Tag *tag = NULL;
       if (tag) {
         job->taglist = create_tag_list();
         taglist_add_tag(job->taglist, tag);
@@ -1062,7 +1062,7 @@ static void cjob_process(ClassificationJob *job, ItemCache *item_cache, TagDB *t
     }
     break;
     case CJOB_TYPE_USER_JOB:
-      job->taglist = tag_db_load_tags_to_classify_for_user(tag_db, job->user_id);          
+      // TODO job->taglist = tag_db_load_tags_to_classify_for_user(tag_db, job->user_id);          
       if (!job->taglist || job->taglist->size == 0) {
         SET_JOB_ERROR(job, CJOB_ERROR_NO_TAGS_FOR_USER, "No tags for user %i", job->user_id);
       }
@@ -1079,7 +1079,7 @@ static void cjob_process(ClassificationJob *job, ItemCache *item_cache, TagDB *t
     if (!cjob_classify(job, item_cache)) {
       int i;
       for (i = 0; i < job->taglist->size; i++) {
-        tag_db_update_last_classified_at(tag_db, job->taglist->tags[i]);        
+        // TODO tag_db_update_last_classified_at(tag_db, job->taglist->tags[i]);        
       }
       job->progress = 80.0;
       job->state = CJOB_STATE_INSERTING;

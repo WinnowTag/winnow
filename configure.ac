@@ -8,18 +8,6 @@ AC_DEFINE_DIR([DATADIR], [datadir], [The place where data is installed])
 AC_PROG_CC
 AC_PROG_LIBTOOL
 
-### Check for mysql_config
-AC_ARG_WITH(mysql_config,
-        AC_HELP_STRING(
-                [--with-mysql_config=PROGRAM],
-                [location of the mysql_config program]),
-        [mysql_config_prog=$withval])
-AC_PATH_PROGS(MYSQL_CONFIG, [mysql_config mysql_config5], $mysql_config_prog)
-
-if test "x$MYSQL_CONFIG" = "x"; then
-    AC_MSG_ERROR([Could not find mysql_config. Please verify it is installed or pass it in using --with-mysql_config])
-fi
-
 ### Check for xml2-config
 AC_ARG_WITH(xml2_config,
         AC_HELP_STRING(
@@ -62,14 +50,6 @@ AC_CHECK_LIB(microhttpd, MHD_start_daemon, [], [AC_MSG_WARN(libmicrohttpd is mis
 XML2_LIBS=$($XML2_CONFIG --libs)
 LIBS="$XML2_LIBS $LIBS"
 AC_CHECK_LIB(xml2, xmlReadFile, [], [AC_MSG_ERROR(libxml2 is missing xmlReadFile)])
-
-### Setup MySQL libraries
-MYSQL_LIBS=$($MYSQL_CONFIG --libs_r)
-LIBS="$LIBS $MYSQL_LIBS"
-AC_CHECK_LIB(mysqlclient_r, mysql_real_connect, 
-  [AC_DEFINE(HAVE_DATABASE_ACCESS,,[We have DB libraries])], 
-  [AC_MSG_ERROR(Could not find mysqlclient with mysql_real_connect)])
-
 AX_LIB_SQLITE3([3.5.6])
 
 # Unit testing library
@@ -79,8 +59,8 @@ AX_LIB_SQLITE3([3.5.6])
 
 AM_PATH_CHECK([0.9.4], [], [AC_MSG_WARN(check disabled - will not be able to run tests)])
 
-# libcurl (required for testing)
-AC_CHECK_LIB(curl, curl_easy_init, [], [])
+# libcurl
+AC_CHECK_LIB(curl, curl_easy_init)
 
 ### Check for headers
 AC_HEADER_STDC
@@ -92,11 +72,6 @@ AC_CHECK_HEADERS([sys/param.h errno.h stdarg.h stdbool.h uuid/uuid.h])
 XML2_INCLUDE=$($XML2_CONFIG --cflags)
 CPPFLAGS="$CPPFLAGS $XML2_INCLUDE"
 AC_CHECK_HEADERS([libxml/parser.h], [], [AC_MSG_ERROR(libxml/parser.h is missing)])
-
-###### MySQL
-MYSQL_INCLUDE=$($MYSQL_CONFIG --cflags)
-CPPFLAGS="$CPPFLAGS $MYSQL_INCLUDE"
-AC_CHECK_HEADERS([mysql.h], [], [AC_MSG_ERROR(mysql.h is missing)])
 
 ### Check for types
 AC_CHECK_TYPES(uuid_t, [], [],

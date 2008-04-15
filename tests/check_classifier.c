@@ -34,27 +34,27 @@ void teardown_train(void) {
   free_item_cache(item_cache);
 }
 
-START_TEST (train_merges_examples_into_pools) {
-  TagList *tags = load_tags_from_file("fixtures", "mock");
-  assert_not_null(tags);
-  const Tag *tag = tags->tags[0];
-  assert_not_null(tag);
-  
-  TrainedClassifier *trained = train(tag, item_cache);
-  assert_not_null(trained);
-  
-  const Pool *positive = tc_get_positive_pool(trained);
-  assert_not_null(positive);
-  assert_equal(196, pool_num_tokens(positive));
-  assert_equal(323, pool_total_tokens(positive));
-  
-  const Pool *negative = tc_get_negative_pool(trained);
-  assert_not_null(negative);
-  assert_equal(754, pool_num_tokens(negative));
-  assert_equal(1668, pool_total_tokens(negative));
-  
-  tc_free(trained);
-} END_TEST
+// TODO START_TEST (train_merges_examples_into_pools) {
+//   TagList *tags = load_tags_from_file("fixtures", "mock");
+//   assert_not_null(tags);
+//   const Tag *tag = tags->tags[0];
+//   assert_not_null(tag);
+//   
+//   TrainedClassifier *trained = train(tag, item_cache);
+//   assert_not_null(trained);
+//   
+//   const Pool *positive = tc_get_positive_pool(trained);
+//   assert_not_null(positive);
+//   assert_equal(196, pool_num_tokens(positive));
+//   assert_equal(323, pool_total_tokens(positive));
+//   
+//   const Pool *negative = tc_get_negative_pool(trained);
+//   assert_not_null(negative);
+//   assert_equal(754, pool_num_tokens(negative));
+//   assert_equal(1668, pool_total_tokens(negative));
+//   
+//   tc_free(trained);
+// } END_TEST
 
 
 START_TEST (train_keeps_user_and_tag) {
@@ -394,7 +394,7 @@ classifier_suite(void) {
   
   TCase *tc_trainer = tcase_create("Trainer");
   tcase_add_checked_fixture(tc_trainer, setup_train, teardown_train);
-  tcase_add_test(tc_trainer, train_merges_examples_into_pools);
+  // TODO tcase_add_test(tc_trainer, train_merges_examples_into_pools);
   tcase_add_test(tc_trainer, train_keeps_user_and_tag);
   suite_add_tcase(s, tc_trainer);
   

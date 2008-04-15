@@ -11,7 +11,6 @@
 
 Suite * pool_suite (void);
 Suite * classifier_suite (void);
-Suite * tag_suite (void);
 Suite * clue_suite (void);
 Suite * queue_suite (void);
 Suite * config_suite (void);
@@ -22,7 +21,6 @@ int main(void) {
   int number_failed;
   
   SRunner *sr = srunner_create(pool_suite());
-  srunner_add_suite(sr, tag_suite());
   srunner_add_suite(sr, classifier_suite());
   srunner_add_suite(sr, clue_suite());
   srunner_add_suite(sr, queue_suite());

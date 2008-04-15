@@ -10,7 +10,6 @@
 #include "tag.h"
 #include "item_cache.h"
 #include "clue.h"
-#include "tagging.h"
 #include <Judy.h>
 
 // Defines the probability assigned to unknown words.
@@ -75,7 +74,21 @@ typedef struct PROB_TOKEN {
   int pool_size;
 } ProbToken;
 
+typedef struct TAGGING {
+  const char * user;
+  const char * tag_name;
+  int user_id;
+  int tag_id;
+  int item_id;
+  double strength;
+} Tagging;
 
+/*** Macros for taggings ***/
+#define tagging_tag_name(tagging) tagging->tag_name
+#define tagging_user(tagging)     tagging->user
+#define tagging_strength(tagging) tagging->strength
+#define tagging_tag_id(tagging)   tagging->tag_id
+#define tagging_user_id(tagging)  tagging->user_id
 
 TrainedClassifier *  train       (const Tag *tag, const ItemCache *item_cache);
 Classifier        *  precompute  (const TrainedClassifier*, const Pool * random_background);

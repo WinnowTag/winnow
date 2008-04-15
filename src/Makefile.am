@@ -21,7 +21,6 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            clue.h clue.c             \
                            job_queue.c job_queue.h   \
                            cls_config.c cls_config.h \
-                           tagging.h tagging.c       \
                            classification_engine.h   \
                            classification_engine.c   \
                            httpd.h httpd.c           \
