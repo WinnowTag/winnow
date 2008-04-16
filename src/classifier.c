@@ -466,7 +466,7 @@ TrainedClassifier * train(const Tag *tag, const ItemCache *item_cache) {
       int *examples = tag_positive_examples(tag);
     
       if (NULL != examples) {
-        pool_add_items(tc->positive_pool, examples, size, item_cache);
+        // TODO pool_add_items(tc->positive_pool, examples, size, item_cache);
         free(examples);
       } else {
         goto train_malloc_error;
@@ -479,7 +479,7 @@ TrainedClassifier * train(const Tag *tag, const ItemCache *item_cache) {
       int *examples = tag_negative_examples(tag);
       
       if (NULL != examples) {
-        pool_add_items(tc->negative_pool, examples, size, item_cache);
+        // TODO pool_add_items(tc->negative_pool, examples, size, item_cache);
         free(examples);
       } else {
         goto train_malloc_error;

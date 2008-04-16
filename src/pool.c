@@ -63,27 +63,27 @@ int pool_add_item(Pool *pool, const Item *item) {
     return false;    
 }
 
-/** Not Re-entrant */
-int pool_add_items(Pool *pool, const int items[], int size, const ItemCache *item_cache) {
-  int success = true;
-  int i;
-  
-  for (i = 0; i < size; i++) {
-    int should_free_item = false;
-    Item *item = item_cache_fetch_item(item_cache, items[i], &should_free_item);
-    if (NULL != item) {      
-      pool_add_item(pool, item);
-      if (should_free_item) {
-        free_item(item);
-      }
-    } else {
-      success = false;
-      trace("Missing item when adding to pool %d", items[i]);
-    }
-  }
-  
-  return success;
-}
+// /** Not Re-entrant */
+// int pool_add_items(Pool *pool, const int items[], int size, const ItemCache *item_cache) {
+//   int success = true;
+//   int i;
+//   
+//   for (i = 0; i < size; i++) {
+//     int should_free_item = false;
+//     Item *item = item_cache_fetch_item(item_cache, items[i], &should_free_item);
+//     if (NULL != item) {      
+//       pool_add_item(pool, item);
+//       if (should_free_item) {
+//         free_item(item);
+//       }
+//     } else {
+//       success = false;
+//       trace("Missing item when adding to pool %d", items[i]);
+//     }
+//   }
+//   
+//   return success;
+// }
 
 int pool_num_tokens(const Pool *pool) {
   int num_tokens = 0;

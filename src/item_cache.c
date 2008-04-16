@@ -29,9 +29,9 @@
 #include "uri.h"
 
 #define CURRENT_USER_VERSION 1
-#define FETCH_ITEM_SQL "select id, strftime('%s', updated) from entries where id = ?"
+#define FETCH_ITEM_SQL "select full_id, id, strftime('%s', updated) from entries where full_id = ?"
 #define FETCH_ITEM_TOKENS_SQL "select token_id, frequency from entry_tokens where entry_id = ?"
-#define FETCH_ALL_ITEMS_SQL "select id, strftime('%s', updated) from entries where updated > (julianday('now') - ?) order by updated desc"
+#define FETCH_ALL_ITEMS_SQL "select full_id, id, strftime('%s', updated) from entries where updated > (julianday('now') - ?) order by updated desc"
 #define FETCH_RANDOM_BACKGROUND "select entry_id from random_backgrounds"
 #define INSERT_ENTRY_SQL "insert or replace into entries (id, full_id, title, author, alternate, self, spider, content, updated, feed_id, created_at) \
                           VALUES (:id, :full_id, :title, :author, :alternate, :self, :spider, :content, julianday(:updated, 'unixepoch'), :feed_id, julianday(:created_at, 'unixepoch'))"
@@ -56,7 +56,9 @@ struct FEED {
 
 struct ITEM {
   /* The ID of the item */
-  int id;
+  unsigned char * id;
+  /* The DB id of the item */
+  int db_id;
   /* The number of tokens in the item */
   int total_tokens;
   /* The timestamp the item. This is sort of overloaded, if the item is loaded from the database it is
@@ -127,6 +129,9 @@ struct ITEM_CACHE {
   
   /* Flag for whether the item cache has been loaded. */
   int loaded;
+  
+  /* Number of items in teh cache */
+  int cached_size;
   
   /* The Judy Array that stores each item keyed by their id. */
   Pvoid_t items_by_id;
@@ -225,6 +230,7 @@ ItemCacheEntry * create_item_cache_entry(int id,
   ItemCacheEntry *entry = calloc(1, sizeof(struct ITEM_CACHE_ENTRY));
   
   if (entry) {
+    debug("new entry %i", id);
     entry->id = id;
     entry->feed_id = feed_id;
     entry->updated = updated;
@@ -301,6 +307,10 @@ ItemCacheEntry * create_entry_from_atom_xml_document(int feed_id, xmlDocPtr doc,
 
 int item_cache_entry_id(const ItemCacheEntry * entry) {
   return entry->id;
+}
+
+const char * item_cache_entry_full_id(const ItemCacheEntry * entry) {
+  return entry->full_id;
 }
 
 const char * item_cache_entry_atom(const ItemCacheEntry * entry) {
@@ -468,6 +478,7 @@ int item_cache_create(ItemCache **item_cache, const char * db_file, const ItemCa
   (*item_cache)->items_in_order = NULL;
   (*item_cache)->random_background = NULL;
   (*item_cache)->loaded = false;
+  (*item_cache)->cached_size = 0;
   (*item_cache)->feature_extraction_queue = new_queue();
   (*item_cache)->update_queue = new_queue();
     
@@ -532,14 +543,17 @@ void free_item_cache(ItemCache *item_cache) {
     }
     
     if (item_cache->items_in_order) {
-      Word_t index = 0;
+      int freed_bytes;
+      uint8_t index[256];
+      index[0] = '\0';
       PWord_t item_pointer;
-      JLF(item_pointer, item_cache->items_by_id, index);
+      
+      JSLF(item_pointer, item_cache->items_by_id, index);
       while (NULL != item_pointer) {
         free_item((Item*) (*item_pointer));
-        JLN(item_pointer, item_cache->items_by_id, index);
+        JSLN(item_pointer, item_cache->items_by_id, index);
       }
-      JLFA(index, item_cache->items_by_id);
+      JSLFA(freed_bytes, item_cache->items_by_id);
           
       OrderedItemList *current = item_cache->items_in_order;
       while (current) {
@@ -589,7 +603,7 @@ static int fetch_tokens_for(ItemCache * item_cache, Item * item) {
   int tokens_loaded = 0;
   
   if (item_cache && item) {
-    int sqlite3_rc = sqlite3_bind_int(item_cache->fetch_item_tokens_stmt, 1, item->id);
+    int sqlite3_rc = sqlite3_bind_int(item_cache->fetch_item_tokens_stmt, 1, item->db_id);
     
     if (SQLITE_OK != sqlite3_rc) {
       fatal("fetch_item_tokens_stmt bind error = %s", item_cache_errmsg(item_cache));
@@ -626,6 +640,7 @@ int item_cache_load(ItemCache *item_cache) {
   pthread_mutex_lock(&item_cache->db_access_mutex);
   time_t start_time = time(NULL);
   int rc = CLASSIFIER_OK;
+  int size = 0;
   OrderedItemList *ordered_list = NULL;
   OrderedItemList *last = NULL;
   Pvoid_t itemlist = NULL;  
@@ -634,21 +649,20 @@ int item_cache_load(ItemCache *item_cache) {
     
   /* Load the item ids and timestamp indexing and order them by each. */
   while (SQLITE_ROW == sqlite3_step(item_cache->fetch_all_items_stmt)) {
-    int id = sqlite3_column_int(item_cache->fetch_all_items_stmt, 0);
+    const unsigned char * id = sqlite3_column_text(item_cache->fetch_all_items_stmt, 0);
+    int db_id = sqlite3_column_int(item_cache->fetch_all_items_stmt, 1);
     
-    if (id < 1) {
-      continue;
-    } else {
+    if (id) {      
       PWord_t item_pointer;
-      Item *item = create_item(id);
+      Item *item = create_item(id, db_id);
       if (NULL == item) {
         fatal("Malloc error creating item");
         rc = CLASSIFIER_FAIL;
         break;
       }
-      item->time = sqlite3_column_int64(item_cache->fetch_all_items_stmt, 1);
+      item->time = sqlite3_column_int64(item_cache->fetch_all_items_stmt, 2);
       
-      JLI(item_pointer, itemlist, id);
+      JSLI(item_pointer, itemlist, item->id);
       if (item_pointer != NULL) {
         *item_pointer = (Word_t) item;
       } else {
@@ -668,7 +682,9 @@ int item_cache_load(ItemCache *item_cache) {
         last->next->next = NULL;
         last = last->next;
       }
-    }
+    }   
+    
+    size++;
   }
   
   sqlite3_clear_bindings(item_cache->fetch_all_items_stmt);
@@ -689,38 +705,43 @@ int item_cache_load(ItemCache *item_cache) {
       }
       
       int judyrc;      
-      JLD(judyrc, itemlist, current->item->id);
+      JSLD(judyrc, itemlist, current->item->id);
       free_item(current->item);
       free(current);
       
       current = next;
+      size--;
     } else {
       previous = current;
       current = current->next;
     }
   }  
     
-  /* Now load the random background */
-  Pool *rndbg = new_pool();
-  while (SQLITE_ROW == sqlite3_step(item_cache->random_background_stmt)) {
-    int id = sqlite3_column_int(item_cache->random_background_stmt, 0);
-    PWord_t item_pointer = NULL;
-    JLG(item_pointer, itemlist, id);
-    if (NULL != item_pointer) {
-      Item *item = (Item*) (*item_pointer);
-      if (item) {
-        pool_add_item(rndbg, item);
-      }      
-    }
-  }
+  /* Now load the random background
+   * 
+   * TODO Fix this to fetch them from the database
+   */
+  // Pool *rndbg = new_pool();
+  //   while (SQLITE_ROW == sqlite3_step(item_cache->random_background_stmt)) {
+  //     int id = sqlite3_column_int(item_cache->random_background_stmt, 0);
+  //     PWord_t item_pointer = NULL;
+  //     JLG(item_pointer, itemlist, id);
+  //     if (NULL != item_pointer) {
+  //       Item *item = (Item*) (*item_pointer);
+  //       if (item) {
+  //         pool_add_item(rndbg, item);
+  //       }      
+  //     }
+  //   }
   
-  sqlite3_reset(item_cache->random_background_stmt);
+  // sqlite3_reset(item_cache->random_background_stmt);
   
   pthread_rwlock_wrlock(&item_cache->cache_lock);
-  item_cache->random_background = rndbg;
+  // item_cache->random_background = rndbg;
   item_cache->items_by_id = itemlist;
   item_cache->items_in_order = ordered_list;
   item_cache->loaded = true;
+  item_cache->cached_size = size;
   time_t end_time = time(NULL);
   pthread_rwlock_unlock(&item_cache->cache_lock);
   
@@ -733,11 +754,7 @@ int item_cache_load(ItemCache *item_cache) {
 /** Returns the number of items in the in-memory cache.
  */
 int item_cache_cached_size(ItemCache *item_cache) {
-  int count;
-  pthread_rwlock_rdlock(&item_cache->cache_lock);
-  JLC(count, item_cache->items_by_id, 0, -1);
-  pthread_rwlock_unlock(&item_cache->cache_lock);
-  return count;
+  return item_cache->cached_size;
 }
 
 /** Set the FeatureExtractor to use for extracting features from an Entry.
@@ -772,8 +789,8 @@ int item_cache_loaded(const ItemCache *item_cache) {
  *          caller to free the item.
  * TODO Handle SQLITE_BUSY in case another process locks the database.
  */
-Item * item_cache_fetch_item(ItemCache *item_cache, int id, int * free_when_done) {
-  debug("fetching item %i", id);
+Item * item_cache_fetch_item(ItemCache *item_cache, const unsigned char * id, int * free_when_done) {
+  debug("fetching item %s", id);
   int sqlite3_rc;
   Item *item = NULL;
   
@@ -784,7 +801,7 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id, int * free_when_done
   
   pthread_rwlock_rdlock(&item_cache->cache_lock);
   PWord_t item_pointer;
-  JLG(item_pointer, item_cache->items_by_id, id);
+  JSLG(item_pointer, item_cache->items_by_id, id);
   if (NULL != item_pointer) {
     item = (Item*)(*item_pointer);
     *free_when_done = false;
@@ -797,7 +814,7 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id, int * free_when_done
     pthread_mutex_lock(&item_cache->db_access_mutex);
     trace("thread(%i) has locked db_access_mutex to fetch %i", pthread_self(), id);
     
-    sqlite3_rc = sqlite3_bind_int(item_cache->fetch_item_stmt, 1, id);
+    sqlite3_rc = sqlite3_bind_text(item_cache->fetch_item_stmt, 1, (const char *) id, -1, NULL);
     if (SQLITE_OK != sqlite3_rc) {
       fatal("fetch_item_stmt bind error = %s", item_cache_errmsg(item_cache));
       return item;
@@ -805,9 +822,10 @@ Item * item_cache_fetch_item(ItemCache *item_cache, int id, int * free_when_done
       sqlite3_rc = sqlite3_step(item_cache->fetch_item_stmt);
       
       if (SQLITE_ROW == sqlite3_rc) {
-        item = create_item(sqlite3_column_int(item_cache->fetch_item_stmt, 0));
+        item = create_item(sqlite3_column_text(item_cache->fetch_item_stmt, 0), 
+                           sqlite3_column_int(item_cache->fetch_item_stmt, 1));
         if (NULL != item) {
-          item->time = (time_t) sqlite3_column_int64(item_cache->fetch_item_stmt, 1);      
+          item->time = (time_t) sqlite3_column_int64(item_cache->fetch_item_stmt, 2);
         }
       } else if (SQLITE_DONE != sqlite3_rc) {
         error("Error fetching item %d: %s", id, item_cache_errmsg(item_cache));
@@ -894,7 +912,7 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
     pthread_mutex_lock(&item_cache->db_access_mutex);
     
     // Is it new?
-    sqlite3_bind_int(item_cache->fetch_item_stmt, 1, entry->id);
+    sqlite3_bind_text(item_cache->fetch_item_stmt, 1, entry->full_id, -1, NULL);
     if (SQLITE_ROW == sqlite3_step(item_cache->fetch_item_stmt)) {
       is_new_entry = false;
     }
@@ -927,6 +945,7 @@ end:
     // We don't want to extract features for items we already have.
     // TODO Handle updates to features for items somehow?
     if (is_new_entry && rc != CLASSIFIER_FAIL) {
+      debug("Adding %i to feature_extraction queue", entry->id);
       q_enqueue(item_cache->feature_extraction_queue, copy_entry(entry));
     }
   }
@@ -1035,7 +1054,7 @@ int item_cache_add_item(ItemCache *item_cache, Item *item) {
       pthread_rwlock_wrlock(&item_cache->cache_lock);
 
       PWord_t item_pointer;
-      JLI(item_pointer, item_cache->items_by_id, item->id);
+      JSLI(item_pointer, item_cache->items_by_id, item->id);
       if (item_pointer) {
         (*item_pointer) = (Word_t) item;
         OrderedItemList *new_node = calloc(1, sizeof(struct ORDERED_ITEM_LIST));
@@ -1065,6 +1084,8 @@ int item_cache_add_item(ItemCache *item_cache, Item *item) {
             }
           }
         }
+        
+        item_cache->cached_size++;
       } else {
         fatal("Malloc error inserting into items_by_id");
         rc = CLASSIFIER_FAIL;
@@ -1104,7 +1125,7 @@ int item_cache_save_item(ItemCache * item_cache, Item *item) {
       while(item_next_token(item, &token)) {
         debug("save token %i", token.id);
         int stmt_rc;
-        sqlite3_bind_int(item_cache->insert_entry_token_stmt, 1, item->id);
+        sqlite3_bind_int(item_cache->insert_entry_token_stmt, 1, item->db_id);
         sqlite3_bind_int(item_cache->insert_entry_token_stmt, 2, token.id);
         sqlite3_bind_int(item_cache->insert_entry_token_stmt, 3, token.frequency);
         
@@ -1114,7 +1135,7 @@ int item_cache_save_item(ItemCache * item_cache, Item *item) {
         
         if (SQLITE_DONE != stmt_rc) {
           error("Error inserting entry token: (%i, %i, %i), %s", 
-                item->id, token.id, token.frequency, item_cache_errmsg(item_cache));
+                item->db_id, token.id, token.frequency, item_cache_errmsg(item_cache));
           rc = CLASSIFIER_FAIL;
           break;
         }
@@ -1168,7 +1189,7 @@ int item_cache_purge_old_items(ItemCache *item_cache) {
         
         while (current) {
           OrderedItemList *next = current->next;
-          JLD(rc, item_cache->items_by_id, current->item->id);
+          JSLD(rc, item_cache->items_by_id, current->item->id);
           free_item(current->item);
           free(current);
           current = next;
@@ -1486,12 +1507,13 @@ char * item_cache_globalize(ItemCache * item_cache, int atom) {
 /** Create a empty item.
  *
  */
-Item * create_item(int id) {
+Item * create_item(const unsigned char *id, int db_id) {
   Item *item;
   
   item = malloc(sizeof(Item));
   if (NULL != item) {
-    item->id = id;
+    item->id = (unsigned char*) strdup((char*) id);
+    item->db_id = db_id;
     item->total_tokens = 0;
     item->time = 0;
     item->tokens = NULL;
@@ -1510,12 +1532,11 @@ Item * item_from_xml(ItemCache * item_cache, const char * xml) {
     if (doc) {
       xmlXPathContextPtr context = xmlXPathNewContext(doc);
       xmlXPathRegisterNs(context, BAD_CAST "pw", BAD_CAST "http://peerworks.org/classifier");
-      char *id_s = get_element_value(context, "/pw:item/pw:id/text()");
-      int id = url_fragment_as_int(id_s);
+      unsigned char *id = (unsigned char*) get_element_value(context, "/pw:item/pw:id/text()");
       
       if (id > 0) {
         int i;
-        item = create_item(id);
+        item = create_item(id, 0);
         xmlXPathObjectPtr xp = xmlXPathEvalExpression(BAD_CAST "/pw:item/pw:feature", context);
         
         for (i = 0; i < xp->nodesetval->nodeNr; i++) {
@@ -1558,7 +1579,7 @@ Item * item_from_xml(ItemCache * item_cache, const char * xml) {
         error("Got no id");
       }
       
-      xmlFree(id_s);
+      xmlFree(id);
       xmlXPathFreeContext(context);
       xmlFreeDoc(doc);
     }
@@ -1590,8 +1611,8 @@ static int load_tokens_from_array(Item *item, int tokens[][2], int num_tokens) {
  *  @param num_tokens The length of the token array.
  *  @returns A new item initialized with the tokens.
  */
-Item * create_item_with_tokens(int id, int tokens[][2], int num_tokens) {
-  Item *item = create_item(id);
+Item * create_item_with_tokens(const unsigned char *id, int tokens[][2], int num_tokens) {
+  Item *item = create_item(id, 0);
   if (NULL != item) {  
     if (load_tokens_from_array(item, tokens, num_tokens)) {
       free_item(item);
@@ -1609,8 +1630,8 @@ Item * create_item_with_tokens(int id, int tokens[][2], int num_tokens) {
  *  @param num_tokens The length of the token array.
  *  @returns A new item initialized with the tokens.
  */
-Item * create_item_with_tokens_and_time(int id, int tokens[][2], int num_tokens, time_t time) {
-  Item *item = create_item(id);
+Item * create_item_with_tokens_and_time(const unsigned char *id, int db_id, int tokens[][2], int num_tokens, time_t time) {
+  Item *item = create_item(id, db_id);
   if (NULL != item) {  
     item->time = time;
     if (load_tokens_from_array(item, tokens, num_tokens)) {
@@ -1626,7 +1647,7 @@ Item * create_item_with_tokens_and_time(int id, int tokens[][2], int num_tokens,
  * Item functions 
  ***************************************************************************/
 
-int item_get_id(const Item * item) {
+const unsigned char * item_get_id(const Item * item) {
   return item->id;
 }
 
@@ -1685,6 +1706,7 @@ int item_next_token(const Item * item, Token_p token) {
 
 void free_item(Item *item) {
   if (NULL != item) {
+    free(item->id);
     int freed_bytes;
     if (item->tokens) {
       JLFA(freed_bytes, item->tokens);

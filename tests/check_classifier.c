@@ -121,8 +121,8 @@ START_TEST (precompute_creates_probabilities_for_each_token_in_tc) {
 START_TEST (test_with_bias) {
   int tokens_1[][2] = {1, 5, 2, 15};
   int tokens_2[][2] = {1, 5, 2, 5};
-  Item *i1 = create_item_with_tokens(1, tokens_1, 2);
-  Item *i2 = create_item_with_tokens(2, tokens_2, 2);
+  Item *i1 = create_item_with_tokens((unsigned char*) "1", tokens_1, 2);
+  Item *i2 = create_item_with_tokens((unsigned char*) "2", tokens_2, 2);
   
   Pool *rb = new_pool();
   TrainedClassifier tc;
@@ -246,7 +246,7 @@ static void teardown_classifier_test(void) {
 
 START_TEST (clue_selection_filters_out_weak_clues) {
   int tokens[][2] = {1, 1, 2, 1};
-  Item *item = create_item_with_tokens(1, tokens, 2);
+  Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 2);
   int num_clues;
   const Clue **clues = select_clues(&classifier, item, &num_clues);
   assert_not_null(clues);
@@ -258,7 +258,7 @@ START_TEST (clue_selection_filters_out_weak_clues) {
 
 START_TEST (clue_selection_sorted_by_strength) {
   int tokens[][2] = {1, 1, 2, 1, 4, 1};
-  Item *item = create_item_with_tokens(1, tokens, 3);
+  Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 3);
   int num_clues;
   const Clue **clues = select_clues(&classifier, item, &num_clues);
   assert_not_null(clues);
@@ -271,7 +271,7 @@ START_TEST (clue_selection_sorted_by_strength) {
 
 START_TEST (classify_1) {
   int tokens[][2] = {10, 10};
-  Item *item = create_item_with_tokens(1, tokens, 1);
+  Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 1);
   Tagging *tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 12, 123, 0.5, tagging);
   free_item(item);
@@ -279,7 +279,7 @@ START_TEST (classify_1) {
 
 START_TEST (classify_2) {
   int tokens[][2] = {2, 10};
-  Item *item = create_item_with_tokens(1, tokens, 1);
+  Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 1);
   Tagging *tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 12, 123, 0.5, tagging);
   free_item(item);
@@ -287,7 +287,7 @@ START_TEST (classify_2) {
 
 START_TEST (classify_3) {
   int tokens[][2] = {4, 1};
-  Item *item = create_item_with_tokens(1, tokens, 1);
+  Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 1);
   Tagging *tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 12, 123, 0.89947100800, tagging);
   free_item(item);
@@ -295,7 +295,7 @@ START_TEST (classify_3) {
 
 START_TEST (classify_4) {
   int tokens[][2] = {4, 100};
-  Item *item = create_item_with_tokens(1, tokens, 1);
+  Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 1);
   Tagging *tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 12, 123, 0.89947100800, tagging);
   free_item(item);
@@ -303,7 +303,7 @@ START_TEST (classify_4) {
 
 START_TEST (classify_5) {
   int tokens[][2] = {4, 1, 2, 1};
-  Item *item = create_item_with_tokens(1, tokens, 2);
+  Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 2);
   Tagging *tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 12, 123, 0.89947100800, tagging);
   free_item(item);
@@ -311,7 +311,7 @@ START_TEST (classify_5) {
 
 START_TEST (classify_6) {
   int tokens[][2] = {4, 1, 1, 1};
-  Item *item = create_item_with_tokens(1, tokens, 2);
+  Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 2);
   Tagging *tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 12, 123, 0.90383289433, tagging);
   free_item(item);
@@ -319,7 +319,7 @@ START_TEST (classify_6) {
 
 START_TEST (classify_7) {
   int tokens[][2] = {4, 1, 3, 1};
-  Item *item = create_item_with_tokens(1, tokens, 2);
+  Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 2);
   Tagging *tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 12, 123, 0.59043855740, tagging);
   free_item(item);
@@ -327,7 +327,7 @@ START_TEST (classify_7) {
 
 START_TEST (classify_8) {
   int tokens[][2] = {3, 1, 4, 1};
-  Item *item = create_item_with_tokens(1, tokens, 2);
+  Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 2);
   Tagging *tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 12, 123, 0.59043855740, tagging);
   free_item(item);
@@ -336,7 +336,7 @@ START_TEST (classify_8) {
 
 START_TEST (classify_9) {
   int tokens[][2] = {3, 1};
-  Item *item = create_item_with_tokens(1, tokens, 1);
+  Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 1);
   Tagging *tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 12, 123, 0.16771702260, tagging);
   free_item(item);
@@ -344,7 +344,7 @@ START_TEST (classify_9) {
 
 START_TEST (classify_10) {
   int tokens[][2] = {1, 1, 2, 1, 3, 1, 4, 1};
-  Item *item = create_item_with_tokens(1, tokens, 4);
+  Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 4);
   Tagging *tagging = classify(&classifier, item);
   assert_tagging("user", "tag", 12, 123, 0.69125149517, tagging);
   free_item(item);

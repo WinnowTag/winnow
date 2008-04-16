@@ -41,7 +41,7 @@ extern int          item_cache_set_feature_extractor (ItemCache * item_cache, Fe
 extern int          item_cache_load               (ItemCache *item_cache);
 extern int          item_cache_loaded             (const ItemCache *item_cache);
 extern int          item_cache_cached_size        (ItemCache *item_cache);
-extern Item *       item_cache_fetch_item         (ItemCache *is, int item_id, int * free_when_done);  
+extern Item *       item_cache_fetch_item         (ItemCache *item_cache,  const unsigned char * item_id, int * free_when_done);  
 extern const char * item_cache_errmsg             (const ItemCache *is);
 extern int          item_cache_each_item          (ItemCache *item_cache, ItemIterator iterator, void *memo);
 extern const Pool * item_cache_random_background  (const ItemCache *item_cache);
@@ -76,16 +76,18 @@ extern ItemCacheEntry * create_item_cache_entry(int id,
                                                  const char * atom);
 extern ItemCacheEntry * create_entry_from_atom_xml_document(int feed_id, xmlDocPtr doc, const char * xml_source);
 extern int item_cache_entry_id(const ItemCacheEntry *entry);
+extern const char * item_cache_entry_full_id(const ItemCacheEntry *entry);
 extern void free_entry(ItemCacheEntry *entry);
 extern const char * item_cache_entry_atom(const ItemCacheEntry *entry);
 extern Feed * create_feed(int id, const char * title);
 extern void   free_feed(Feed * feed);
 
 extern Item * item_from_xml           (ItemCache * item_cache, const char * xml);
-extern Item * create_item             (int id);
-extern Item * create_item_with_tokens (int id, int tokens[][2], int num_tokens);
-extern Item * create_item_with_tokens_and_time (int id, int tokens[][2], int num_tokens, time_t time);
-extern int    item_get_id             (const Item *item);
+extern Item * create_item             (const unsigned char * id, int db_id);
+extern Item * create_item_with_tokens (const unsigned char * id, int tokens[][2], int num_tokens);
+extern Item * create_item_with_tokens_and_time (const unsigned char * id, int db_id, int tokens[][2], int num_tokens, time_t time);
+extern const unsigned char * item_get_id             (const Item *item);
+extern int    item_get_db_id          (const Item *item);
 extern int    item_get_total_tokens   (const Item *item);
 extern int    item_get_num_tokens     (const Item *item);
 extern time_t item_get_time           (const Item *item);
