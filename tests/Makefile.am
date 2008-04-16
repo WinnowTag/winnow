@@ -1,7 +1,7 @@
-TESTS = check_tagger_builder
-        #check_classifier check_pool check_queue check_config \
-        #check_http check_clue check_url_fetching  check_tagger_builder\
-        #check_item_cache check_classification_engine #specs
+TESTS = check_tagger_builder \
+         check_classifier check_pool check_queue check_config \
+         check_http check_clue check_url_fetching  check_tagger_builder\
+         check_item_cache check_classification_engine #specs
 CLEANFILES = http_test.log http_test_data.log test.log
 
 LDFLAGS = -static @SQLITE3_LDFLAGS@ @CHECK_LIBS@

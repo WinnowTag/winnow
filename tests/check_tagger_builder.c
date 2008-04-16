@@ -68,6 +68,30 @@ START_TEST (test_load_tagger_from_tag_definition_document_sets_tag_id) {
   assert_equal_s("http://trunk.mindloom.org:80/seangeo/tags/a-religion", tagger->tag_id);
 } END_TEST
 
+START_TEST (test_loads_right_number_of_positive_examples) {
+  Tagger *tagger = build_tagger(document);
+  assert_equal(4, tagger->positive_example_count);
+} END_TEST
+
+START_TEST (test_loads_right_positive_examples) {
+  Tagger *tagger = build_tagger(document);
+  assert_not_null(tagger->positive_examples);
+  assert_equal_s("urn:peerworks.org:entry#753459", tagger->positive_examples[0]);
+  assert_equal_s("urn:peerworks.org:entry#886294", tagger->positive_examples[1]);
+  assert_equal_s("urn:peerworks.org:entry#888769", tagger->positive_examples[2]);
+  assert_equal_s("urn:peerworks.org:entry#884409", tagger->positive_examples[3]);
+} END_TEST
+
+START_TEST (test_loads_right_number_of_negative_examples) {
+  Tagger *tagger = build_tagger(document);  
+  assert_equal(1, tagger->negative_example_count);
+} END_TEST
+
+START_TEST (test_loads_right_negative_examples) {
+  Tagger *tagger = build_tagger(document);
+  assert_not_null(tagger->negative_examples);
+  assert_equal_s("urn:peerworks.org:entry#880389", tagger->negative_examples[0]);
+} END_TEST
 
 Suite *
 tag_loading_suite(void) {
@@ -81,6 +105,10 @@ tag_loading_suite(void) {
   tcase_add_test(tc_complete_tag, test_load_tagger_from_tag_definition_document_sets_training_url);
   tcase_add_test(tc_complete_tag, test_load_tagger_from_tag_definition_document_sets_classifier_taggings_url);
   tcase_add_test(tc_complete_tag, test_load_tagger_from_tag_definition_document_sets_tag_id);
+  tcase_add_test(tc_complete_tag, test_loads_right_number_of_positive_examples);
+  tcase_add_test(tc_complete_tag, test_loads_right_number_of_negative_examples);
+  tcase_add_test(tc_complete_tag, test_loads_right_positive_examples);
+  tcase_add_test(tc_complete_tag, test_loads_right_negative_examples);
 
   suite_add_tcase(s, tc_complete_tag);
   return s;
