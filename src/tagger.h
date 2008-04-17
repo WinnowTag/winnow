@@ -14,6 +14,7 @@
 
 typedef enum TAGGER_STATE {
   TAGGER_LOADED,
+  TAGGER_PARTIALLY_TRAINED,
   TAGGER_TRAINED,
   UNKNOWN
 } TaggerState;
@@ -55,6 +56,18 @@ typedef struct TAGGER {
   
   /* The item ids for the negative examples */
   char ** negative_examples;
+  
+  /** Number of positive examples that could not be found while training. */
+  int missing_positive_example_count;
+  
+  /** Number of negative examples that could not be found while training. */
+  int missing_negative_example_count;
+  
+  /** The ids of the positive examples that could not be found while training. */
+  char ** missing_positive_examples;
+  
+  /** The ids of the negative examples that could not be found while training. */
+  char ** missing_negative_examples;
   
   /**** Trained Pools ****/
   

@@ -17,10 +17,10 @@ static char * document;
 static ItemCacheOptions item_cache_options = {1, 3650, 2};
 static ItemCache *item_cache;
 
-static void setup(void) {
+static void read_document(const char * filename) {
   FILE *file;
 
-  if (NULL != (file = fopen("fixtures/complete_tag.atom", "r"))) {
+  if (NULL != (file = fopen(filename, "r"))) {
     fseek(file, 0, SEEK_END);
     int size = ftell(file);
     document = calloc(size, sizeof(char));
@@ -29,7 +29,15 @@ static void setup(void) {
     document[size] = 0;
     fclose(file);
   }
-  
+}
+
+static void setup_complete(void) {
+  read_document("fixtures/complete_tag.atom");
+  item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
+}
+
+static void setup_incomplete(void) {
+  read_document("fixtures/incomplete_tag.atom");
   item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
 }
 
@@ -39,6 +47,7 @@ static void teardown(void) {
   }
 }
 
+/** Tests when all items are in the item cache */
 START_TEST (test_training_a_tag_with_all_items_in_the_cache_returns_TAGGER_TRAINED) {
   Tagger *tagger = build_tagger(document);
   TaggerState state = train_tagger(tagger, item_cache);
@@ -64,17 +73,68 @@ START_TEST (test_train_merges_examples_into_pools) {
   assert_equal(74, pool_total_tokens(tagger->negative_pool));  
 } END_TEST
 
+/** Tests with missing items */
+START_TEST (test_training_a_tag_with_missing_items_returns_TAGGER_PARTIALLY_TRAINED) {
+  Tagger *tagger = build_tagger(document);
+  TaggerState state = train_tagger(tagger, item_cache);
+  assert_equal(TAGGER_PARTIALLY_TRAINED, state);
+} END_TEST
+
+START_TEST (test_training_a_tag_with_missing_items_sets_state_to_TAGGER_PARTIALLY_TRAINED) {
+  Tagger *tagger = build_tagger(document);
+  train_tagger(tagger, item_cache);
+  assert_equal(TAGGER_PARTIALLY_TRAINED, tagger->state);
+} END_TEST
+
+START_TEST (test_training_a_tag_with_missing_items_trains_items_exist) {
+  Tagger *tagger = build_tagger(document);
+  train_tagger(tagger, item_cache);
+  
+  assert_not_null(tagger->positive_pool);
+  assert_equal(171, pool_num_tokens(tagger->positive_pool));
+  assert_equal(303, pool_total_tokens(tagger->positive_pool));
+  
+  assert_not_null(tagger->negative_pool);
+  assert_equal(0, pool_num_tokens(tagger->negative_pool));
+  assert_equal(0, pool_total_tokens(tagger->negative_pool));
+} END_TEST
+
+START_TEST (test_training_a_tag_with_missing_items_stores_missing_positives) {
+  Tagger *tagger = build_tagger(document);
+  train_tagger(tagger, item_cache);
+  assert_equal(2, tagger->missing_positive_example_count);
+  assert_equal_s("urn:peerworks.org:entry#2", tagger->missing_positive_examples[0]);
+  assert_equal_s("urn:peerworks.org:entry#3", tagger->missing_positive_examples[1]);
+} END_TEST
+
+START_TEST (test_training_a_tag_with_missing_items_stores_missing_negatives) {
+  Tagger *tagger = build_tagger(document);
+  train_tagger(tagger, item_cache);
+  assert_equal(1, tagger->missing_negative_example_count);
+  assert_equal_s("urn:peerworks.org:entry#1", tagger->missing_negative_examples[0]);
+} END_TEST
+
+
 Suite *
 tag_loading_suite(void) {
   Suite *s = suite_create("Tagger Training");  
+  
   TCase *tc_complete_tag = tcase_create("complete_tag.atom");
-
-  tcase_add_checked_fixture(tc_complete_tag, setup, teardown);
+  tcase_add_checked_fixture(tc_complete_tag, setup_complete, teardown);
   tcase_add_test(tc_complete_tag, test_training_a_tag_with_all_items_in_the_cache_returns_TAGGER_TRAINED);
   tcase_add_test(tc_complete_tag, test_training_a_tag_with_all_items_in_the_cache_sets_state_to_TAGGER_TRAINED);
   tcase_add_test(tc_complete_tag, test_train_merges_examples_into_pools);
 
+  TCase *tc_incomplete_tag = tcase_create("incomplete_tag.atom");
+  tcase_add_checked_fixture(tc_incomplete_tag, setup_incomplete, teardown);
+  tcase_add_test(tc_incomplete_tag, test_training_a_tag_with_missing_items_returns_TAGGER_PARTIALLY_TRAINED);
+  tcase_add_test(tc_incomplete_tag, test_training_a_tag_with_missing_items_sets_state_to_TAGGER_PARTIALLY_TRAINED);
+  tcase_add_test(tc_incomplete_tag, test_training_a_tag_with_missing_items_trains_items_exist);
+  tcase_add_test(tc_incomplete_tag, test_training_a_tag_with_missing_items_stores_missing_positives);
+  tcase_add_test(tc_incomplete_tag, test_training_a_tag_with_missing_items_stores_missing_negatives);
+  
   suite_add_tcase(s, tc_complete_tag);
+  suite_add_tcase(s, tc_incomplete_tag);
   return s;
 }
 
