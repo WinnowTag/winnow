@@ -73,6 +73,13 @@ START_TEST (test_train_merges_examples_into_pools) {
   assert_equal(74, pool_total_tokens(tagger->negative_pool));  
 } END_TEST
 
+START_TEST (test_training_twice_returns_SEQUENCE_ERROR) {
+  Tagger *tagger = build_tagger(document);
+  train_tagger(tagger, item_cache);
+  TaggerState state = train_tagger(tagger, item_cache);
+  assert_equal(TAGGER_SEQUENCE_ERROR, state);
+} END_TEST
+
 /** Tests with missing items */
 START_TEST (test_training_a_tag_with_missing_items_returns_TAGGER_PARTIALLY_TRAINED) {
   Tagger *tagger = build_tagger(document);
@@ -124,6 +131,7 @@ tag_loading_suite(void) {
   tcase_add_test(tc_complete_tag, test_training_a_tag_with_all_items_in_the_cache_returns_TAGGER_TRAINED);
   tcase_add_test(tc_complete_tag, test_training_a_tag_with_all_items_in_the_cache_sets_state_to_TAGGER_TRAINED);
   tcase_add_test(tc_complete_tag, test_train_merges_examples_into_pools);
+  tcase_add_test(tc_complete_tag, test_training_twice_returns_SEQUENCE_ERROR);
 
   TCase *tc_incomplete_tag = tcase_create("incomplete_tag.atom");
   tcase_add_checked_fixture(tc_incomplete_tag, setup_incomplete, teardown);
