@@ -652,20 +652,29 @@ int item_cache_load(ItemCache *item_cache) {
   }  
     
   /* Now load the random background */
+  Pvoid_t background_ids = NULL;
   Pool *rndbg = new_pool();
   while (SQLITE_ROW == sqlite3_step(item_cache->random_background_stmt)) {
+    int rc = 0;
     int id = sqlite3_column_int(item_cache->random_background_stmt, 0);
-    PWord_t item_pointer = NULL;
-    JLG(item_pointer, itemlist, id);
-    if (NULL != item_pointer) {
-      Item *item = (Item*) (*item_pointer);
-      if (item) {
-        pool_add_item(rndbg, item);
-      }      
-    }
+    J1S(rc, background_ids, id);
   }
-  
   sqlite3_reset(item_cache->random_background_stmt);
+  pthread_mutex_unlock(&item_cache->db_access_mutex);
+  
+  Word_t item_id = 0;
+  int background_rc = 0;
+  J1F(background_rc, background_ids, item_id);
+  while (background_rc) {
+    int free_when_done;
+    Item *item = item_cache_fetch_item(item_cache, item_id, &free_when_done);
+    if (item) {
+      pool_add_item(rndbg, item);
+      if (free_when_done) free_item(item);
+    }
+    J1N(background_rc, background_ids, item_id);
+  }
+  J1FA(background_rc, background_ids);
   
   pthread_rwlock_wrlock(&item_cache->cache_lock);
   item_cache->random_background = rndbg;
@@ -675,7 +684,6 @@ int item_cache_load(ItemCache *item_cache) {
   time_t end_time = time(NULL);
   pthread_rwlock_unlock(&item_cache->cache_lock);
   
-  pthread_mutex_unlock(&item_cache->db_access_mutex);
   
   info("loaded %i items in %i seconds", item_cache_cached_size(item_cache), end_time - start_time);
   return rc;
