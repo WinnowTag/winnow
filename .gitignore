@@ -14,8 +14,9 @@ check_item_cache
 check_clue
 check_config
 check_classification_engine
-check_fetch_url
+check_url_fetching
 check_tagger_builder
+check_train_tagger
 aclocal.m4
 autom4te.cache
 configure
