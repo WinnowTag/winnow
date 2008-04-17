@@ -17,6 +17,11 @@
 #include "uri.h"
 #include "logging.h"
 
+
+/************************************************************************************************
+ *  Functions for building taggers from Atom documents.
+*************************************************************************************************/
+
 #define ATOM "http://www.w3.org/2005/Atom"
 #define CLASSIFIER "http://peerworks.org/classifier"
 #define OK 0
@@ -72,6 +77,14 @@ static int load_positive_examples(Tagger *tagger, xmlXPathContextPtr ctx) {
   return rc;
 }
 
+/** Builds a Tagger from an atom document.
+ *
+ * This will parse the atom document given by the 'atom' parameter and
+ * return a Tagger that contains the definition for the tag described
+ * in the document.
+ *
+ * TODO Document the atom format somewhere.
+ */
 Tagger * build_tagger(const char * atom) {
   Tagger * tagger = calloc(1, sizeof(struct TAGGER));
   
@@ -100,8 +113,39 @@ Tagger * build_tagger(const char * atom) {
       xmlFreeDoc(doc);
     }
     
+    tagger->state = TAGGER_LOADED;
     tagger->atom = strdup(atom);
   }
   
   return tagger;
+}
+
+static void train_pool(Pool * pool, ItemCache * item_cache, char ** examples, int size) {
+  int i;
+  
+  for (i = 0; i < size; i++) {
+    int free_when_done = 0;
+    Item * item = item_cache_fetch_item(item_cache, (unsigned char*) examples[i], &free_when_done);
+    if (item) {
+      pool_add_item(pool, item);
+      if (free_when_done) free_item(item);
+    } else {
+      // TODO Do something when the item is missing
+    }
+  }
+}
+
+TaggerState train_tagger(Tagger * tagger, ItemCache * item_cache) {
+  TaggerState state = UNKNOWN;
+  
+  if (tagger && item_cache) {
+    state = tagger->state = TAGGER_TRAINED;    
+    tagger->positive_pool = new_pool();
+    tagger->negative_pool = new_pool();
+    
+    train_pool(tagger->positive_pool, item_cache, tagger->positive_examples, tagger->positive_example_count);
+    train_pool(tagger->negative_pool, item_cache, tagger->negative_examples, tagger->negative_example_count);
+  }
+  
+  return state;
 }

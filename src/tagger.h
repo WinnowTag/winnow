@@ -10,9 +10,19 @@
 #define _TAGGER_H_
 
 #include <time.h>
+#include "item_cache.h"
+
+typedef enum TAGGER_STATE {
+  TAGGER_LOADED,
+  TAGGER_TRAINED,
+  UNKNOWN
+} TaggerState;
 
 typedef struct TAGGER {
   /***** Meta data for the tagger *****/
+  
+  /* The state of the tagger */
+  TaggerState state;
   
   /* The ID of the tag */
   char *tag_id;
@@ -46,10 +56,16 @@ typedef struct TAGGER {
   /* The item ids for the negative examples */
   char ** negative_examples;
   
+  /**** Trained Pools ****/
+  
+  Pool *positive_pool;
+  Pool *negative_pool;
+  
   /* Hold on to the latest atom document, in case we need it? */
   char *atom;
 } Tagger;
 
-extern Tagger * build_tagger(const char * atom);
+extern Tagger *    build_tagger(const char * atom);
+extern TaggerState train_tagger(Tagger * tagger, ItemCache * item_cache);
 
 #endif /* _TAGGER_H_ */
