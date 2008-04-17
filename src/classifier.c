@@ -442,57 +442,6 @@ static double chi2_combine(const Clue **clues, int num_clues) {
 /*****************************************************************************
  * These functions provide the API to the classifier for the outside world.
  */
-  
-/** Functions for transitioning classifiers between various states */
-TrainedClassifier * train(const Tag *tag, const ItemCache *item_cache) {
-  TrainedClassifier *tc = malloc(sizeof(struct TRAINED_CLASSIFIER));
-  
-  if (NULL != tc) {
-    tc->user_id = tag_user_id(tag);
-    tc->user = tag_user(tag);
-    tc->tag_id = tag_tag_id(tag);
-    tc->tag_name = tag_tag_name(tag);
-    tc->bias = tag_bias(tag);
-    tc->positive_pool = new_pool();
-    tc->negative_pool = new_pool();
-    
-    if (tc->positive_pool == NULL || tc->negative_pool == NULL) {
-      goto train_malloc_error;
-    }
-    
-    int size = tag_positive_examples_size(tag);
-    
-    if (0 < size) {
-      int *examples = tag_positive_examples(tag);
-    
-      if (NULL != examples) {
-        // TODO pool_add_items(tc->positive_pool, examples, size, item_cache);
-        free(examples);
-      } else {
-        goto train_malloc_error;
-      }
-    }
-    
-    size = tag_negative_examples_size(tag);
-    
-    if (0 < size) {
-      int *examples = tag_negative_examples(tag);
-      
-      if (NULL != examples) {
-        // TODO pool_add_items(tc->negative_pool, examples, size, item_cache);
-        free(examples);
-      } else {
-        goto train_malloc_error;
-      }      
-    }    
-  }
-  
-  return tc;
-  train_malloc_error:
-    error("Malloc error in train");
-    tc_free(tc);
-    return NULL;
-}
 
 Classifier * precompute(const TrainedClassifier *tc, const Pool *background) {
   Classifier *classifier = malloc(sizeof(struct CLASSIFIER));

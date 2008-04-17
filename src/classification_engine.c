@@ -968,79 +968,80 @@ static int cjob_classify(ClassificationJob *job, ItemCache *item_cache) {
   int i;
   int failed = false;
   
-  int number_of_items = item_cache_cached_size(item_cache);
-  job->progress_increment = 60.0 / number_of_items;
-
-  // allocate enough space for a tagging for each item in each tag
-  job->taggings = calloc(job->taglist->size * number_of_items, sizeof(Tagging*));
-  if (!job->taggings) MALLOC_ERR();
-  // allocate enough space for pointers to all the classifiers
-  job->classifiers = calloc(job->taglist->size, sizeof(Classifier*));
-  if (!job->classifiers) MALLOC_ERR();
-  
-  /* Start by training up all the classifiers for the tags */
-  job->state = CJOB_STATE_TRAINING;
-  TrainedClassifier **tc = calloc(job->taglist->size, sizeof(TrainedClassifier*));
-  if (!tc) MALLOC_ERR();
-  
-  for (i = 0; i < job->taglist->size; i++) {
-    tc[i] = train(job->taglist->tags[i], item_cache);
-    if (!tc[i]) MALLOC_ERR();
-  }
-  job->progress = 10.0;
-  NOW(job->trained_at);
-      
-  /* Now precompute all the classifiers */
-  job->state = CJOB_STATE_CALCULATING;
-  
-  for (i = 0; i < job->taglist->size; i++) {
-    job->classifiers[i] = precompute(tc[i], item_cache_random_background(item_cache));
-    if (!job->classifiers[i]) MALLOC_ERR();
-    
-    /*  Once we have the precomputed classifier
-     *  we can discard the trained classifier.
-     */
-    tc_free(tc[i]);
-    tc[i] = NULL;
-  }
-  job->progress = 20.0;
-  NOW(job->computed_at);
-  
-  /* Clean up trained classifier array */
-  free(tc);
-  tc = NULL;
-            
-  /* Now do the actual classification of each item for each classifier */
-  job->state = CJOB_STATE_CLASSIFYING;  
-  item_cache_each_item(item_cache, classify_item, job);
-  
-exit:
-  for (i = 0; i < job->taglist->size; i++) {
-    if (tc && tc[i]) {
-      tc_free(tc[i]);      
-    }
-    
-    if (job->classifiers && job->classifiers[i]) {
-      free_classifier(job->classifiers[i]);      
-    }
-  }  
-  
-  if (job->classifiers) {
-    free(job->classifiers);
-  }
-  
-  if (tc) {
-    free(tc);
-  }  
+  // TODO Re-write cjob_classify to work with new Tagger
+  // int number_of_items = item_cache_cached_size(item_cache);
+  //   job->progress_increment = 60.0 / number_of_items;
+  // 
+  //   // allocate enough space for a tagging for each item in each tag
+  //   job->taggings = calloc(job->taglist->size * number_of_items, sizeof(Tagging*));
+  //   if (!job->taggings) MALLOC_ERR();
+  //   // allocate enough space for pointers to all the classifiers
+  //   job->classifiers = calloc(job->taglist->size, sizeof(Classifier*));
+  //   if (!job->classifiers) MALLOC_ERR();
+  //   
+  //   /* Start by training up all the classifiers for the tags */
+  //   job->state = CJOB_STATE_TRAINING;
+  //   TrainedClassifier **tc = calloc(job->taglist->size, sizeof(TrainedClassifier*));
+  //   if (!tc) MALLOC_ERR();
+  //   
+  //   for (i = 0; i < job->taglist->size; i++) {
+  //     tc[i] = train(job->taglist->tags[i], item_cache);
+  //     if (!tc[i]) MALLOC_ERR();
+  //   }
+  //   job->progress = 10.0;
+  //   NOW(job->trained_at);
+  //       
+  //   /* Now precompute all the classifiers */
+  //   job->state = CJOB_STATE_CALCULATING;
+  //   
+  //   for (i = 0; i < job->taglist->size; i++) {
+  //     job->classifiers[i] = precompute(tc[i], item_cache_random_background(item_cache));
+  //     if (!job->classifiers[i]) MALLOC_ERR();
+  //     
+  //     /*  Once we have the precomputed classifier
+  //      *  we can discard the trained classifier.
+  //      */
+  //     tc_free(tc[i]);
+  //     tc[i] = NULL;
+  //   }
+  //   job->progress = 20.0;
+  //   NOW(job->computed_at);
+  //   
+  //   /* Clean up trained classifier array */
+  //   free(tc);
+  //   tc = NULL;
+  //             
+  //   /* Now do the actual classification of each item for each classifier */
+  //   job->state = CJOB_STATE_CLASSIFYING;  
+  //   item_cache_each_item(item_cache, classify_item, job);
+  //   
+  // exit:
+  //   for (i = 0; i < job->taglist->size; i++) {
+  //     if (tc && tc[i]) {
+  //       tc_free(tc[i]);      
+  //     }
+  //     
+  //     if (job->classifiers && job->classifiers[i]) {
+  //       free_classifier(job->classifiers[i]);      
+  //     }
+  //   }  
+  //   
+  //   if (job->classifiers) {
+  //     free(job->classifiers);
+  //   }
+  //   
+  //   if (tc) {
+  //     free(tc);
+  //   }  
   
   return failed;
   
-malloc_error:
-  job->error = CJOB_STATE_ERROR;
-  job->error = CJOB_ERROR_UNKNOWN_ERROR;
-  fatal("Malloc error in classification processing, probably out of memory??");
-  failed = true;
-  goto exit;
+// malloc_error:
+//   job->error = CJOB_STATE_ERROR;
+//   job->error = CJOB_ERROR_UNKNOWN_ERROR;
+//   fatal("Malloc error in classification processing, probably out of memory??");
+//   failed = true;
+//   goto exit;
 }
 
 static void cjob_process(ClassificationJob *job, ItemCache *item_cache) {
