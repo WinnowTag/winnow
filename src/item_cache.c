@@ -28,7 +28,7 @@
 #include "xml.h"
 #include "uri.h"
 
-#define CURRENT_USER_VERSION 1
+#define CURRENT_USER_VERSION 2
 #define FETCH_ITEM_SQL "select full_id, id, strftime('%s', updated) from entries where full_id = ?"
 #define FETCH_ITEM_TOKENS_SQL "select token_id, frequency from entry_tokens where entry_id = ?"
 #define FETCH_ALL_ITEMS_SQL "select full_id, id, strftime('%s', updated) from entries where updated > (julianday('now') - ?) order by updated desc"
@@ -931,7 +931,9 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
     BIND_TEXT( item_cache->insert_entry_stmt, entry->spider,    6);
     BIND_TEXT( item_cache->insert_entry_stmt, entry->content,   7);
     sqlite3_bind_double(item_cache->insert_entry_stmt, 8, entry->updated);
-    sqlite3_bind_int(item_cache->insert_entry_stmt, 9, entry->feed_id);
+    if (entry->feed_id > 0) {
+      sqlite3_bind_int(item_cache->insert_entry_stmt, 9, entry->feed_id);      
+    }
     sqlite3_bind_double(item_cache->insert_entry_stmt, 10, entry->created_at);
     
     if (SQLITE_DONE != sqlite3_step(item_cache->insert_entry_stmt)) {

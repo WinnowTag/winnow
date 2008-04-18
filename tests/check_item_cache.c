@@ -285,6 +285,39 @@ START_TEST (adding_an_entry_saves_all_its_attributes) {
   sqlite3_close(db);
 } END_TEST
 
+START_TEST (test_can_add_entry_without_a_feed_id) {
+  ItemCacheEntry *entry = create_item_cache_entry("id#11", "Entry 11", "Author 11",
+                                          "http://example.org/11",
+                                          "http://example.org/11.html",
+                                          "http://example.org/11/spider",
+                                          "<p>This is some content</p>",
+                                          1178551600, 0, 1178551601, NULL);
+  int rc = item_cache_add_entry(item_cache, entry);
+  assert_equal(CLASSIFIER_OK, rc);
+  
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from entries where id = ?", -1, &stmt, NULL);
+  sqlite3_bind_int(stmt, 1, item_cache_entry_id(entry));
+  if (SQLITE_ROW == sqlite3_step(stmt)) {
+    assert_equal_s("id#11", sqlite3_column_text(stmt, 1));
+    assert_equal_s("Entry 11", sqlite3_column_text(stmt, 2));
+    assert_equal_s("Author 11", sqlite3_column_text(stmt, 3));
+    assert_equal_s("http://example.org/11", sqlite3_column_text(stmt, 4));
+    assert_equal_s("http://example.org/11.html", sqlite3_column_text(stmt, 5));
+    assert_equal_s("http://example.org/11/spider", sqlite3_column_text(stmt, 6));
+    assert_equal_s("<p>This is some content</p>", sqlite3_column_text(stmt, 7));
+    assert_equal_f(2454228.14351852, sqlite3_column_double(stmt, 8));
+    assert_equal(SQLITE_NULL, sqlite3_column_type(stmt, 9));
+    assert_equal_f(2454228.14353009, sqlite3_column_double(stmt, 10));
+  } else {
+    fail("Could not get record");
+  }
+  
+  sqlite3_close(db);
+} END_TEST
+
 START_TEST (adding_an_entry_twice_does_not_fail) {
   ItemCacheEntry *entry = create_item_cache_entry("id#11", "Entry 11", "Author 11",
                                           "http://example.org/11",
@@ -1109,6 +1142,7 @@ item_cache_suite(void) {
   tcase_add_test(modification, adding_an_entry_twice_does_not_fail);
   tcase_add_test(modification, adding_an_entry_twice_does_not_add_a_duplicate);
   tcase_add_test(modification, adding_an_entry_saves_all_its_attributes);
+  tcase_add_test(modification, test_can_add_entry_without_a_feed_id);
   tcase_add_test(modification, test_destroying_an_entry_removes_it_from_database);
   tcase_add_test(modification, test_destroying_an_entry_removes_tokens_from_the_database_file);
   tcase_add_test(modification, test_destroying_an_entry_removes_it_from_the_database_file);
