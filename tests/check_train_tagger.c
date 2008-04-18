@@ -121,6 +121,38 @@ START_TEST (test_training_a_tag_with_missing_items_stores_missing_negatives) {
   assert_equal_s("urn:peerworks.org:entry#1", tagger->missing_negative_examples[0]);
 } END_TEST
 
+START_TEST (test_can_get_the_missing_item_cache_entries) {
+  Tagger *tagger = build_tagger(document);
+  train_tagger(tagger, item_cache);
+  ItemCacheEntry *entries[3];
+  memset(entries, 0, sizeof(entries));
+  get_missing_entries(tagger, entries);
+  assert_not_null(entries[0]);
+  assert_not_null(entries[1]);
+  assert_not_null(entries[2]);
+} END_TEST
+
+START_TEST (test_missing_item_cache_entries_include_the_ids) {
+  Tagger *tagger = build_tagger(document);
+  train_tagger(tagger, item_cache);
+  ItemCacheEntry *entries[3];
+  memset(entries, 0, sizeof(entries));
+  get_missing_entries(tagger, entries);
+  assert_equal_s("urn:peerworks.org:entry#2", item_cache_entry_full_id(entries[0]));
+  assert_equal_s("urn:peerworks.org:entry#3", item_cache_entry_full_id(entries[1]));
+  assert_equal_s("urn:peerworks.org:entry#1", item_cache_entry_full_id(entries[2]));
+} END_TEST
+
+START_TEST (test_missing_item_cache_entries_include_the_titles) {
+  Tagger *tagger = build_tagger(document);
+  train_tagger(tagger, item_cache);
+  ItemCacheEntry *entries[3];
+  memset(entries, 0, sizeof(entries));
+  get_missing_entries(tagger, entries);
+  assert_equal_s("a more secularized religion", item_cache_entry_title(entries[0]));
+  assert_equal_s("Secular Faith", item_cache_entry_title(entries[1]));
+  assert_equal_s("Sensible Priors for Sparse Bayesian Learning", item_cache_entry_title(entries[2]));
+} END_TEST
 
 Suite *
 tag_loading_suite(void) {
@@ -140,6 +172,9 @@ tag_loading_suite(void) {
   tcase_add_test(tc_incomplete_tag, test_training_a_tag_with_missing_items_trains_items_exist);
   tcase_add_test(tc_incomplete_tag, test_training_a_tag_with_missing_items_stores_missing_positives);
   tcase_add_test(tc_incomplete_tag, test_training_a_tag_with_missing_items_stores_missing_negatives);
+  tcase_add_test(tc_incomplete_tag, test_can_get_the_missing_item_cache_entries);
+  tcase_add_test(tc_incomplete_tag, test_missing_item_cache_entries_include_the_ids);
+  tcase_add_test(tc_incomplete_tag, test_missing_item_cache_entries_include_the_titles);  
   
   suite_add_tcase(s, tc_complete_tag);
   suite_add_tcase(s, tc_incomplete_tag);

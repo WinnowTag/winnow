@@ -287,6 +287,8 @@ ItemCacheEntry * create_entry_from_atom_xml_document(int feed_id, xmlDocPtr doc,
     }
    
     entry = create_item_cache_entry(id, title, author, alternate, self, spider, content, updated_time, feed_id, time(NULL), xml_source);
+  } else {
+    debug("Missing id title or updated from atom (%s, %s, %s)", id, title, updated);
   }
    
   if (alternate) xmlFree(alternate);
@@ -311,6 +313,10 @@ const char * item_cache_entry_full_id(const ItemCacheEntry * entry) {
 
 const char * item_cache_entry_atom(const ItemCacheEntry * entry) {
   return entry->atom;
+}
+
+const char * item_cache_entry_title(const ItemCacheEntry * entry) {
+  return entry->title;
 }
 
 void free_entry(ItemCacheEntry *entry) {

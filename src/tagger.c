@@ -186,3 +186,74 @@ TaggerState train_tagger(Tagger * tagger, ItemCache * item_cache) {
   
   return state;
 }
+
+/* Creates a ItemCacheEntry from an entry in this Tagger's atom document.
+ *
+ * This is used by get_missing_entries to create ItemCacheEntry objects for
+ * each of the items in the tag that were missing from the ItemCache.
+ */ 
+static ItemCacheEntry * create_entry(xmlXPathContextPtr ctx, char * entry_id) {
+  ItemCacheEntry * entry = NULL;
+  char xpath[265]; // TODO is this big enough for the xpath?
+  snprintf(xpath, 256, "/atom:feed/atom:entry/atom:id[text() = '%s']/..", entry_id);
+    
+  xmlXPathObjectPtr xp = xmlXPathEvalExpression(BAD_CAST xpath, ctx);
+
+  if (!xmlXPathNodeSetIsEmpty(xp->nodesetval)) {
+    debug("Creating entry for missing item %s", entry_id);
+    
+    /* Create a temporary XML document and copy the entry node into it so
+     * we can use the create_entry_from_atom_xml_document function which
+     * expects an entry element as the root node of the document.
+     */
+    xmlDocPtr doc = xmlNewDoc(BAD_CAST "1.0");
+    xmlDocSetRootElement(doc, xmlDocCopyNode(xp->nodesetval->nodeTab[0], doc, 1));
+    entry = create_entry_from_atom_xml_document(0, doc, NULL);
+    xmlFreeDoc(doc);
+      
+    if (entry) {
+      error("Couldn't create entry for %s", entry_id);
+    }
+  } else {
+    fatal("missing item %s in atom document - this should not happen", entry_id);
+  }
+    
+  xmlXPathFreeObject(xp);
+
+  return entry;
+}
+
+/** Gets ItemCacheEntry objects for all the items that are missing
+ *  from the item cache.
+ *
+ *  @param tagger The tagger to get the missing items from. This should
+ *         be a tagger that is partially trained. If the tagger is not
+ *         partially trained or had no missing items, this will be a no-op. 
+ *  @param entries A array of ItemCacheEntry* that will be filled with
+ *         the ItemCacheEntries for the missing items.  This should
+ *         be big enough to hold all the missing items in the tagger, i.e.
+ *         it should be tagger->missing_positive_example_count + 
+ *         tagger->missing_negative_example_count in size.
+ */
+int get_missing_entries(Tagger * tagger, ItemCacheEntry ** entries) {
+  if (tagger) {
+    int i;
+    
+     xmlDocPtr doc = xmlParseDoc(BAD_CAST tagger->atom);
+     xmlXPathContextPtr ctx = xmlXPathNewContext(doc);
+     xmlXPathRegisterNs(ctx, BAD_CAST "atom", BAD_CAST ATOM);
+    
+    for (i = 0; i < tagger->missing_positive_example_count; i++) {
+      entries[i] = create_entry(ctx, tagger->missing_positive_examples[i]);
+    }
+    
+    for (i = 0; i < tagger->missing_negative_example_count; i++) {
+      entries[i + tagger->missing_positive_example_count] = create_entry(ctx, tagger->missing_negative_examples[i]);
+    }
+    
+    xmlXPathFreeContext(ctx);
+    xmlFreeDoc(doc);
+  }
+  
+  return 0;
+}

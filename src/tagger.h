@@ -81,5 +81,6 @@ typedef struct TAGGER {
 
 extern Tagger *    build_tagger(const char * atom);
 extern TaggerState train_tagger(Tagger * tagger, ItemCache * item_cache);
+extern int         get_missing_entries(Tagger * tagger, ItemCacheEntry ** entries);
 
 #endif /* _TAGGER_H_ */
