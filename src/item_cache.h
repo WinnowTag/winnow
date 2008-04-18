@@ -62,8 +62,7 @@ extern int          item_cache_atomize            (ItemCache *item_cache, const 
 extern char *       item_cache_globalize          (ItemCache *item_cache, int atom);
 extern void         free_item_cache               (ItemCache *is);
 
-extern ItemCacheEntry * create_item_cache_entry(int id, 
-                                                 const char * full_id,
+extern ItemCacheEntry * create_item_cache_entry( const char * full_id,
                                                  const char * title,
                                                  const char * author,
                                                  const char * alternate,
@@ -77,6 +76,7 @@ extern ItemCacheEntry * create_item_cache_entry(int id,
 extern ItemCacheEntry * create_entry_from_atom_xml_document(int feed_id, xmlDocPtr doc, const char * xml_source);
 extern int item_cache_entry_id(const ItemCacheEntry *entry);
 extern const char * item_cache_entry_full_id(const ItemCacheEntry *entry);
+extern const char * item_cache_entry_title(const ItemCacheEntry *entry);
 extern void free_entry(ItemCacheEntry *entry);
 extern const char * item_cache_entry_atom(const ItemCacheEntry *entry);
 extern Feed * create_feed(int id, const char * title);

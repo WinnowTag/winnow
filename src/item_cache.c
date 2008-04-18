@@ -33,8 +33,8 @@
 #define FETCH_ITEM_TOKENS_SQL "select token_id, frequency from entry_tokens where entry_id = ?"
 #define FETCH_ALL_ITEMS_SQL "select full_id, id, strftime('%s', updated) from entries where updated > (julianday('now') - ?) order by updated desc"
 #define FETCH_RANDOM_BACKGROUND "select entry_id from random_backgrounds"
-#define INSERT_ENTRY_SQL "insert or replace into entries (id, full_id, title, author, alternate, self, spider, content, updated, feed_id, created_at) \
-                          VALUES (:id, :full_id, :title, :author, :alternate, :self, :spider, :content, julianday(:updated, 'unixepoch'), :feed_id, julianday(:created_at, 'unixepoch'))"
+#define INSERT_ENTRY_SQL "insert or replace into entries (full_id, title, author, alternate, self, spider, content, updated, feed_id, created_at) \
+                          VALUES (:full_id, :title, :author, :alternate, :self, :spider, :content, julianday(:updated, 'unixepoch'), :feed_id, julianday(:created_at, 'unixepoch'))"
 #define DELETE_ENTRY_SQL "delete from entries where id = ?"
 #define INSERT_FEED_SQL "insert or replace into feeds VALUES (?, ?)"
 #define DELETE_FEED_SQL "delete from feeds where id = ?"
@@ -81,8 +81,8 @@ typedef struct UPDATE_JOB {
 } UpdateJob;
 
 struct ITEM_CACHE_ENTRY {
-  int id; 
-  char * full_id;
+  int id;          /* This is the DB id */
+  char * full_id;  /* This is the "global" id */
   char * title;
   char * author;
   char * alternate;
@@ -215,8 +215,7 @@ static UpdateJob * create_add_job(Item * item) {
  * 
  * This maps to the entries table in the database.
  */
-ItemCacheEntry * create_item_cache_entry(int id, 
-                                          const char * full_id,
+ItemCacheEntry * create_item_cache_entry( const char * full_id,
                                           const char * title,
                                           const char * author,
                                           const char * alternate,
@@ -230,8 +229,7 @@ ItemCacheEntry * create_item_cache_entry(int id,
   ItemCacheEntry *entry = calloc(1, sizeof(struct ITEM_CACHE_ENTRY));
   
   if (entry) {
-    debug("new entry %i", id);
-    entry->id = id;
+    debug("new entry %s", full_id);
     entry->feed_id = feed_id;
     entry->updated = updated;
     entry->created_at = created_at;
@@ -251,10 +249,11 @@ ItemCacheEntry * create_item_cache_entry(int id,
 }
 
 static ItemCacheEntry * copy_entry(const ItemCacheEntry * entry) {
-  return create_item_cache_entry(entry->id, entry->full_id, entry->title, entry->author, entry->alternate,
+  ItemCacheEntry *copy = create_item_cache_entry(entry->full_id, entry->title, entry->author, entry->alternate,
                                  entry->self, entry->spider, entry->content, entry->updated, entry->feed_id,
                                  entry->created_at, entry->atom);
-  
+  copy->id = entry->id;                                
+  return copy;
 }
 
 /** Create an entry from atom XML.
@@ -275,7 +274,6 @@ ItemCacheEntry * create_entry_from_atom_xml_document(int feed_id, xmlDocPtr doc,
   
   // Must have all of these to create the item
   if (id && title && updated) {
-    int id_i = uri_fragment_id(id);
     struct tm updated_tm;
     memset(&updated_tm, 0, sizeof(updated_tm));
     time_t updated_time = time(NULL);
@@ -288,9 +286,7 @@ ItemCacheEntry * create_entry_from_atom_xml_document(int feed_id, xmlDocPtr doc,
       error("Couldn't parse datetime: %s", updated);
     }
    
-    if (id_i > 0) {      
-      entry = create_item_cache_entry(id_i, id, title, author, alternate, self, spider, content, updated_time, feed_id, time(NULL), xml_source);
-    }
+    entry = create_item_cache_entry(id, title, author, alternate, self, spider, content, updated_time, feed_id, time(NULL), xml_source);
   }
    
   if (alternate) xmlFree(alternate);
@@ -921,22 +917,24 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
     sqlite3_reset(item_cache->fetch_item_stmt);
     
     // Do the insert or replace if it already exists
-    sqlite3_bind_int(item_cache->insert_entry_stmt, 1, entry->id);
-    BIND_TEXT( item_cache->insert_entry_stmt, entry->full_id,   2);
-    BIND_TEXT( item_cache->insert_entry_stmt, entry->title,     3);
-    BIND_TEXT( item_cache->insert_entry_stmt, entry->author,    4);
-    BIND_TEXT( item_cache->insert_entry_stmt, entry->alternate, 5);
-    BIND_TEXT( item_cache->insert_entry_stmt, entry->self,      6);
-    BIND_TEXT( item_cache->insert_entry_stmt, entry->spider,    7);
-    BIND_TEXT( item_cache->insert_entry_stmt, entry->content,   8);
-    sqlite3_bind_double(item_cache->insert_entry_stmt, 9, entry->updated);
-    sqlite3_bind_int(item_cache->insert_entry_stmt, 10, entry->feed_id);
-    sqlite3_bind_double(item_cache->insert_entry_stmt, 11, entry->created_at);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->full_id,   1);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->title,     2);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->author,    3);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->alternate, 4);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->self,      5);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->spider,    6);
+    BIND_TEXT( item_cache->insert_entry_stmt, entry->content,   7);
+    sqlite3_bind_double(item_cache->insert_entry_stmt, 8, entry->updated);
+    sqlite3_bind_int(item_cache->insert_entry_stmt, 9, entry->feed_id);
+    sqlite3_bind_double(item_cache->insert_entry_stmt, 10, entry->created_at);
     
     if (SQLITE_DONE != sqlite3_step(item_cache->insert_entry_stmt)) {
       error("Error inserting item %i: %s", entry->id, item_cache_errmsg(item_cache));
       rc = CLASSIFIER_FAIL;
+    } else {
+      entry->id = sqlite3_last_insert_rowid(item_cache->db);
     }
+
 end:
     sqlite3_clear_bindings(item_cache->insert_entry_stmt);
     sqlite3_reset(item_cache->insert_entry_stmt);    
