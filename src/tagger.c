@@ -190,7 +190,23 @@ static int partially_train(Tagger * tagger, ItemCache * item_cache) {
     free(missing_positive_examples);
     free(missing_negative_examples);
   } else {
-    fatal("TODO: Handle retrain with still missing items");
+    tagger->state = TAGGER_PARTIALLY_TRAINED;    
+    tagger->missing_positive_example_count = missing_positive_example_count;
+    tagger->missing_negative_example_count = missing_negative_example_count;
+    free(tagger->missing_positive_examples);
+    free(tagger->missing_negative_examples);
+    
+    if (tagger->missing_positive_example_count > 0) {
+      tagger->missing_positive_examples = missing_positive_examples;
+    } else {
+      tagger->missing_positive_examples = NULL;
+    }
+    
+    if (tagger->missing_negative_example_count > 0) {
+      tagger->missing_negative_examples = missing_negative_examples;      
+    } else {
+      tagger->missing_negative_examples = NULL;
+    }
   }
   
   return tagger->state;
