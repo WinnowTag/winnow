@@ -141,6 +141,61 @@ static void train_pool(Pool * pool, ItemCache * item_cache, char ** examples,
   }
 }
 
+static int train(Tagger * tagger, ItemCache * item_cache) {
+  tagger->state = TAGGER_TRAINED;    
+  tagger->positive_pool = new_pool();
+  tagger->negative_pool = new_pool();
+
+  train_pool(tagger->positive_pool, item_cache, 
+             tagger->positive_examples, 
+             tagger->positive_example_count, 
+             tagger->missing_positive_examples, 
+            &tagger->missing_positive_example_count);
+  train_pool(tagger->negative_pool, item_cache, 
+             tagger->negative_examples, 
+             tagger->negative_example_count,
+             tagger->missing_negative_examples, 
+            &tagger->missing_negative_example_count);
+           
+  if (tagger->missing_positive_example_count > 0 || tagger->missing_negative_example_count > 0) {
+    tagger->state = TAGGER_PARTIALLY_TRAINED;
+  }
+  
+  return tagger->state;
+}
+
+static int partially_train(Tagger * tagger, ItemCache * item_cache) {
+  char ** missing_positive_examples = calloc(tagger->positive_example_count, sizeof(char*));
+  char ** missing_negative_examples = calloc(tagger->negative_example_count, sizeof(char*));
+  int missing_positive_example_count = 0;
+  int missing_negative_example_count = 0;
+  
+  train_pool(tagger->positive_pool, item_cache,
+             tagger->missing_positive_examples,
+             tagger->missing_positive_example_count,
+             missing_positive_examples,
+             &missing_positive_example_count);
+  train_pool(tagger->negative_pool, item_cache,
+            tagger->missing_negative_examples,
+            tagger->missing_negative_example_count,
+            missing_negative_examples,
+            &missing_negative_example_count);
+            
+  if (missing_positive_example_count == 0 && missing_negative_example_count == 0) {
+    tagger->state = TAGGER_TRAINED;
+    tagger->missing_positive_example_count = tagger->missing_negative_example_count = 0;
+    free(tagger->missing_positive_examples);
+    free(tagger->missing_negative_examples);
+    tagger->missing_positive_examples = tagger->missing_negative_examples = NULL;
+    free(missing_positive_examples);
+    free(missing_negative_examples);
+  } else {
+    fatal("TODO: Handle retrain with still missing items");
+  }
+  
+  return tagger->state;
+}
+
 /** Trains the tagger using it's examples.
  *
  *  This will build the positive and negative pools for the the tagger.
@@ -164,24 +219,9 @@ TaggerState train_tagger(Tagger * tagger, ItemCache * item_cache) {
   
   if (tagger && item_cache) {
     if (tagger->state == TAGGER_LOADED) {      
-      state = tagger->state = TAGGER_TRAINED;    
-      tagger->positive_pool = new_pool();
-      tagger->negative_pool = new_pool();
-    
-      train_pool(tagger->positive_pool, item_cache, 
-                 tagger->positive_examples, 
-                 tagger->positive_example_count, 
-                 tagger->missing_positive_examples, 
-                &tagger->missing_positive_example_count);
-      train_pool(tagger->negative_pool, item_cache, 
-                 tagger->negative_examples, 
-                 tagger->negative_example_count,
-                 tagger->missing_negative_examples, 
-                &tagger->missing_negative_example_count);
-               
-      if (tagger->missing_positive_example_count > 0 || tagger->missing_negative_example_count > 0) {
-        state = tagger->state = TAGGER_PARTIALLY_TRAINED;
-      }
+      state = train(tagger, item_cache);
+    } else if (tagger->state == TAGGER_PARTIALLY_TRAINED) {
+      state = partially_train(tagger, item_cache);
     } else {
       error("Tried to train an already trained tag.  This is probably programmer error.");
       state = TAGGER_SEQUENCE_ERROR;
