@@ -80,6 +80,25 @@ START_TEST (test_training_twice_returns_SEQUENCE_ERROR) {
   assert_equal(TAGGER_SEQUENCE_ERROR, state);
 } END_TEST
 
+START_TEST (test_training_a_tagger_with_all_items_in_the_cache_has_zero_missing_item_counts) {
+  Tagger *tagger = build_tagger(document);
+  train_tagger(tagger, item_cache);
+  assert_equal(0, tagger->missing_positive_example_count);
+  assert_equal(0, tagger->missing_negative_example_count);
+} END_TEST
+
+START_TEST (test_completely_trained_tag_returns_no_missing_items) {
+  Tagger *tagger = build_tagger(document);
+  train_tagger(tagger, item_cache);
+  ItemCacheEntry *entries[3];
+  memset(entries, 0, sizeof(entries));
+  int rc = get_missing_entries(tagger, entries);
+  assert_equal(1, rc);
+  assert_null(entries[0]);
+  assert_null(entries[1]);
+  assert_null(entries[2]);
+} END_TEST
+
 /** Tests with missing items */
 START_TEST (test_training_a_tag_with_missing_items_returns_TAGGER_PARTIALLY_TRAINED) {
   Tagger *tagger = build_tagger(document);
@@ -164,6 +183,8 @@ tag_loading_suite(void) {
   tcase_add_test(tc_complete_tag, test_training_a_tag_with_all_items_in_the_cache_sets_state_to_TAGGER_TRAINED);
   tcase_add_test(tc_complete_tag, test_train_merges_examples_into_pools);
   tcase_add_test(tc_complete_tag, test_training_twice_returns_SEQUENCE_ERROR);
+  tcase_add_test(tc_complete_tag, test_training_a_tagger_with_all_items_in_the_cache_has_zero_missing_item_counts);
+  tcase_add_test(tc_complete_tag, test_completely_trained_tag_returns_no_missing_items);
 
   TCase *tc_incomplete_tag = tcase_create("incomplete_tag.atom");
   tcase_add_checked_fixture(tc_incomplete_tag, setup_incomplete, teardown);

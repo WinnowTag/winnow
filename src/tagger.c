@@ -236,7 +236,9 @@ static ItemCacheEntry * create_entry(xmlXPathContextPtr ctx, char * entry_id) {
  *         tagger->missing_negative_example_count in size.
  */
 int get_missing_entries(Tagger * tagger, ItemCacheEntry ** entries) {
-  if (tagger) {
+  int rc = OK;
+  
+  if (tagger && tagger->state == TAGGER_PARTIALLY_TRAINED) {
     int i;
     
      xmlDocPtr doc = xmlParseDoc(BAD_CAST tagger->atom);
@@ -253,7 +255,9 @@ int get_missing_entries(Tagger * tagger, ItemCacheEntry ** entries) {
     
     xmlXPathFreeContext(ctx);
     xmlFreeDoc(doc);
+  } else {
+    rc = FAIL;
   }
   
-  return 0;
+  return rc;
 }
