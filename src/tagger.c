@@ -169,11 +169,15 @@ TaggerState train_tagger(Tagger * tagger, ItemCache * item_cache) {
       tagger->negative_pool = new_pool();
     
       train_pool(tagger->positive_pool, item_cache, 
-                 tagger->positive_examples, tagger->positive_example_count, 
-                 tagger->missing_positive_examples, &tagger->missing_positive_example_count);
+                 tagger->positive_examples, 
+                 tagger->positive_example_count, 
+                 tagger->missing_positive_examples, 
+                &tagger->missing_positive_example_count);
       train_pool(tagger->negative_pool, item_cache, 
-                 tagger->negative_examples, tagger->negative_example_count,
-                 tagger->missing_negative_examples, &tagger->missing_negative_example_count);
+                 tagger->negative_examples, 
+                 tagger->negative_example_count,
+                 tagger->missing_negative_examples, 
+                &tagger->missing_negative_example_count);
                
       if (tagger->missing_positive_example_count > 0 || tagger->missing_negative_example_count > 0) {
         state = tagger->state = TAGGER_PARTIALLY_TRAINED;
