@@ -210,6 +210,15 @@ static int partially_train(Tagger * tagger, ItemCache * item_cache) {
  *  in the missing id arrays.  If this happens the tagger state will be
  *  set to TAGGER_PARTIALLY_TRAINED and this will be returned.
  *
+ *  If a Tagger in a PARTIAL_TRAINED state is passed in, this function
+ *  attempt to fetch the missing items from the item cache and add them
+ *  to the pools.  If all the missing items are found the Tagger will
+ *  change to the TAGGER_TRAINED state, if some missing items are still
+ *  missing, the tagger will stay in the TAGGER_PARTIALLY_TRAINED state,
+ *  the misisng example counts and arrays will be updated to reflect the
+ *  items that are still missing and the items that were found will be
+ *  added to the pools.
+ *
  *  @params tagger The tagger to train.
  *  @params item_cache The item cache to get the items from.
  *  @return The new state of the tagger.
@@ -218,13 +227,17 @@ TaggerState train_tagger(Tagger * tagger, ItemCache * item_cache) {
   TaggerState state = UNKNOWN;
   
   if (tagger && item_cache) {
-    if (tagger->state == TAGGER_LOADED) {      
-      state = train(tagger, item_cache);
-    } else if (tagger->state == TAGGER_PARTIALLY_TRAINED) {
-      state = partially_train(tagger, item_cache);
-    } else {
-      error("Tried to train an already trained tag.  This is probably programmer error.");
-      state = TAGGER_SEQUENCE_ERROR;
+    switch (tagger->state) {
+      case TAGGER_LOADED:
+        state = train(tagger, item_cache);
+        break;
+      case TAGGER_PARTIALLY_TRAINED:
+        state = partially_train(tagger, item_cache);
+        break;
+      default:
+        error("Tried to train an already trained tag.  This is probably programmer error.");
+        state = TAGGER_SEQUENCE_ERROR;
+      break;
     }
   }
   
