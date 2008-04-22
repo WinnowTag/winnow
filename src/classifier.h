@@ -93,7 +93,8 @@ typedef struct TAGGING {
 TrainedClassifier *  train       (const Tag *tag, const ItemCache *item_cache);
 Classifier        *  precompute  (const TrainedClassifier*, const Pool * random_background);
 Tagging           *  classify    (const Classifier *classifier, const Item *item);
-double                     chi2Q       (double x, int v);
+double               chi2Q       (double x, int v);
+double               probability_hook (const Pool * positive_pool, const Pool * negative_pool, const Pool * random_bg, int token_id, double bias);
 
 /** Only in header for testing - shouldn't actual use it */
 const Clue **              select_clues(const Classifier*, const Item*, int *num_clues);

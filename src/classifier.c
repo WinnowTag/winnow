@@ -443,6 +443,23 @@ static double chi2_combine(const Clue **clues, int num_clues) {
  * These functions provide the API to the classifier for the outside world.
  */
 
+/** This function is used to provide a hook to calculate the probability for a token given
+ *  a positive, negative and random background pool.  This function fulfils the interface
+ *  defined by the Tagger module.
+ */
+double probability_hook(const Pool * positive_pool, const Pool * negative_pool, const Pool * random_bg, int token_id, double bias) {
+  ProbToken positive_token   = {pool_token_frequency(positive_pool, token_id), pool_total_tokens(positive_pool) / bias};
+  ProbToken negative_token   = {pool_token_frequency(negative_pool, token_id), pool_total_tokens(negative_pool) * bias};
+  ProbToken background_token = {pool_token_frequency(random_bg, token_id), pool_total_tokens(random_bg) * bias};
+  
+  const int fg_total_tokens = positive_token.pool_size;
+  const int bg_total_tokens = negative_token.pool_size + background_token.pool_size;
+  const ProbToken *foregrounds[] = {&positive_token};
+  const ProbToken *backgrounds[] = {&negative_token, &background_token};
+
+  return probability(foregrounds, 1, backgrounds, 2, fg_total_tokens, bg_total_tokens);
+}
+
 Classifier * precompute(const TrainedClassifier *tc, const Pool *background) {
   Classifier *classifier = malloc(sizeof(struct CLASSIFIER));
   if (NULL != classifier) {

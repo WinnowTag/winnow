@@ -27,7 +27,30 @@ static ItemCache *item_cache;
  *   Unit tests for precomputing
  *
  *************************************************************/
-
+START_TEST (test_probability_hook_with_bias) {
+  int tokens_1[][2] = {1, 5, 2, 15};
+  int tokens_2[][2] = {1, 5, 2, 5};
+  Item *i1 = create_item_with_tokens((unsigned char*) "1", tokens_1, 2);
+  Item *i2 = create_item_with_tokens((unsigned char*) "2", tokens_2, 2);
+  
+  Pool *rb = new_pool();
+  Pool *positive_pool = new_pool();
+  Pool *negative_pool = new_pool();
+  pool_add_item(positive_pool, i1);
+  pool_add_item(negative_pool, i2);
+  
+  double unbiased_prob = probability_hook(positive_pool, negative_pool, rb, 1, 1.0);
+  double biased_prob   = probability_hook(positive_pool, negative_pool, rb, 1, 1.1);
+    
+  assert_equal_f(0.33912483912, unbiased_prob);
+  assert_equal_f(0.383957, biased_prob);
+  
+  free_pool(rb);
+  free_pool(positive_pool);
+  free_pool(negative_pool);
+  free_item(i1);
+  free_item(i2);
+} END_TEST
 
 #define TOKEN_PROBS(pc, ps, nc, ns, bc, bs)         \
       ProbToken positive, negative, random; \
@@ -275,7 +298,7 @@ classifier_suite(void) {
   tcase_add_checked_fixture(tc_precomputer, setup_mock_items, teardown_mock_items);
   // tcase_add_test(tc_precomputer, precompute_keeps_user_and_tag);
   // tcase_add_test(tc_precomputer, precompute_creates_probabilities_for_each_token_in_tc);
-  // tcase_add_test(tc_precomputer, test_with_bias);
+  tcase_add_test(tc_precomputer, test_probability_hook_with_bias);
   tcase_add_test(tc_precomputer, probability_1);
   tcase_add_test(tc_precomputer, probability_2);
   tcase_add_test(tc_precomputer, probability_3);

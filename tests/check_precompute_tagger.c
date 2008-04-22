@@ -133,38 +133,6 @@ START_TEST (test_precompute_clears_out_training) {
   assert_null(tagger->negative_pool);
 } END_TEST
 
-// START_TEST (test_with_bias) {
-//   int tokens_1[][2] = {1, 5, 2, 15};
-//   int tokens_2[][2] = {1, 5, 2, 5};
-//   Item *i1 = create_item_with_tokens((unsigned char*) "1", tokens_1, 2);
-//   Item *i2 = create_item_with_tokens((unsigned char*) "2", tokens_2, 2);
-//   
-//   Pool *rb = new_pool();
-//   TrainedClassifier tc;
-//   tc.user = "user";
-//   tc.tag_name = "tag";
-//   tc.bias = 1.0;
-//   tc.positive_pool = new_pool();
-//   tc.negative_pool = new_pool();
-//   pool_add_item(tc.positive_pool, i1);
-//   pool_add_item(tc.negative_pool, i2);
-//   
-//   Classifier *cls = precompute(&tc, rb);
-//   tc.bias = 1.1;
-//   Classifier *cls_biased = precompute(&tc, rb);
-//     
-//   assert_equal_f(0.33912483912, cls_probability_for(cls, 1));
-//   assert_equal_f(0.383957, cls_probability_for(cls_biased, 1));
-//   
-//   free_classifier(cls);
-//   free_classifier(cls_biased);
-//   free_pool(rb);
-//   free_pool(tc.positive_pool);
-//   free_pool(tc.negative_pool);
-//   free_item(i1);
-//   free_item(i2);
-// } END_TEST
-
 Suite *
 tag_precompute_suite(void) {
   Suite *s = suite_create("Tagger Precompute");  
