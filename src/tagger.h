@@ -11,11 +11,13 @@
 
 #include <time.h>
 #include "item_cache.h"
+#include "clue.h"
 
 typedef enum TAGGER_STATE {
   TAGGER_LOADED,
   TAGGER_PARTIALLY_TRAINED,
   TAGGER_TRAINED,
+  TAGGER_PRECOMPUTED,
   UNKNOWN,
   TAGGER_SEQUENCE_ERROR
 } TaggerState;
@@ -75,12 +77,16 @@ typedef struct TAGGER {
   Pool *positive_pool;
   Pool *negative_pool;
   
+  /**** Precomputed classifier state ****/
+  ClueList *clues;
+  
   /* Hold on to the latest atom document, in case we need it? */
   char *atom;
 } Tagger;
 
 extern Tagger *    build_tagger(const char * atom);
 extern TaggerState train_tagger(Tagger * tagger, ItemCache * item_cache);
+extern TaggerState precompute_tagger(Tagger * tagger, const Pool * random_background);
 extern int         get_missing_entries(Tagger * tagger, ItemCacheEntry ** entries);
 
 #endif /* _TAGGER_H_ */

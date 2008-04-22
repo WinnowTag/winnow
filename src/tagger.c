@@ -260,6 +260,35 @@ TaggerState train_tagger(Tagger * tagger, ItemCache * item_cache) {
   return state;
 }
 
+/** Precomputes the tagger's clues.
+ *
+ *  TODO document precompute_tagger
+ */
+TaggerState precompute_tagger(Tagger * tagger, const Pool * random_background) {
+  TaggerState state = TAGGER_SEQUENCE_ERROR;
+  
+  if (tagger && tagger->state == TAGGER_TRAINED) {
+    Token working_token;
+    state = tagger->state = TAGGER_PRECOMPUTED;
+    tagger->clues = new_clue_list();
+        
+    for (working_token.id = 0; pool_next_token(tagger->positive_pool, &working_token); ) {
+      add_clue(tagger->clues, working_token.id, 0.0);
+    }
+    
+    for (working_token.id = 0; pool_next_token(tagger->negative_pool, &working_token); ) {
+      add_clue(tagger->clues, working_token.id, 0.0);
+    }
+    
+    free_pool(tagger->positive_pool);
+    free_pool(tagger->negative_pool);
+    tagger->positive_pool = NULL;
+    tagger->negative_pool = NULL;
+  }
+  
+  return state;
+}
+
 /* Creates a ItemCacheEntry from an entry in this Tagger's atom document.
  *
  * This is used by get_missing_entries to create ItemCacheEntry objects for

@@ -37,3 +37,4 @@ database
 tests/fixtures/valid-copy.db
 tests/fixtures/copy.db
 classifier.pid
+check_precompute_tagger
