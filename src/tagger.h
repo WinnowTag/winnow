@@ -46,6 +46,9 @@ typedef struct TAGGER {
   /* The bias of the tag. */
   double bias;
   
+  /* The function that is used for calculating the probability for a token. */
+  double (*probability_function)(const Pool *positive, const Pool *negative, const Pool *random_bg, int token_id, double bias);
+  
   /**** Tag examples *****/
   
   /* The number of positive examples */

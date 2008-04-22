@@ -34,13 +34,18 @@ static void read_document(const char * filename) {
   }
 }
 
+static double probability_function(const Pool *positive, const Pool *negative, const Pool *random_bg, int token_id, double bias) {
+  return 0.75;
+}
+
 static void setup(void) {
   read_document("fixtures/complete_tag.atom");
   item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
   tagger = build_tagger(document);
   train_tagger(tagger, item_cache);
+  tagger->probability_function = &probability_function;
   assert_equal(TAGGER_TRAINED, tagger->state);
-  random_background = new_pool();
+  random_background = new_pool();  
 }
 
 static void teardown(void) {
@@ -106,6 +111,8 @@ START_TEST (test_after_precompute_there_are_clues_for_every_token_in_the_pool) {
     Clue *clue = get_clue(tagger->clues, token);
     if (clue) {
       clues++;
+      // should be what is returned by the probability function
+      assert_equal_f(0.75, clue->probability);
     }
   }
   
