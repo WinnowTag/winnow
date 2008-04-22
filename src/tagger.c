@@ -262,7 +262,15 @@ TaggerState train_tagger(Tagger * tagger, ItemCache * item_cache) {
 
 /** Precomputes the tagger's clues.
  *
- *  TODO document precompute_tagger
+ *  This function expects a tagger in the TRAINED state.
+ *
+ *  This will create and fill the clues list with probabilities for all
+ *  tokens in all the pools in the tagger.  It uses the tagger's probability
+ *  function to generate the probability for each token.
+ *
+ *  Once complete the tagger will be in the PRECOMPUTED state, the positive
+ *  and negative pools will have been free'd and set to NULL and the tagger
+ *  can be used to classify items.
  */
 TaggerState precompute_tagger(Tagger * tagger, const Pool * random_background) {
   TaggerState state = TAGGER_SEQUENCE_ERROR;
