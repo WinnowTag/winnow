@@ -48,6 +48,13 @@ static void setup(void) {
   random_background = new_pool();  
 }
 
+static void setup_with_random_background(void) {
+  setup();
+  int freeit;
+  Item *item = item_cache_fetch_item(item_cache, "urn:peerworks.org:entry#709254", &freeit);
+  pool_add_item(random_background, item);
+}
+
 static void teardown(void) {
   if (document) {
    free(document);
@@ -133,6 +140,28 @@ START_TEST (test_precompute_clears_out_training) {
   assert_null(tagger->negative_pool);
 } END_TEST
 
+START_TEST (test_precompute_with_random_background_includes_tokens_in_the_random_background) {
+  precompute_tagger(tagger, random_background);
+  
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select distinct token_id from entry_tokens where entry_id in (709254, 753459, 880389, 886294, 888769, 884409)", -1, &stmt, NULL);
+  
+  int clues = 0;
+  while (SQLITE_ROW == sqlite3_step(stmt)) {
+    int token = sqlite3_column_int(stmt, 0);
+    Clue *clue = get_clue(tagger->clues, token);
+    if (clue) {
+      clues++;
+      // should be what is returned by the probability function
+      assert_equal_f(0.75, clue->probability);
+    }
+  }
+  
+  assert_equal(606, clues);
+} END_TEST
+
 Suite *
 tag_precompute_suite(void) {
   Suite *s = suite_create("Tagger Precompute");  
@@ -146,7 +175,12 @@ tag_precompute_suite(void) {
   tcase_add_test(tc_precomputer, test_precompute_clears_out_training);
   tcase_add_test(tc_precomputer, test_after_precompute_there_are_clues_for_every_token_in_the_pool);
 
+  TCase *tc_precomputer_with_rnd = tcase_create("Precomputer with random background");
+  tcase_add_checked_fixture(tc_precomputer_with_rnd, setup_with_random_background, teardown);
+  tcase_add_test(tc_precomputer_with_rnd, test_precompute_with_random_background_includes_tokens_in_the_random_background);
+  
   suite_add_tcase(s, tc_precomputer);
+  suite_add_tcase(s, tc_precomputer_with_rnd);
   return s;
 }
 

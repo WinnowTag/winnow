@@ -272,6 +272,12 @@ TaggerState precompute_tagger(Tagger * tagger, const Pool * random_background) {
     state = tagger->state = TAGGER_PRECOMPUTED;
     tagger->clues = new_clue_list();
         
+    for (working_token.id = 0; pool_next_token(random_background, &working_token); ) {
+      double probability = tagger->probability_function(tagger->positive_pool, tagger->negative_pool, 
+                                                        random_background, working_token.id, tagger->bias);
+      add_clue(tagger->clues, working_token.id, probability);
+    }
+    
     for (working_token.id = 0; pool_next_token(tagger->positive_pool, &working_token); ) {
       double probability = tagger->probability_function(tagger->positive_pool, tagger->negative_pool, 
                                                         random_background, working_token.id, tagger->bias);
