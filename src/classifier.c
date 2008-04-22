@@ -447,7 +447,7 @@ static double chi2_combine(const Clue **clues, int num_clues) {
  *  a positive, negative and random background pool.  This function fulfils the interface
  *  defined by the Tagger module.
  */
-double probability_hook(const Pool * positive_pool, const Pool * negative_pool, const Pool * random_bg, int token_id, double bias) {
+double naive_bayes_probability(const Pool * positive_pool, const Pool * negative_pool, const Pool * random_bg, int token_id, double bias) {
   ProbToken positive_token   = {pool_token_frequency(positive_pool, token_id), pool_total_tokens(positive_pool) / bias};
   ProbToken negative_token   = {pool_token_frequency(negative_pool, token_id), pool_total_tokens(negative_pool) * bias};
   ProbToken background_token = {pool_token_frequency(random_bg, token_id), pool_total_tokens(random_bg) * bias};

@@ -12,6 +12,7 @@
 #include <string.h>
 #include <sqlite3.h>
 #include "../src/tagger.h"
+#include "../src/classifier.h"
 #include "assertions.h"
 
 static char * document;
@@ -51,7 +52,7 @@ static void setup(void) {
 static void setup_with_random_background(void) {
   setup();
   int freeit;
-  Item *item = item_cache_fetch_item(item_cache, "urn:peerworks.org:entry#709254", &freeit);
+  Item *item = item_cache_fetch_item(item_cache, (unsigned char*) "urn:peerworks.org:entry#709254", &freeit);
   pool_add_item(random_background, item);
 }
 
@@ -62,24 +63,6 @@ static void teardown(void) {
 
   free_item_cache(item_cache);
 }
-
-// START_TEST (precompute_keeps_user_and_tag) {
-//   Pool *random_background = new_pool();
-//   TrainedClassifier tc;
-//   tc.user = "user";
-//   tc.tag_name = "tag";
-//   tc.user_id = 34;
-//   tc.tag_id = 56;
-//   tc.positive_pool = NULL;
-//   tc.negative_pool = NULL;
-//   Classifier *classifier = precompute(&tc, random_background);
-//   assert_not_null(classifier);
-//   assert_equal_s("user", cls_user(classifier));
-//   assert_equal_s("tag", cls_tag_name(classifier));
-//   assert_equal(34, cls_user_id(classifier));
-//   assert_equal(56, cls_tag_id(classifier));
-//   free_pool(random_background);
-// } END_TEST
 
 START_TEST (test_precompute_with_trained_tagger_returns_TAGGER_PRECOMPUTED) {
   int rc = precompute_tagger(tagger, random_background);
@@ -126,14 +109,6 @@ START_TEST (test_after_precompute_there_are_clues_for_every_token_in_the_pool) {
   assert_equal(542, clues);
 } END_TEST
 
-  // assert_between_ex(0.0, 1.0, cls_probability_for(cls, 1));
-  // assert_between_ex(0.0, 1.0, cls_probability_for(cls, 2));
-  // assert_between_ex(0.0, 1.0, cls_probability_for(cls, 3));
-  // assert_equal(0.5, cls_probability_for(cls, 4));
-  // 
-  // free_classifier(cls);
-  // free_pool(random_background);
-
 START_TEST (test_precompute_clears_out_training) {
   precompute_tagger(tagger, random_background);
   assert_null(tagger->positive_pool);
@@ -162,6 +137,28 @@ START_TEST (test_precompute_with_random_background_includes_tokens_in_the_random
   assert_equal(606, clues);
 } END_TEST
 
+START_TEST (test_make_sure_it_works_with_naive_bayes_probability_function) {
+  tagger->probability_function = &naive_bayes_probability;
+  precompute_tagger(tagger, random_background);
+  
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select distinct token_id from entry_tokens where entry_id in (709254, 753459, 880389, 886294, 888769, 884409)", -1, &stmt, NULL);
+  
+  int clues = 0;
+  while (SQLITE_ROW == sqlite3_step(stmt)) {
+    int token = sqlite3_column_int(stmt, 0);
+    Clue *clue = get_clue(tagger->clues, token);
+    if (clue) {
+      clues++;
+      assert_between_ex(0.0, 1.0, clue->probability);
+    }
+  }
+  
+  assert_equal(606, clues);
+} END_TEST
+
 Suite *
 tag_precompute_suite(void) {
   Suite *s = suite_create("Tagger Precompute");  
@@ -178,6 +175,7 @@ tag_precompute_suite(void) {
   TCase *tc_precomputer_with_rnd = tcase_create("Precomputer with random background");
   tcase_add_checked_fixture(tc_precomputer_with_rnd, setup_with_random_background, teardown);
   tcase_add_test(tc_precomputer_with_rnd, test_precompute_with_random_background_includes_tokens_in_the_random_background);
+  tcase_add_test(tc_precomputer_with_rnd, test_make_sure_it_works_with_naive_bayes_probability_function);
   
   suite_add_tcase(s, tc_precomputer);
   suite_add_tcase(s, tc_precomputer_with_rnd);

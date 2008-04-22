@@ -39,8 +39,8 @@ START_TEST (test_probability_hook_with_bias) {
   pool_add_item(positive_pool, i1);
   pool_add_item(negative_pool, i2);
   
-  double unbiased_prob = probability_hook(positive_pool, negative_pool, rb, 1, 1.0);
-  double biased_prob   = probability_hook(positive_pool, negative_pool, rb, 1, 1.1);
+  double unbiased_prob = naive_bayes_probability(positive_pool, negative_pool, rb, 1, 1.0);
+  double biased_prob   = naive_bayes_probability(positive_pool, negative_pool, rb, 1, 1.1);
     
   assert_equal_f(0.33912483912, unbiased_prob);
   assert_equal_f(0.383957, biased_prob);
