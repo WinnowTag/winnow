@@ -307,6 +307,17 @@ TaggerState precompute_tagger(Tagger * tagger, const Pool * random_background) {
   return state;
 }
 
+TaggerState classify_item(const Tagger *tagger, const Item *item, double * probability) {
+  TaggerState rc = TAGGER_SEQUENCE_ERROR;
+  
+  if (tagger && tagger->state == TAGGER_PRECOMPUTED && tagger->classification_function != NULL && probability != NULL) {
+    rc = TAGGER_OK;
+    *probability = tagger->classification_function(tagger->clues, item);
+  }
+  
+  return rc;
+}
+
 /* Creates a ItemCacheEntry from an entry in this Tagger's atom document.
  *
  * This is used by get_missing_entries to create ItemCacheEntry objects for

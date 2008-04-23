@@ -19,7 +19,8 @@ typedef enum TAGGER_STATE {
   TAGGER_TRAINED,
   TAGGER_PRECOMPUTED,
   UNKNOWN,
-  TAGGER_SEQUENCE_ERROR
+  TAGGER_SEQUENCE_ERROR,
+  TAGGER_OK
 } TaggerState;
 
 typedef struct TAGGER {
@@ -48,6 +49,9 @@ typedef struct TAGGER {
   
   /* The function that is used for calculating the probability for a token. */
   double (*probability_function)(const Pool *positive, const Pool *negative, const Pool *random_bg, int token_id, double bias);
+  
+  /* The function that is used to classify a item */
+  double (*classification_function)(const ClueList *clues, const Item *item);
   
   /**** Tag examples *****/
   
@@ -87,9 +91,10 @@ typedef struct TAGGER {
   char *atom;
 } Tagger;
 
-extern Tagger *    build_tagger(const char * atom);
-extern TaggerState train_tagger(Tagger * tagger, ItemCache * item_cache);
-extern TaggerState precompute_tagger(Tagger * tagger, const Pool * random_background);
-extern int         get_missing_entries(Tagger * tagger, ItemCacheEntry ** entries);
+extern Tagger *    build_tagger        (const char * atom);
+extern TaggerState train_tagger        (Tagger * tagger, ItemCache * item_cache);
+extern TaggerState precompute_tagger   (Tagger * tagger, const Pool * random_background);
+extern TaggerState classify_item       (const Tagger * tagger, const Item * item, double * probability);
+extern int         get_missing_entries (Tagger * tagger, ItemCacheEntry ** entries);
 
 #endif /* _TAGGER_H_ */
