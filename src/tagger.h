@@ -19,9 +19,15 @@ typedef enum TAGGER_STATE {
   TAGGER_TRAINED,
   TAGGER_PRECOMPUTED,
   UNKNOWN,
-  TAGGER_SEQUENCE_ERROR,
-  TAGGER_OK
+  TAGGER_SEQUENCE_ERROR
 } TaggerState;
+
+#define TAGGER_OK 0
+#define TAG_OK 0
+#define TAG_NOT_FOUND 1
+#define TAG_NOT_MODIFIED 2
+#define TAGGER_PENDING_ITEM_ADDITION 3
+#define TAGGER_CHECKED_OUT 4
 
 typedef struct TAGGER {
   /***** Meta data for the tagger *****/
@@ -91,10 +97,26 @@ typedef struct TAGGER {
   char *atom;
 } Tagger;
 
-extern Tagger *    build_tagger        (const char * atom);
-extern TaggerState train_tagger        (Tagger * tagger, ItemCache * item_cache);
-extern TaggerState precompute_tagger   (Tagger * tagger, const Pool * random_background);
-extern TaggerState classify_item       (const Tagger * tagger, const Item * item, double * probability);
-extern int         get_missing_entries (Tagger * tagger, ItemCacheEntry ** entries);
+typedef struct TAGGER_CACHE_OPTIONS {
+  
+} TaggerCacheOptions;
+
+typedef struct TAGGER_CACHE {
+  ItemCache *item_cache;
+  Pool * random_background;
+  /* Function used to fetch tag documents. This is really just a function pointer to help testing. */
+  int (*tag_retriever)(const char * tag_training_url, time_t last_updated, char ** tag_document, char ** errmsg);
+} TaggerCache;
+
+extern Tagger *      build_tagger        (const char * atom);
+extern TaggerState   train_tagger        (Tagger * tagger, ItemCache * item_cache);
+extern TaggerState   precompute_tagger   (Tagger * tagger, const Pool * random_background);
+extern int           classify_item       (const Tagger * tagger, const Item * item, double * probability);
+extern int           get_missing_entries (Tagger * tagger, ItemCacheEntry ** entries);
+
+extern TaggerCache * create_tagger_cache (ItemCache * item_cache, TaggerCacheOptions * options);
+extern void          free_tagger_cache   (TaggerCache * tagger_cache);
+extern int           get_tagger          (TaggerCache * tagger_cache, const char * tag_training_url, Tagger ** tagger, char ** errmsg);
+extern void          release_tagger      (TaggerCache * tagger_cache, Tagger * tagger);
 
 #endif /* _TAGGER_H_ */

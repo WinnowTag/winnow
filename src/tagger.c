@@ -88,6 +88,7 @@ static int load_positive_examples(Tagger *tagger, xmlXPathContextPtr ctx) {
  * in the document.
  *
  * TODO Document the atom format somewhere.
+ * TODO Handle bad XML.
  */
 Tagger * build_tagger(const char * atom) {
   Tagger * tagger = calloc(1, sizeof(struct TAGGER));
@@ -311,8 +312,8 @@ TaggerState precompute_tagger(Tagger * tagger, const Pool * random_background) {
   return state;
 }
 
-TaggerState classify_item(const Tagger *tagger, const Item *item, double * probability) {
-  TaggerState rc = TAGGER_SEQUENCE_ERROR;
+int classify_item(const Tagger *tagger, const Item *item, double * probability) {
+  int rc = TAGGER_SEQUENCE_ERROR;
   
   if (tagger && tagger->state == TAGGER_PRECOMPUTED && tagger->classification_function != NULL && probability != NULL) {
     rc = TAGGER_OK;

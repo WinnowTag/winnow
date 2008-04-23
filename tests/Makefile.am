@@ -1,6 +1,6 @@
 TESTS =  check_tagger_builder check_pool check_train_tagger check_precompute_tagger \
           check_classifier check_pool check_queue check_url_fetching check_clue \
-          check_classify check_item_cache 
+          check_classify check_get_tagger check_item_cache
 #           check_config \
          # check_http    \
          #  check_classification_engine specs
@@ -12,7 +12,7 @@ LDADD =  $(top_builddir)/src/libclassifier.la
 check_PROGRAMS = check_classifier check_pool check_queue check_config check_item_cache \
                  check_classification_engine check_http check_clue check_url_fetching  \
                  check_tagger_builder check_train_tagger check_precompute_tagger \
-                 check_classify
+                 check_classify check_get_tagger
 
 check_classifier_SOURCES = check_classifier.c $(top_builddir)/src/classifier.h
 check_pool_SOURCES       = check_pool.c
@@ -27,6 +27,7 @@ check_tagger_builder_SOURCES = check_tagger_builder.c $(top_builddir)/src/tagger
 check_train_tagger_SOURCES = check_train_tagger.c $(top_builddir)/src/tagger.h
 check_precompute_tagger_SOURCE = check_precompute_tagger.c $(top_builddir)/src/tagger.h $(top_builddir)/src/classifier.h
 check_classify_SOURCE = check_classify.c $(top_builddir)/src/tagger.h $(top_builddir)/src/classifier.h
+check_get_tagger_SOURCE = check_get_tagger.c $(top_builddir)/src/tagger.h $(top_builddir)/src/classifier.h
 
 dist_check_DATA = fixtures conf spec.opts
 dist_check_SCRIPTS = specs item_cache_spec.rb memory_spec.rb spec_helper.rb

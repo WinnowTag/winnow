@@ -39,3 +39,4 @@ tests/fixtures/copy.db
 classifier.pid
 check_precompute_tagger
 check_classify
+check_get_tagger

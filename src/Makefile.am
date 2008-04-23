@@ -36,7 +36,7 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            feature_extractor.h       \
                            xml.c xml.h \
                            uri.h                     \
-                           tagger.c tagger.h
+                           tagger.c tagger.h tagger_cache.c
 
 libclassifier_la_LIBADD = @LTLIBOBJS@
        
