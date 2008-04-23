@@ -940,10 +940,10 @@ static int classify_item(const Item *item, void *memo) {
      
     job->items_classified++;
     debug("classifying %d", item_get_id(item));
-    Tagging *tagging = classify(job->classifiers[i], item);
-    if (!tagging) MALLOC_ERR();
-    
-    job->taggings[job->num_taggings++] = tagging;        
+    // TODO Tagging *tagging = classify(job->classifiers[i], item);
+    //     if (!tagging) MALLOC_ERR();
+    //     
+    //     job->taggings[job->num_taggings++] = tagging;        
   }
 
   job->progress += job->progress_increment;

@@ -111,7 +111,7 @@ START_TEST (probability_7) {
  *   Unit tests for classification
  *
  *************************************************************/
-struct CLASSIFIER classifier;
+ 
 #define assert_tagging(u, t, uid, tid, s, tagging)  \
       assert_not_null(tagging);                     \
       assert_equal(uid, tagging_user_id(tagging));  \
@@ -120,118 +120,104 @@ struct CLASSIFIER classifier;
       assert_equal_s(t, tagging_tag_name(tagging)); \
       assert_equal_f(s, tagging_strength(tagging));
 
+static ClueList clues;
+
 static void setup_classifier_test(void) {
-  classifier.user = "user";
-  classifier.tag_name = "tag";
-  classifier.user_id = 12;
-  classifier.tag_id = 123;
-  classifier.clues = NULL;
-  
-  PWord_t clue_p;
-  JLI(clue_p, classifier.clues, 1);
-  *clue_p = (Word_t)new_clue(1, 0.75);
-  
-  JLI(clue_p, classifier.clues, 2);
-  *clue_p = (Word_t)new_clue(2, 0.51);
-  
-  JLI(clue_p, classifier.clues, 3);
-  *clue_p = (Word_t)new_clue(3, 0.1);
-  
-  JLI(clue_p, classifier.clues, 4);
-  *clue_p = (Word_t)new_clue(4, 0.95);
+  add_clue(&clues, 1, 0.75);
+  add_clue(&clues, 2, 0.51);
+  add_clue(&clues, 3, 0.1);
+  add_clue(&clues, 4, 0.95);  
 }
 
 static void teardown_classifier_test(void) {
-  Word_t bytes;
-  JLFA(bytes, classifier.clues);
+
 }
 
 START_TEST (clue_selection_filters_out_weak_clues) {
   int tokens[][2] = {1, 1, 2, 1};
   Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 2);
   int num_clues;
-  const Clue **clues = select_clues(&classifier, item, &num_clues);
-  assert_not_null(clues);
+  const Clue **selected_clues = select_clues(&clues, item, &num_clues);
+  
+  assert_not_null(selected_clues);
   assert_equal(1, num_clues);
-  assert_equal(1, clue_token_id(clues[0]));
+  assert_equal(1, clue_token_id(selected_clues[0]));
   free_item(item);
-  free(clues);
 } END_TEST
 
 START_TEST (clue_selection_sorted_by_strength) {
   int tokens[][2] = {1, 1, 2, 1, 4, 1};
   Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 3);
   int num_clues;
-  const Clue **clues = select_clues(&classifier, item, &num_clues);
-  assert_not_null(clues);
+  const Clue **selected_clues = select_clues(&clues, item, &num_clues);
+  assert_not_null(selected_clues);
   assert_equal(2, num_clues);
-  assert_equal(4, clue_token_id(clues[0]));
-  assert_equal(1, clue_token_id(clues[1]));
+  assert_equal(4, clue_token_id(selected_clues[0]));
+  assert_equal(1, clue_token_id(selected_clues[1]));
   free_item(item);
-  free(clues);
 } END_TEST
 
 START_TEST (classify_1) {
   int tokens[][2] = {10, 10};
   Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 1);
-  Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 12, 123, 0.5, tagging);
+  double prob = naive_bayes_classify(&clues, item);
+  assert_equal_f(0.5, prob);
   free_item(item);
 } END_TEST
 
 START_TEST (classify_2) {
   int tokens[][2] = {2, 10};
   Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 1);
-  Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 12, 123, 0.5, tagging);
+  double prob = naive_bayes_classify(&clues, item);
+  assert_equal_f(0.5, prob);
   free_item(item);
 } END_TEST
 
 START_TEST (classify_3) {
   int tokens[][2] = {4, 1};
   Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 1);
-  Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 12, 123, 0.89947100800, tagging);
+  double prob = naive_bayes_classify(&clues, item);
+  assert_equal_f(0.89947100800, prob);
   free_item(item);
 } END_TEST
 
 START_TEST (classify_4) {
   int tokens[][2] = {4, 100};
   Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 1);
-  Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 12, 123, 0.89947100800, tagging);
+  double prob = naive_bayes_classify(&clues, item);
+  assert_equal_f(0.89947100800, prob);
   free_item(item);
 } END_TEST
 
 START_TEST (classify_5) {
   int tokens[][2] = {4, 1, 2, 1};
   Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 2);
-  Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 12, 123, 0.89947100800, tagging);
+  double prob = naive_bayes_classify(&clues, item);
+  assert_equal_f(0.89947100800, prob);
   free_item(item);
 } END_TEST
 
 START_TEST (classify_6) {
   int tokens[][2] = {4, 1, 1, 1};
   Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 2);
-  Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 12, 123, 0.90383289433, tagging);
+  double prob = naive_bayes_classify(&clues, item);
+  assert_equal_f(0.90383289433, prob);
   free_item(item);
 } END_TEST
 
 START_TEST (classify_7) {
   int tokens[][2] = {4, 1, 3, 1};
   Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 2);
-  Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 12, 123, 0.59043855740, tagging);
+  double prob = naive_bayes_classify(&clues, item);
+  assert_equal_f(0.59043855740, prob);
   free_item(item);
 } END_TEST
 
 START_TEST (classify_8) {
   int tokens[][2] = {3, 1, 4, 1};
   Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 2);
-  Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 12, 123, 0.59043855740, tagging);
+  double prob = naive_bayes_classify(&clues, item);
+  assert_equal_f(0.59043855740, prob);
   free_item(item);
 } END_TEST
 
@@ -239,16 +225,16 @@ START_TEST (classify_8) {
 START_TEST (classify_9) {
   int tokens[][2] = {3, 1};
   Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 1);
-  Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 12, 123, 0.16771702260, tagging);
+  double prob = naive_bayes_classify(&clues, item);
+  assert_equal_f(0.16771702260, prob);
   free_item(item);
 } END_TEST
 
 START_TEST (classify_10) {
   int tokens[][2] = {1, 1, 2, 1, 3, 1, 4, 1};
   Item *item = create_item_with_tokens((unsigned char*) "1", tokens, 4);
-  Tagging *tagging = classify(&classifier, item);
-  assert_tagging("user", "tag", 12, 123, 0.69125149517, tagging);
+  double prob = naive_bayes_classify(&clues, item);
+  assert_equal_f(0.69125149517, prob);
   free_item(item);
 } END_TEST
 
@@ -296,8 +282,6 @@ classifier_suite(void) {
 
   TCase *tc_precomputer = tcase_create("Precomputer");
   tcase_add_checked_fixture(tc_precomputer, setup_mock_items, teardown_mock_items);
-  // tcase_add_test(tc_precomputer, precompute_keeps_user_and_tag);
-  // tcase_add_test(tc_precomputer, precompute_creates_probabilities_for_each_token_in_tc);
   tcase_add_test(tc_precomputer, test_probability_hook_with_bias);
   tcase_add_test(tc_precomputer, probability_1);
   tcase_add_test(tc_precomputer, probability_2);

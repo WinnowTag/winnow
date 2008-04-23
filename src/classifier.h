@@ -90,12 +90,12 @@ typedef struct TAGGING {
 #define tagging_tag_id(tagging)   tagging->tag_id
 #define tagging_user_id(tagging)  tagging->user_id
 
-Tagging           *  classify    (const Classifier *classifier, const Item *item);
-double               chi2Q       (double x, int v);
-double               naive_bayes_probability (const Pool * positive_pool, const Pool * negative_pool, const Pool * random_bg, int token_id, double bias);
+extern double naive_bayes_classify    (const ClueList *clues, const Item *item);
+extern double chi2Q                   (double x, int v);
+extern double naive_bayes_probability (const Pool * positive_pool, const Pool * negative_pool, const Pool * random_bg, int token_id, double bias);
 
 /** Only in header for testing - shouldn't actual use it */
-const Clue **              select_clues(const Classifier*, const Item*, int *num_clues);
+const Clue **              select_clues(const ClueList*, const Item*, int *num_clues);
 double                     probability (const ProbToken *foreground[], int n_pos,
                                         const ProbToken *background[], int n_neg,
                                         int fg_size, int bg_size);

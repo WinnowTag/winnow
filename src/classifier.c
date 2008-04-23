@@ -372,7 +372,7 @@ static int compare_clues(const void *clue1_p, const void *clue2_p) {
 
 /** Selects the clues from a classifier to use when classifying an item.
  */
-const Clue ** select_clues(const Classifier * classifier, const Item *item, int *num_clues) {
+const Clue ** select_clues(const ClueList * clues, const Item *item, int *num_clues) {
   Token token;
   int i = 0;
   int num_item_tokens = item_get_num_tokens(item);
@@ -382,19 +382,19 @@ const Clue ** select_clues(const Classifier * classifier, const Item *item, int 
   // which is one per item token. Use calloc so it is effectively
   // NULL terminating the array. This will just hold pointers to
   // the actual clues that are stored in the classifier.
-  const Clue **clues = calloc(num_item_tokens, sizeof(Clue*));
+  const Clue **selected_clues = calloc(num_item_tokens, sizeof(Clue*));
   
   token.id = 0;
   while (item_next_token(item, &token)) {
-    const Clue *clue = cls_clue_for(classifier, token.id);
+    const Clue *clue = get_clue(clues, token.id);
     if (NULL != clue && MIN_PROB_STRENGTH <= clue_strength(clue)) {      
-      clues[i++] = clue;
+      selected_clues[i++] = clue;
     }
   }
   
-  qsort(clues, i, sizeof(Clue*), compare_clues); 
+  qsort(selected_clues, i, sizeof(Clue*), compare_clues); 
   *num_clues = MIN(i, max_clues);
-  return clues;
+  return selected_clues;
 }
 
 /** Combines the probabilities for each individual token into a single probability for the item.
@@ -465,32 +465,22 @@ double naive_bayes_probability(const Pool * positive_pool, const Pool * negative
  * Returns the Tagging containing the probability (0..1) that the
  * item is in the tag represented by the classifier.
  */
-Tagging * classify(const Classifier *classifier, const Item * item) {
-  if (NULL == classifier || NULL == item) {
-    error("classify received NULL classifier(%x) or item(%x)", classifier, item);
-    return NULL;
+double naive_bayes_classify(const ClueList *clues, const Item * item) {
+  if (NULL == clues || NULL == item) {
+    fatal("classify received NULL classifier(%x) or item(%x)", clues, item);
+    return 0.5;
   }
   
-  Tagging *tagging = malloc(sizeof(Tagging));
-  if (NULL != tagging) {
-    tagging->item_id = item_get_id(item);
-    tagging->user = cls_user(classifier);
-    tagging->tag_name = cls_tag_name(classifier);
-    tagging->tag_id = cls_tag_id(classifier);
-    tagging->user_id = cls_user_id(classifier);
+  double prob = 0.5;
+  int num_clues;
+  const Clue **selected_clues = select_clues(clues, item, &num_clues);
     
-    int num_clues;
-    const Clue **clues = select_clues(classifier, item, &num_clues);
-    
-    if (num_clues > 0) {
-      tagging->strength = chi2_combine(clues, num_clues);
-    } else {
-      tagging->strength = UNKNOWN_WORD_PROB;
-    }
-    
-    free(clues);
+  if (num_clues > 0) {
+    prob = chi2_combine(selected_clues, num_clues);
+    free(selected_clues);
   }
-  return tagging;
+    
+  return prob;
 }
 
 /**** Trained classifier functions ****/
