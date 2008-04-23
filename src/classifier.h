@@ -50,74 +50,19 @@
 // 
 #define MAX_CLUES_RATIO 0.5
 
-typedef struct TRAINED_CLASSIFIER {
-  const char * user;
-  const char * tag_name;
-  int user_id;
-  int tag_id;
-  float bias;
-  Pool *positive_pool;
-  Pool *negative_pool;
-} TrainedClassifier;
-  
-typedef struct CLASSIFIER {
-  const char * user;
-  const char * tag_name;
-  int user_id;
-  int tag_id;
-  float bias;
-  Pvoid_t clues;
-} Classifier;
-
 typedef struct PROB_TOKEN {
   int token_count;
   int pool_size;
 } ProbToken;
 
-typedef struct TAGGING {
-  const char * user;
-  const char * tag_name;
-  int user_id;
-  int tag_id;
-  int item_id;
-  double strength;
-} Tagging;
-
-/*** Macros for taggings ***/
-#define tagging_tag_name(tagging) tagging->tag_name
-#define tagging_user(tagging)     tagging->user
-#define tagging_strength(tagging) tagging->strength
-#define tagging_tag_id(tagging)   tagging->tag_id
-#define tagging_user_id(tagging)  tagging->user_id
-
 extern double naive_bayes_classify    (const ClueList *clues, const Item *item);
-extern double chi2Q                   (double x, int v);
 extern double naive_bayes_probability (const Pool * positive_pool, const Pool * negative_pool, const Pool * random_bg, int token_id, double bias);
 
 /** Only in header for testing - shouldn't actual use it */
-const Clue **              select_clues(const ClueList*, const Item*, int *num_clues);
-double                     probability (const ProbToken *foreground[], int n_pos,
+extern double          chi2Q        (double x, int v);
+extern const  Clue **  select_clues (const ClueList*, const Item*, int *num_clues);
+extern double          probability  (const ProbToken *foreground[], int n_pos,
                                         const ProbToken *background[], int n_neg,
                                         int fg_size, int bg_size);
-
-/**** Functions for handling TrainedClassifiers  ****/
-float         tc_get_bias           (const TrainedClassifier *tc);
-const char *  tc_get_tag_name       (const TrainedClassifier *tc);
-const char *  tc_get_user           (const TrainedClassifier *tc);
-int           tc_get_tag_id         (const TrainedClassifier *tc);
-int           tc_get_user_id        (const TrainedClassifier *tc);
-const Pool *  tc_get_positive_pool  (const TrainedClassifier *tc);
-const Pool *  tc_get_negative_pool  (const TrainedClassifier *tc);
-void          tc_free               (TrainedClassifier *tc);
-
-/**** Functions for handling Classifiers ****/
-int           cls_num_clues         (const Classifier *c);
-double        cls_probability_for   (const Classifier *c, int token_id);
-const Clue *  cls_clue_for          (const Classifier *c, int token_id);
-const char *  cls_tag_name          (const Classifier *c);
-const char *  cls_user              (const Classifier *c);
-int           cls_user_id           (const Classifier *c);
-int           cls_tag_id            (const Classifier *c);
-void          free_classifier       (Classifier *c);
 
 #endif

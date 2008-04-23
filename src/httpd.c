@@ -136,7 +136,7 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
       add_element(root, "tag-id", "integer", "%d", cjob_tag_id(job));    
       break;
     case CJOB_TYPE_USER_JOB:
-      add_element(root, "user-id", "integer", "%d", cjob_user_id(job));
+      // TODO add_element(root, "user-id", "integer", "%d", cjob_user_id(job));
       break;
     default:
       break;

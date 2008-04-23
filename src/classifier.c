@@ -462,8 +462,8 @@ double naive_bayes_probability(const Pool * positive_pool, const Pool * negative
 
 /** Classifies the item using the given classifier.
  *
- * Returns the Tagging containing the probability (0..1) that the
- * item is in the tag represented by the classifier.
+ * Returns the probability (0..1) that the item is in 
+ * the tag represented by the classifier.
  */
 double naive_bayes_classify(const ClueList *clues, const Item * item) {
   if (NULL == clues || NULL == item) {
@@ -481,100 +481,4 @@ double naive_bayes_classify(const ClueList *clues, const Item * item) {
   }
     
   return prob;
-}
-
-/**** Trained classifier functions ****/
-float tc_get_bias(const TrainedClassifier *tc) {
-  return tc->bias;
-}
-
-const Pool * tc_get_positive_pool(const TrainedClassifier *tc) {
-  return tc->positive_pool;
-}
-
-const Pool * tc_get_negative_pool(const TrainedClassifier *tc) {
-  return tc->negative_pool;
-}
-
-const char * tc_get_user(const TrainedClassifier *tc) {
-  return tc->user;
-}
-
-int tc_get_user_id(const TrainedClassifier *tc) {
-  return tc->user_id;
-}
-
-const char * tc_get_tag_name(const TrainedClassifier *tc) {
-  return tc->tag_name;
-}
-
-int tc_get_tag_id(const TrainedClassifier *tc) {
-  return tc->tag_id;
-}
-
-void tc_free(TrainedClassifier *tc) {
-  free_pool(tc->positive_pool);
-  free_pool(tc->negative_pool);
-  free(tc);
-}
-
-/***** Classifier Functions *****/
-const char * cls_tag_name(const Classifier *cls) {
-  return cls->tag_name;
-}
-
-int cls_tag_id(const Classifier *cls) {
-  return cls->tag_id;
-}
-
-const char * cls_user(const Classifier *cls) {
-  return cls->user;
-}
-
-int cls_user_id(const Classifier *cls) {
-  return cls->user_id;
-}
-
-int cls_num_clues(const Classifier *cls) {
-  Word_t count;
-  JLC(count, cls->clues, 0, -1);
-  return count;
-}
-
-const Clue * cls_clue_for(const Classifier *cls, int token_id) {
-  Clue *clue = NULL;
-  PWord_t clue_p;
-  JLG(clue_p, cls->clues, token_id);
-  if (NULL != clue_p) {
-    clue = (Clue*)(*clue_p);
-  }
-  return clue;
-}
-
-double cls_probability_for(const Classifier *cls, int token_id) {
-  double probability = UNKNOWN_WORD_PROB;
-  PWord_t clue_p;
-  JLG(clue_p, cls->clues, token_id);
-  if (NULL != clue_p) {
-    Clue *clue = (Clue*)(*clue_p);
-    probability = clue_probability(clue);
-  }
-  return probability;
-}
-
-void free_classifier(Classifier *cls) {
-  if (NULL != cls) {
-    if (cls->clues) {
-      PWord_t clue;
-      Word_t index = 0;
-      Word_t bytes_freed;
-      JLF(clue, cls->clues, index);
-      while (NULL != clue) {
-        free((Clue*)(*clue));
-        JLN(clue, cls->clues, index);
-      }
-      JLFA(bytes_freed, cls->clues);
-    }
-    free(cls);
-  }
 }

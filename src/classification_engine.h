@@ -61,7 +61,7 @@ extern int                    ce_remove_classification_job(ClassificationEngine 
 /** Functions for Classification Jobs */
 extern const char *           cjob_id(const ClassificationJob * job);
 extern int                    cjob_type(const ClassificationJob * job);
-extern int                    cjob_tag_id(const ClassificationJob * job);
+extern const char *           cjob_tag_id(const ClassificationJob * job);
 extern int                    cjob_user_id(const ClassificationJob * job);
 extern float                  cjob_progress(const ClassificationJob * job);
 extern ClassificationJobState cjob_state(const ClassificationJob *job);

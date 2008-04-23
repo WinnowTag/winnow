@@ -160,14 +160,16 @@ START_TEST(add_job_to_queue) {
 } END_TEST
 
 START_TEST(add_user_job_to_queue) {
-  ClassificationJob *job = ce_add_classification_job_for_user(ce, 2);
-  assert_not_null(job);
-  assert_equal(0, cjob_tag_id(job));
-  assert_equal(2, cjob_user_id(job));
-  assert_not_null(cjob_id(job));
-  assert_equal(CJOB_STATE_WAITING, cjob_state(job));
-  assert_equal(1, ce_num_jobs_in_system(ce));
-  assert_equal(1, ce_num_waiting_jobs(ce));
+  fail("Not implemented");
+  // TODO add_user_job_to_queue
+  // ClassificationJob *job = ce_add_classification_job_for_user(ce, 2);
+  //  assert_not_null(job);
+  //  assert_equal(0, cjob_tag_id(job));
+  //  assert_equal(2, cjob_user_id(job));
+  //  assert_not_null(cjob_id(job));
+  //  assert_equal(CJOB_STATE_WAITING, cjob_state(job));
+  //  assert_equal(1, ce_num_jobs_in_system(ce));
+  //  assert_equal(1, ce_num_waiting_jobs(ce));
 } END_TEST
 
 START_TEST(retrieve_job_via_id) {
