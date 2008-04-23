@@ -62,7 +62,7 @@ Clue * add_clue(ClueList * clues, int token_id, double probability) {
   return clue;
 }
 
-Clue * get_clue(ClueList * clues, int token_id) {
+Clue * get_clue(const ClueList * clues, int token_id) {
   Clue * clue = NULL;
   
   if (clues) {
