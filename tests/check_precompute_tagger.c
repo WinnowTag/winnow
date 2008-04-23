@@ -80,6 +80,11 @@ START_TEST (test_precomputing_a_non_trained_tagger_results_in_a_sequence_error) 
   assert_equal(TAGGER_SEQUENCE_ERROR, rc);
 } END_TEST
 
+START_TEST (test_precomputing_a_tagger_with_no_probability_function_results_in_a_sequence_error) {
+  tagger->probability_function = NULL;
+  int rc = precompute_tagger(tagger, random_background);
+  assert_equal(TAGGER_SEQUENCE_ERROR, rc);
+} END_TEST
 
 START_TEST (precompute_creates_probabilities_for_each_token_in_the_pools) {  
   precompute_tagger(tagger, random_background);
@@ -171,6 +176,7 @@ tag_precompute_suite(void) {
   tcase_add_test(tc_precomputer, precompute_creates_probabilities_for_each_token_in_the_pools);
   tcase_add_test(tc_precomputer, test_precompute_clears_out_training);
   tcase_add_test(tc_precomputer, test_after_precompute_there_are_clues_for_every_token_in_the_pool);
+  tcase_add_test(tc_precomputer, test_precomputing_a_tagger_with_no_probability_function_results_in_a_sequence_error);
 
   TCase *tc_precomputer_with_rnd = tcase_create("Precomputer with random background");
   tcase_add_checked_fixture(tc_precomputer_with_rnd, setup_with_random_background, teardown);

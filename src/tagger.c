@@ -275,7 +275,7 @@ TaggerState train_tagger(Tagger * tagger, ItemCache * item_cache) {
 TaggerState precompute_tagger(Tagger * tagger, const Pool * random_background) {
   TaggerState state = TAGGER_SEQUENCE_ERROR;
   
-  if (tagger && tagger->state == TAGGER_TRAINED) {
+  if (tagger && tagger->state == TAGGER_TRAINED && tagger->probability_function != NULL) {
     Token working_token;
     state = tagger->state = TAGGER_PRECOMPUTED;
     tagger->clues = new_clue_list();
