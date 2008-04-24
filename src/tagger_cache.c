@@ -189,7 +189,13 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
           new_tagger = true;
           temp_tagger = updated_tagger;
           pthread_mutex_lock(&tagger_cache->mutex);
-          cache_tagger(tagger_cache, temp_tagger);          
+          cache_tagger(tagger_cache, temp_tagger); 
+          
+          /* If the new tagger is not in the PRECOMPUTED state check it back it since we don't return it */
+          if (updated_tagger->state != TAGGER_PRECOMPUTED) {
+            release_tagger_without_locks(tagger_cache, temp_tagger);
+          } 
+                  
           pthread_mutex_unlock(&tagger_cache->mutex);
         }
       }
