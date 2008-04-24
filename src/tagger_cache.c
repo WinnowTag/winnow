@@ -138,7 +138,25 @@ static int add_missing_entries(ItemCache * item_cache, Tagger * tagger) {
   return 0;
 }
 
-/**
+/** Gets a tagger from the Tagger Cache.
+ *
+ *  This has a few different outcomes, I'll try and list them all.
+ *
+ *  See doc/TaggerCacheFlowChart.graffle for a flow chart on this function.
+ *
+ *  @param tagger_cache The cache to get the tagger from.
+ *  @param tag_training_url Used as the URL for the tag training document and the key into the tagger cache.
+ *  @param tagger A pointer to a Tagger pointer. This will be intitalized to the tagger if the call is
+ *                successful. Don't free it when you are done with it, instead call release_tagger.
+ *  @param errmsg Will be allocated and filled with an error message if an error occurs. The caller must free
+ *                the error message when done. Can be NULL in which case you won't get any error messages.
+ *  @return TAGGER_OK -> Got a valid trained and precomputed tagger in **tagger. We done with the tagger
+ *                       you must release it usingl release_tagger(TaggerCache, Tagger)
+ *          TAGGER_NOT_FOUND -> Could not find the tagger in either the cache or the URL. **tagger is NULL.
+ *          TAGGER_CHECKED_OUT -> Someone else has the tagger. **tagger is NULL.
+ *          TAGGER_PENDING_ITEM_ADDITION -> The tagger requires items that are missing from the cache.
+ *                                          The items have been added and are scheduled for feature extract.
+ *                                          Call get_tagger again later to see if it is ready. **tagger is NULL.
  *
  *  TODO Double check this locking
  */
