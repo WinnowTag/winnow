@@ -97,7 +97,7 @@ START_TEST (test_after_precompute_there_are_clues_for_every_token_in_the_pool) {
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("fixtures/valid.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select distinct token_id from entry_tokens where entry_id in (753459, 880389, 886294, 888769, 884409)", -1, &stmt, NULL);
   
   int clues = 0;
@@ -125,7 +125,7 @@ START_TEST (test_precompute_with_random_background_includes_tokens_in_the_random
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("fixtures/valid.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select distinct token_id from entry_tokens where entry_id in (709254, 753459, 880389, 886294, 888769, 884409)", -1, &stmt, NULL);
   
   int clues = 0;
@@ -148,7 +148,7 @@ START_TEST (test_make_sure_it_works_with_naive_bayes_probability_function) {
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("fixtures/valid.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select distinct token_id from entry_tokens where entry_id in (709254, 753459, 880389, 886294, 888769, 884409)", -1, &stmt, NULL);
   
   int clues = 0;
