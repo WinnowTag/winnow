@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sqlite3.h>
 #include "assertions.h"
 #include "../src/tagger.h"
 
@@ -18,6 +19,7 @@ static ItemCache *item_cache;
 static TaggerCache *tagger_cache;
 static TaggerCacheOptions *options;
 int load_tag_document_called = 0;
+time_t last_updated_called = 0;
 char *document;
 
 static void read_document(const char * filename) {
@@ -36,6 +38,7 @@ static void read_document(const char * filename) {
 
 static int load_tag_document(const char * tag_training_url, time_t last_updated, char ** tag_document, char ** errmsg) {
   load_tag_document_called++;
+  last_updated_called = last_updated;
   
   if (!strcmp(tag_training_url, "http://example.org/missing.atom")) {
     if (errmsg) {
@@ -53,7 +56,8 @@ static int load_tag_document(const char * tag_training_url, time_t last_updated,
  
 static void setup(void) {
   read_document("fixtures/complete_tag.atom");
-  item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
+  system("cp -f fixtures/valid.db /tmp/valid-copy.db");
+  item_cache_create(&item_cache, "/tmp/valid-copy.db", &item_cache_options);
   load_tag_document_called = 0;
   tagger_cache = create_tagger_cache(item_cache, options);
   tagger_cache->tag_retriever = &load_tag_document;
@@ -61,7 +65,9 @@ static void setup(void) {
 
 static void setup_for_incomplete(void) {
   read_document("fixtures/incomplete_tag.atom");
-  item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
+  
+  system("cp -f fixtures/valid.db /tmp/valid-copy.db");
+  item_cache_create(&item_cache, "/tmp/valid-copy.db", &item_cache_options);
   load_tag_document_called = 0;
   tagger_cache = create_tagger_cache(item_cache, options);
   tagger_cache->tag_retriever = &load_tag_document;
@@ -138,6 +144,8 @@ START_TEST (test_get_tagger_called_again_after_releasing_the_tagger_gets_the_sam
   assert_equal(tagger, second);
 } END_TEST
 
+/******* Missing item tests *********/
+
 START_TEST (test_get_tagger_that_returns_a_incomplete_valid_document_returns_TAG_PENDING_ITEM_ADDITION) {
   Tagger *tagger = NULL;
   int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
@@ -156,6 +164,24 @@ START_TEST (test_get_tagger_twice_that_returns_a_incomplete_valid_document_retur
   int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
   assert_equal(TAGGER_PENDING_ITEM_ADDITION, rc);
 } END_TEST
+
+START_TEST (test_get_tagger_with_missing_items_should_add_the_items_to_the_item_cache) {
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", NULL, NULL);
+  
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select count(*) from entries;", -1, &stmt, NULL);
+  
+  if (SQLITE_ROW == sqlite3_step(stmt)) {
+    int count = sqlite3_column_int(stmt, 0);
+    assert_equal(13, count);
+  } else {
+    fail("SQL count didn't work");
+  }
+  
+} END_TEST
+
 
 Suite *
 check_get_tagger_suite(void) {
@@ -180,6 +206,7 @@ check_get_tagger_suite(void) {
   tcase_add_test(tc_incomplete_case, test_get_tagger_that_returns_a_incomplete_valid_document_returns_TAG_PENDING_ITEM_ADDITION);
   tcase_add_test(tc_incomplete_case, test_get_tagger_that_returns_a_incomplete_valid_document_has_null_tagger);
   tcase_add_test(tc_incomplete_case, test_get_tagger_twice_that_returns_a_incomplete_valid_document_returns_TAG_PENDING_ITEM_ADDITION);
+  tcase_add_test(tc_incomplete_case, test_get_tagger_with_missing_items_should_add_the_items_to_the_item_cache);
   
   suite_add_tcase(s, tc_incomplete_case);
   suite_add_tcase(s, tc_case);

@@ -173,7 +173,18 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
         }
               
         if (new_tagger) {
-          // TODO Add missing items to item cache
+          /* Only add missing entries if the tagger is new. */
+          int number_of_missing_entries = temp_tagger->missing_positive_example_count + temp_tagger->missing_negative_example_count;
+          ItemCacheEntry *entries[number_of_missing_entries];
+          memset(entries, 0, sizeof(entries));
+          
+          if (!get_missing_entries(temp_tagger, entries)) {
+            int i;
+            
+            for (i = 0; i < number_of_missing_entries; i++) {
+              item_cache_add_entry(tagger_cache->item_cache, entries[i]);
+            }
+          }
         }
       } else if (temp_tagger) {
         rc = UNKNOWN;

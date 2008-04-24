@@ -1,7 +1,7 @@
-# TESTS =  check_tagger_builder check_pool check_train_tagger check_precompute_tagger \
-#           check_classifier check_pool check_queue check_url_fetching check_clue \
-#           check_classify check_get_tagger check_item_cache
-TESTS = check_get_tagger
+TESTS =  check_tagger_builder check_pool check_train_tagger check_precompute_tagger \
+          check_classifier check_pool check_queue check_url_fetching check_clue \
+          check_classify check_get_tagger check_item_cache
+
 #           check_config \
          # check_http    \
          #  check_classification_engine specs
