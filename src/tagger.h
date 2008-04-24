@@ -10,6 +10,8 @@
 #define _TAGGER_H_
 
 #include <time.h>
+#include <pthread.h>
+#include <Judy.h>
 #include "item_cache.h"
 #include "clue.h"
 
@@ -102,10 +104,23 @@ typedef struct TAGGER_CACHE_OPTIONS {
 } TaggerCacheOptions;
 
 typedef struct TAGGER_CACHE {
+  /* Tagger cache mutex.  Only one thread can access the internal arrays of the tagger cache at one time. */
+  pthread_mutex_t mutex;
+  
+  /* The item cache to get items for training taggers */
   ItemCache *item_cache;
-  Pool * random_background;
+  
+  /* The random background used in precomputing probabilities for taggers */
+  const Pool * random_background;
+  
   /* Function used to fetch tag documents. This is really just a function pointer to help testing. */
   int (*tag_retriever)(const char * tag_training_url, time_t last_updated, char ** tag_document, char ** errmsg);
+  
+  /* Array of taggers that are checked out.  A checked out tagger cannot be 'gotten' by anyone else. */
+  Pvoid_t checked_out_taggers;
+  
+  /* Array of taggers indexed by training url. */
+  Pvoid_t taggers;
 } TaggerCache;
 
 extern Tagger *      build_tagger        (const char * atom);
@@ -117,6 +132,6 @@ extern int           get_missing_entries (Tagger * tagger, ItemCacheEntry ** ent
 extern TaggerCache * create_tagger_cache (ItemCache * item_cache, TaggerCacheOptions * options);
 extern void          free_tagger_cache   (TaggerCache * tagger_cache);
 extern int           get_tagger          (TaggerCache * tagger_cache, const char * tag_training_url, Tagger ** tagger, char ** errmsg);
-extern void          release_tagger      (TaggerCache * tagger_cache, Tagger * tagger);
+extern int          release_tagger      (TaggerCache * tagger_cache, Tagger * tagger);
 
 #endif /* _TAGGER_H_ */
