@@ -30,10 +30,10 @@ TaggerCache * create_tagger_cache(ItemCache * item_cache, TaggerCacheOptions *op
   return tagger_cache;
 }
 
-static Tagger * fetch_tagger(TaggerCache * tagger_cache, const char * tag_training_url, char ** errmsg) {
+static Tagger * fetch_tagger(TaggerCache * tagger_cache, const char * tag_training_url, time_t if_modified_since, char ** errmsg) {
   Tagger *tagger = NULL;
   char *tag_document = NULL;
-  int rc = tagger_cache->tag_retriever(tag_training_url, -1, &tag_document, errmsg);
+  int rc = tagger_cache->tag_retriever(tag_training_url, if_modified_since, &tag_document, errmsg);
   
   if (rc == TAG_OK && tag_document != NULL) {
     tagger = build_tagger(tag_document);
@@ -67,7 +67,8 @@ static int mark_as_checked_out(TaggerCache *tagger_cache, const Tagger * tagger)
   JSLI(tagger_pointer, tagger_cache->checked_out_taggers, (const uint8_t*) tagger->training_url);
   
   if (tagger_pointer != NULL) {
-    *tagger_pointer = (Word_t) tagger;
+    // Don't store the tagger here - don't need it and I don't want to have to update it.
+    *tagger_pointer = 1;
   } else {
     fatal("Malloc error allocating element in checked_out_taggers");
   }
@@ -101,6 +102,11 @@ static int cache_tagger(TaggerCache * tagger_cache, Tagger * tagger) {
   
   JSLI(tagger_pointer, tagger_cache->taggers, (uint8_t*) tagger->training_url);
   if (tagger_pointer != NULL) {
+    if (*tagger_pointer != 0) {
+       // we are replacing a tagger in the cache, so free the old one
+       // TODO free_tagger((Tagger*) (*tagger_pointer));
+    } 
+    
     *tagger_pointer = (Word_t) tagger;
   } else {
     fatal("Out of memory in cache_tagger");
@@ -115,6 +121,27 @@ static int release_tagger_without_locks(TaggerCache *tagger_cache, Tagger *tagge
   return rc;
 }
 
+static int add_missing_entries(ItemCache * item_cache, Tagger * tagger) {
+  /* Only add missing entries if the tagger is new. */
+  int number_of_missing_entries = tagger->missing_positive_example_count + tagger->missing_negative_example_count;
+  ItemCacheEntry *entries[number_of_missing_entries];
+  memset(entries, 0, sizeof(entries));
+  
+  if (!get_missing_entries(tagger, entries)) {
+    int i;
+    
+    for (i = 0; i < number_of_missing_entries; i++) {
+      item_cache_add_entry(item_cache, entries[i]);
+    }
+  }
+  
+  return 0;
+}
+
+/**
+ *
+ *  TODO Double check this locking
+ */
 int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger ** tagger, char ** errmsg) {
   int rc = -1;
   
@@ -141,7 +168,7 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
        * if we get it we need to store it and mark it as checked out.
        */
       if (cache_rc == TAGGER_NOT_CACHED) {
-        temp_tagger = fetch_tagger(tagger_cache, tag_training_url, errmsg);
+        temp_tagger = fetch_tagger(tagger_cache, tag_training_url, -1, errmsg);
         if (temp_tagger) {
           new_tagger = true;
           pthread_mutex_lock(&tagger_cache->mutex);
@@ -155,12 +182,16 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
           pthread_mutex_unlock(&tagger_cache->mutex);
         }
       } else if (tagger) {
-        // TODO Update the tagger
-        // if (tagger) {
-        //    if (update_tagger(tagger_cache, tagger, err))
-        //      store_tagger = true;
-        // } else {
-        rc = 512;
+        /* The tagger is cached, so we need to see if it has been updated. */
+        Tagger *updated_tagger = fetch_tagger(tagger_cache, temp_tagger->training_url, temp_tagger->updated, errmsg);
+        
+        if (updated_tagger) {
+          new_tagger = true;
+          temp_tagger = updated_tagger;
+          pthread_mutex_lock(&tagger_cache->mutex);
+          cache_tagger(tagger_cache, temp_tagger);          
+          pthread_mutex_unlock(&tagger_cache->mutex);
+        }
       }
       
       if (temp_tagger && temp_tagger->state == TAGGER_PRECOMPUTED) {
@@ -173,18 +204,7 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
         }
               
         if (new_tagger) {
-          /* Only add missing entries if the tagger is new. */
-          int number_of_missing_entries = temp_tagger->missing_positive_example_count + temp_tagger->missing_negative_example_count;
-          ItemCacheEntry *entries[number_of_missing_entries];
-          memset(entries, 0, sizeof(entries));
-          
-          if (!get_missing_entries(temp_tagger, entries)) {
-            int i;
-            
-            for (i = 0; i < number_of_missing_entries; i++) {
-              item_cache_add_entry(tagger_cache->item_cache, entries[i]);
-            }
-          }
+          add_missing_entries(tagger_cache->item_cache, temp_tagger);
         }
       } else if (temp_tagger) {
         rc = UNKNOWN;

@@ -22,18 +22,21 @@ int load_tag_document_called = 0;
 time_t last_updated_called = 0;
 char *document;
 
-static void read_document(const char * filename) {
+static char * read_document(const char * filename) {
+  char *out;
   FILE *file;
 
   if (NULL != (file = fopen(filename, "r"))) {
     fseek(file, 0, SEEK_END);
     int size = ftell(file);
-    document = calloc(size, sizeof(char));
+    out = calloc(size, sizeof(char));
     fseek(file, 0, SEEK_SET);
-    fread(document, sizeof(char), size, file);
-    document[size] = 0;
+    fread(out, sizeof(char), size, file);
+    out[size] = 0;
     fclose(file);
   }
+  
+  return out;
 }
 
 static int load_tag_document(const char * tag_training_url, time_t last_updated, char ** tag_document, char ** errmsg) {
@@ -55,7 +58,7 @@ static int load_tag_document(const char * tag_training_url, time_t last_updated,
 }
  
 static void setup(void) {
-  read_document("fixtures/complete_tag.atom");
+  document = read_document("fixtures/complete_tag.atom");
   system("cp -f fixtures/valid.db /tmp/valid-copy.db");
   item_cache_create(&item_cache, "/tmp/valid-copy.db", &item_cache_options);
   load_tag_document_called = 0;
@@ -64,7 +67,7 @@ static void setup(void) {
 }
 
 static void setup_for_incomplete(void) {
-  read_document("fixtures/incomplete_tag.atom");
+  document = read_document("fixtures/incomplete_tag.atom");
   
   system("cp -f fixtures/valid.db /tmp/valid-copy.db");
   item_cache_create(&item_cache, "/tmp/valid-copy.db", &item_cache_options);
@@ -144,6 +147,15 @@ START_TEST (test_get_tagger_called_again_after_releasing_the_tagger_gets_the_sam
   assert_equal(tagger, second);
 } END_TEST
 
+START_TEST (test_get_cached_tagger_triggers_conditional_get_with_tags_updated_time) {
+  Tagger *tagger = NULL;
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  release_tagger(tagger_cache, tagger);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  assert_equal(tagger->updated, last_updated_called);
+} END_TEST
+
+
 /******* Missing item tests *********/
 
 START_TEST (test_get_tagger_that_returns_a_incomplete_valid_document_returns_TAG_PENDING_ITEM_ADDITION) {
@@ -182,6 +194,59 @@ START_TEST (test_get_tagger_with_missing_items_should_add_the_items_to_the_item_
   
 } END_TEST
 
+/********** Tests for updating a tag ********/
+char *updated_document;
+
+static int updating_tag_document(const char * tag_training_url, time_t last_updated, char ** tag_document, char ** errmsg) {
+  load_tag_document_called++;
+  last_updated_called = last_updated;
+  
+  if (load_tag_document_called > 2) {
+    return TAG_NOT_MODIFIED;
+  } else if (last_updated > 0) {
+    *tag_document = strdup(updated_document);
+  } else {
+    *tag_document = strdup(document);
+  }  
+  
+  return TAG_OK;
+}
+
+static void setup_for_updated(void) {
+  document = read_document("fixtures/complete_tag.atom");
+  updated_document = read_document("fixtures/updated_complete_tag.atom");
+  system("cp -f fixtures/valid.db /tmp/valid-copy.db");
+  item_cache_create(&item_cache, "/tmp/valid-copy.db", &item_cache_options);
+  load_tag_document_called = 0;
+  tagger_cache = create_tagger_cache(item_cache, options);
+  tagger_cache->tag_retriever = &updating_tag_document;
+}
+
+START_TEST (test_updating_tagger_has_later_timestamp) {
+  Tagger *tagger;
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  time_t updated = tagger->updated;
+  release_tagger(tagger_cache, tagger);
+  tagger = NULL;
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  assert_not_null(tagger);
+  assert_true(updated < tagger->updated);
+} END_TEST
+
+START_TEST (test_updated_tagger_gets_cached) {
+  Tagger *tagger;
+
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  time_t updated = tagger->updated;
+  release_tagger(tagger_cache, tagger);
+  
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  release_tagger(tagger_cache, tagger);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  release_tagger(tagger_cache, tagger);
+  
+  assert_true(updated < tagger->updated);
+} END_TEST
 
 Suite *
 check_get_tagger_suite(void) {
@@ -198,6 +263,7 @@ check_get_tagger_suite(void) {
   tcase_add_test(tc_case, test_get_tagger_called_again_without_releasing_the_tagger_returns_TAGGER_CHECKED_OUT);
   tcase_add_test(tc_case, test_get_tagger_called_again_without_releasing_the_tagger_sets_error_message);
   tcase_add_test(tc_case, test_get_tagger_called_again_after_releasing_the_tagger_gets_the_same_tagger);
+  tcase_add_test(tc_case, test_get_cached_tagger_triggers_conditional_get_with_tags_updated_time);
   
   TCase *tc_incomplete_case = tcase_create("Incomplete Case");
 
@@ -208,8 +274,14 @@ check_get_tagger_suite(void) {
   tcase_add_test(tc_incomplete_case, test_get_tagger_twice_that_returns_a_incomplete_valid_document_returns_TAG_PENDING_ITEM_ADDITION);
   tcase_add_test(tc_incomplete_case, test_get_tagger_with_missing_items_should_add_the_items_to_the_item_cache);
   
+  TCase *tc_updating = tcase_create("Updating case");
+  tcase_add_checked_fixture(tc_updating, setup_for_updated, teardown);
+  tcase_add_test(tc_updating, test_updating_tagger_has_later_timestamp);
+  tcase_add_test(tc_updating, test_updated_tagger_gets_cached);
+  
   suite_add_tcase(s, tc_incomplete_case);
   suite_add_tcase(s, tc_case);
+  suite_add_tcase(s, tc_updating);
   return s;
 }
 
