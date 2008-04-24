@@ -44,15 +44,7 @@ static Tagger * fetch_tagger(TaggerCache * tagger_cache, const char * tag_traini
       tagger = NULL;
     }
     
-    free(tag_document);
-    
-    if (tagger->state == TAGGER_LOADED) {
-      train_tagger(tagger, tagger_cache->item_cache);
-
-      if (tagger->state == TAGGER_TRAINED) {
-        precompute_tagger(tagger, tagger_cache->random_background);
-      }
-    } 
+    free(tag_document);    
   }
   
   return tagger;
@@ -60,11 +52,11 @@ static Tagger * fetch_tagger(TaggerCache * tagger_cache, const char * tag_traini
 
 #define TAGGER_NOT_CACHED 16
 
-static int mark_as_checked_out(TaggerCache *tagger_cache, const Tagger * tagger) {
-  debug("Checking out %s", tagger->training_url);
+static int mark_as_checked_out(TaggerCache *tagger_cache, const char * tagger_identify) {
+  debug("Checking out %s", tagger_identify);
   PWord_t tagger_pointer;
   
-  JSLI(tagger_pointer, tagger_cache->checked_out_taggers, (const uint8_t*) tagger->training_url);
+  JSLI(tagger_pointer, tagger_cache->checked_out_taggers, (const uint8_t*) tagger_identify);
   
   if (tagger_pointer != NULL) {
     // Don't store the tagger here - don't need it and I don't want to have to update it.
@@ -88,7 +80,7 @@ static int checkout_tagger(TaggerCache * tagger_cache, const char * tag_training
     
     if (tagger_pointer != NULL) {
       *tagger = (Tagger*) (*tagger_pointer);
-      mark_as_checked_out(tagger_cache, *tagger);
+      mark_as_checked_out(tagger_cache, (*tagger)->training_url);
     } else {
       rc = TAGGER_NOT_CACHED;
     }
@@ -170,18 +162,16 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
     /* First lock the cache and attempt to checkout the tagger.
      * This will tell us if any one else has already checked it out,
      * if they have no further action is taken and we return
-     * TAGGER_CHECKED_OUT.
+     * TAGGER_CHECKED_OUT. If it isn't checked out we check it out now.
      */
     pthread_mutex_lock(&tagger_cache->mutex);
     int cache_rc = checkout_tagger(tagger_cache, tag_training_url, &temp_tagger);
+    if (cache_rc != TAGGER_CHECKED_OUT) {
+      mark_as_checked_out(tagger_cache, tag_training_url);
+    }
     pthread_mutex_unlock(&tagger_cache->mutex);
     
-    if (cache_rc == TAGGER_CHECKED_OUT) {
-      if (errmsg) {
-        *errmsg = strdup("Tagger already being processed");        
-      }
-      rc = cache_rc;
-    } else {
+    if (TAGGER_CHECKED_OUT != cache_rc) {
       /* If we get here the tagger has not been cached so attempt to fetch it,
        * if we get it we need to store it and mark it as checked out.
        */
@@ -189,15 +179,6 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
         temp_tagger = fetch_tagger(tagger_cache, tag_training_url, -1, errmsg);
         if (temp_tagger) {
           new_tagger = true;
-          pthread_mutex_lock(&tagger_cache->mutex);
-          cache_tagger(tagger_cache, temp_tagger);          
-
-          // Only checkout the tagger if it is in the PRECOMPUTED state since we don't return it otherwise
-          if (temp_tagger->state == TAGGER_PRECOMPUTED) {
-            mark_as_checked_out(tagger_cache, temp_tagger);          
-          }
-
-          pthread_mutex_unlock(&tagger_cache->mutex);
         }
       } else if (tagger) {
         /* The tagger is cached, so we need to see if it has been updated. */
@@ -205,19 +186,41 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
         
         if (updated_tagger) {
           new_tagger = true;
-          temp_tagger = updated_tagger;
-          pthread_mutex_lock(&tagger_cache->mutex);
-          cache_tagger(tagger_cache, temp_tagger); 
-          
-          /* If the new tagger is not in the PRECOMPUTED state check it back it since we don't return it */
-          if (updated_tagger->state != TAGGER_PRECOMPUTED) {
-            release_tagger_without_locks(tagger_cache, temp_tagger);
-          } 
-                  
-          pthread_mutex_unlock(&tagger_cache->mutex);
+          temp_tagger = updated_tagger;          
         }
       }
       
+      /* If we got a tagger try and get it to the precomputed state and update the tagger cache state for it. */
+      if (temp_tagger) {        
+        if (temp_tagger->state != TAGGER_PRECOMPUTED) {
+          if (TAGGER_TRAINED == temp_tagger->state || TAGGER_TRAINED == train_tagger(temp_tagger, tagger_cache->item_cache)) {
+            precompute_tagger(temp_tagger, tagger_cache->random_background);
+          } 
+        }
+        
+        /* Update the tagger cache state for this tag, need to lock for this */
+        pthread_mutex_lock(&tagger_cache->mutex);
+        
+        if (new_tagger) {
+          /* The tagger is new or updated so we need to store it the taggers cache */
+          cache_tagger(tagger_cache, temp_tagger);
+        }
+        
+        /* If the new tagger is not in the PRECOMPUTED state check it back in since we don't return it */
+        if (temp_tagger->state != TAGGER_PRECOMPUTED) {
+          release_tagger_without_locks(tagger_cache, temp_tagger);
+        }
+        
+        pthread_mutex_unlock(&tagger_cache->mutex);
+      }
+            
+      /* Figure out what state of tagger we have, if any, to determine what we return:
+       *
+       *  temp_tagger == NULL                     -> TAGGER_NOT_FOUND
+       *  state       == TAGGER_PARTIALLY_TRAINED -> TAGGER_PENDING_ITEM_ADDITION
+       *  state       == TAGGER_PRECOMPUTED       -> TAGGER_OK and the tagger set
+       *  other                                   -> UNKNOWN (BUG!)
+       */
       if (temp_tagger && temp_tagger->state == TAGGER_PRECOMPUTED) {
         *tagger = temp_tagger;
         rc = TAGGER_OK;
@@ -227,6 +230,7 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
           *errmsg = strdup("Some items need to be cached");
         }
               
+        /* Only add the items if this is a new tagger, otherwise we have already done it */
         if (new_tagger) {
           add_missing_entries(tagger_cache->item_cache, temp_tagger);
         }
@@ -236,6 +240,9 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
       } else {
         rc = TAG_NOT_FOUND;
       }
+    } else {
+      if (errmsg) *errmsg = strdup("Tagger already being processed");        
+      rc = cache_rc;
     }
   }
   

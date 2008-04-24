@@ -262,6 +262,26 @@ START_TEST (test_updated_tagger_with_missing_items_checks_it_back_in) {
   assert_equal(TAGGER_PENDING_ITEM_ADDITION, rc);
 } END_TEST
 
+START_TEST (test_get_tagger_again_after_items_are_added_returns_tagger) {
+  ItemCache * missing_item_cache;
+  item_cache_create(&missing_item_cache, "fixtures/valid-with-missing.db", &item_cache_options);
+  
+  updated_document = read_document("fixtures/incomplete_tag.atom");
+  Tagger *tagger;
+
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  release_tagger(tagger_cache, tagger);
+  
+  int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  assert_equal(TAGGER_PENDING_ITEM_ADDITION, rc);
+  
+  // cheat here and switch out the item cache to one that has the items
+  tagger_cache->item_cache = missing_item_cache;
+  rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  assert_equal(TAGGER_OK, rc);
+  assert_equal(TAGGER_PRECOMPUTED, tagger->state);
+} END_TEST
+
 Suite *
 check_get_tagger_suite(void) {
   Suite *s = suite_create("check get_tagger");  
@@ -293,6 +313,7 @@ check_get_tagger_suite(void) {
   tcase_add_test(tc_updating, test_updating_tagger_has_later_timestamp);
   tcase_add_test(tc_updating, test_updated_tagger_gets_cached);
   tcase_add_test(tc_updating, test_updated_tagger_with_missing_items_checks_it_back_in);
+  tcase_add_test(tc_updating, test_get_tagger_again_after_items_are_added_returns_tagger);
   
   suite_add_tcase(s, tc_incomplete_case);
   suite_add_tcase(s, tc_case);
