@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <arpa/inet.h>
 #include <time.h>
+#include <sys/time.h>
 #include <regex.h>
 #include "httpd.h"
 #include "cls_config.h"
