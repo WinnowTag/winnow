@@ -68,6 +68,11 @@ describe "The Classifier's Item Cache" do
       lambda { create_another_big_entry }.should_not raise_error
     end
     
+    it "should create big entry followed by a small entry without error" do
+      lambda { create_another_big_entry }.should_not raise_error
+      lambda { create_empty_entry }.should_not raise_error
+    end
+    
     it "should store entry in the database" do
       create_entry
       @sqlite.get_first_value("select count(*) from entries where id = 1111").should == "1"
@@ -170,7 +175,7 @@ describe "The Classifier's Item Cache" do
         
         create_entry(:id => "1111")
         create_entry(:id => "1112")
-        sleep(2)
+        sleep(2.5)
         Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 2)
         `wc -l /tmp/perf.log`.to_i.should == Tagging.count(:select => 'distinct tag_id') + 2 # +1 for header, +1 for previous job
       end

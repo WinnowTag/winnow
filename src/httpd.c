@@ -313,7 +313,7 @@ static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
   } else if (NULL == request->data) {
     info("NO DATA");
     HTTP_BAD_XML(response);
-  } else if (NULL == (doc = xmlParseDoc(BAD_CAST request->data->buffer))) {
+  } else if (NULL == (doc = xmlReadMemory(request->data->buffer, request->data->size, "", NULL, XML_PARSE_COMPACT))) {
     info("BAD DATA: %s", request->data->buffer);
     HTTP_BAD_XML(response);
   } else {
@@ -385,7 +385,7 @@ static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
     
     if (NULL == request->data) {
       HTTP_BAD_XML(response);
-    } else if (NULL == (doc = xmlParseDoc(BAD_CAST request->data->buffer))) {
+    } else if (NULL == (doc = xmlReadMemory(request->data->buffer, request->data->size, "", NULL, XML_PARSE_COMPACT))) {
       error("Bad xml for feed: %s", request->data->buffer);
       HTTP_BAD_XML(response);
     } else {
@@ -488,7 +488,7 @@ static int start_job(const HTTPRequest * request, HTTPResponse * response) {
     response->content = BAD_XML;
     response->content_type = CONTENT_TYPE;
   } else {
-    xmlDocPtr doc = xmlParseDoc(BAD_CAST request->data->buffer);
+    xmlDocPtr doc = xmlReadMemory(request->data->buffer, request->data->size, "", NULL, XML_PARSE_COMPACT);
           
     if (doc == NULL) {
       HTTP_BAD_XML(response);
@@ -628,7 +628,9 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
   }
   
   if (*upload_data_size > 0 && request->data->size == 0) {
-    request->data->buffer = strdup(upload_data);
+    request->data->buffer = malloc(*upload_data_size + 1);
+    memcpy(request->data->buffer, upload_data, *upload_data_size);
+    request->data->buffer[*upload_data_size] = '\0';
     request->data->size = *upload_data_size;    
     *upload_data_size = 0;
     ret = MHD_YES;
@@ -636,12 +638,15 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     // Data hasn't arrived yet
     ret = MHD_YES;
   } else if (*upload_data_size > 0 && request->data->size > 0) {    
-    char *new_buffer = calloc(*upload_data_size + request->data->size + 1, sizeof(char));
-    memcpy(new_buffer, request->data->buffer, request->data->size);
-    memcpy(&new_buffer[request->data->size], upload_data, *upload_data_size);
-    free(request->data->buffer);
-    request->data->buffer = new_buffer;
+    request->data->buffer = realloc(request->data->buffer, (*upload_data_size + request->data->size + 1) * sizeof(char));
+    if (!request->data->buffer) {
+      fatal("Could not realloc buffer");
+    }
+    
+    memcpy(&request->data->buffer[request->data->size], upload_data, *upload_data_size);
     request->data->size += *upload_data_size;
+    request->data->buffer[request->data->size] = '\0';    
+    
     *upload_data_size = 0;
     ret = MHD_YES;
   } else if (*upload_data_size == 0) {
