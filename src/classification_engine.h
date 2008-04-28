@@ -13,7 +13,8 @@
 #include "item_cache.h"
 
 typedef struct CLASSIFICATION_ENGINE ClassificationEngine;
-typedef struct CLASSIFICATION_JOB ClassificationJob;
+
+
 
 typedef enum CLASSIFICATION_JOB_STATE {
   CJOB_STATE_WAITING,
@@ -39,6 +40,33 @@ typedef enum CLASSIFICATION_JOB_TYPE {
   CJOB_TYPE_USER_JOB
 } ClassificationJobType;
 
+
+typedef enum ITEM_SCOPE {
+  ITEM_SCOPE_ALL,
+  ITEM_SCOPE_NEW
+} ItemScope;
+
+typedef struct CLASSIFICATION_JOB {
+  const char * id; 
+  const char * tag_url;
+  float progress;
+  float progress_increment;
+  ClassificationJobType type;
+  ClassificationJobState state;
+  ClassificationJobError error;
+  int auto_cleanup;
+  ItemScope item_scope;
+  int tags_classified;
+  int items_classified;
+  /* Timestamps for process timing */
+  struct timeval created_at;
+  struct timeval started_at;
+  struct timeval trained_at;
+  struct timeval computed_at;
+  struct timeval classified_at;
+  struct timeval completed_at;
+} ClassificationJob;
+
 extern ClassificationEngine * create_classification_engine(ItemCache *item_cache, const Config * config);
 extern void                   free_classification_engine(ClassificationEngine * engine);
 extern int                    ce_is_running(const ClassificationEngine *engine);
@@ -52,23 +80,11 @@ extern void                   ce_run(ClassificationEngine *engine);
 /* Job tracking and management */
 extern int                    ce_num_jobs_in_system(const ClassificationEngine *engine);
 extern int                    ce_num_waiting_jobs(const ClassificationEngine *engine);
-extern ClassificationJob    * ce_add_classification_job_for_tag(ClassificationEngine *engine, int tag_id);
-extern ClassificationJob    * ce_add_classify_new_items_job_for_tag(ClassificationEngine *engine, int tag_id);
+extern ClassificationJob    * ce_add_classification_job(ClassificationEngine *engine, const char * tag_url);
+//extern ClassificationJob    * ce_add_classify_new_items_job_for_tag(ClassificationEngine *engine, int tag_id);
 extern ClassificationJob    * ce_add_classification_job_for_user(ClassificationEngine *engine, int user_id);
 extern ClassificationJob    * ce_fetch_classification_job(const ClassificationEngine *engine, const char * job_id);
 extern int                    ce_remove_classification_job(ClassificationEngine *engine, const ClassificationJob *job);
 
-/** Functions for Classification Jobs */
-extern const char *           cjob_id(const ClassificationJob * job);
-extern int                    cjob_type(const ClassificationJob * job);
-extern const char *           cjob_tag_id(const ClassificationJob * job);
-extern int                    cjob_user_id(const ClassificationJob * job);
-extern float                  cjob_progress(const ClassificationJob * job);
-extern ClassificationJobState cjob_state(const ClassificationJob *job);
-extern const char *           cjob_state_msg(const ClassificationJob *job);
-extern ClassificationJobError cjob_error(const ClassificationJob *job);
-extern const char *           cjob_error_msg(const ClassificationJob *job);
-extern void                   cjob_cancel(ClassificationJob *job);
-extern float                  cjob_duration(const ClassificationJob *job);
-extern void                   free_classification_job(ClassificationJob *job);
+extern void                   free_classification_job(ClassificationJob * job);
 #endif /*CLASSIFICATION_ENGINE_H_*/

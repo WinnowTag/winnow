@@ -15,7 +15,7 @@
 #include "../src/item_cache.h"
 #include "fixtures.h"
 
-#define TAG_ID 48
+#define TAG_ID "http://localhost:8000/test.atom"
 #define BOGUS_TAG_ID 11111
 
 /************************************************************************
@@ -149,40 +149,27 @@ static void teardown_engine() {
 }
 
 START_TEST(add_job_to_queue) {
-  ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_ID);
   assert_not_null(job);
-  assert_equal(TAG_ID, cjob_tag_id(job));
-  assert_equal(0.0, cjob_progress(job));
-  assert_not_null(cjob_id(job));
-  assert_equal(CJOB_STATE_WAITING, cjob_state(job));
+  assert_equal_s(TAG_ID, job->tag_url);
+  assert_equal(0.0, job->progress);
+  assert_not_null(job->id);
+  assert_equal(CJOB_STATE_WAITING, job->state);
   assert_equal(1, ce_num_jobs_in_system(ce));
   assert_equal(1, ce_num_waiting_jobs(ce));
 } END_TEST
 
-START_TEST(add_user_job_to_queue) {
-  fail("Not implemented");
-  // TODO add_user_job_to_queue
-  // ClassificationJob *job = ce_add_classification_job_for_user(ce, 2);
-  //  assert_not_null(job);
-  //  assert_equal(0, cjob_tag_id(job));
-  //  assert_equal(2, cjob_user_id(job));
-  //  assert_not_null(cjob_id(job));
-  //  assert_equal(CJOB_STATE_WAITING, cjob_state(job));
-  //  assert_equal(1, ce_num_jobs_in_system(ce));
-  //  assert_equal(1, ce_num_waiting_jobs(ce));
-} END_TEST
-
 START_TEST(retrieve_job_via_id) {
-  ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_ID);
   assert_not_null(job);
-  ClassificationJob *fetched_job = ce_fetch_classification_job(ce, cjob_id(job));
+  ClassificationJob *fetched_job = ce_fetch_classification_job(ce, job->id);
   assert_equal(job, fetched_job);
 } END_TEST
 
 START_TEST(cancelling_a_job_removes_it_from_the_system_once_a_worker_gets_to_it) {
-  ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_ID);
   char job_id[64];
-  strncpy(job_id, cjob_id(job), 64);
+  strncpy(job_id, job->id, 64);
     
   assert_equal(1, ce_num_waiting_jobs(ce));
   cjob_cancel(job);
@@ -197,14 +184,14 @@ START_TEST(cancelling_a_job_removes_it_from_the_system_once_a_worker_gets_to_it)
 } END_TEST
 
 START_TEST(cancelling_a_job_sets_its_state_to_cancelled) {
-  ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_ID);
   cjob_cancel(job);
-  assert_equal(CJOB_STATE_CANCELLED, cjob_state(job));
+  assert_equal(CJOB_STATE_CANCELLED, job->state);
 } END_TEST
 
 START_TEST(suspended_classification_engine_processes_no_jobs) {
-  ce_add_classification_job_for_tag(ce, TAG_ID);
-  ce_add_classification_job_for_tag(ce, TAG_ID);
+  ce_add_classification_job(ce, TAG_ID);
+  ce_add_classification_job(ce, TAG_ID);
   assert_equal(2, ce_num_waiting_jobs(ce));
   ce_start(ce);
   int suspended = ce_suspend(ce);
@@ -215,8 +202,8 @@ START_TEST(suspended_classification_engine_processes_no_jobs) {
 } END_TEST
 
 START_TEST(resuming_suspended_engine_processes_jobs) {
-  ce_add_classification_job_for_tag(ce, TAG_ID);
-  ce_add_classification_job_for_tag(ce, TAG_ID);
+  ce_add_classification_job(ce, TAG_ID);
+  ce_add_classification_job(ce, TAG_ID);
   assert_equal(2, ce_num_waiting_jobs(ce));
   int suspended = ce_suspend(ce);
   assert_true(suspended);
@@ -227,23 +214,23 @@ START_TEST(resuming_suspended_engine_processes_jobs) {
 } END_TEST
 
 START_TEST (remove_classification_job_removes_the_job_from_the_engines_job_index_if_job_is_complete) {
-  ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_ID);
   
   ce_start(ce);
   ce_stop(ce);
-  assert_equal(CJOB_STATE_COMPLETE, cjob_state(job));
+  assert_equal(CJOB_STATE_COMPLETE, job->state);
   int res = ce_remove_classification_job(ce, job);
   assert_true(res);
-  ClassificationJob *j2 = ce_fetch_classification_job(ce, cjob_id(job));
+  ClassificationJob *j2 = ce_fetch_classification_job(ce, job->id);
   assert_null(j2);
 } END_TEST
 
 START_TEST (remove_classification_job_wont_removes_the_job_from_the_engines_job_index_if_job_is_not_complete) {
-  ClassificationJob *job = ce_add_classification_job_for_tag(ce, TAG_ID);
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_ID);
   
   int res = ce_remove_classification_job(ce, job);
   assert_false(res);
-  ClassificationJob *j2 = ce_fetch_classification_job(ce, cjob_id(job));
+  ClassificationJob *j2 = ce_fetch_classification_job(ce, job->id);
   assert_not_null(j2);
 } END_TEST
 
@@ -301,7 +288,6 @@ Suite * classification_engine_suite(void) {
   tcase_add_test(tc_jt_case, retrieve_job_via_id);
   tcase_add_test(tc_jt_case, cancelling_a_job_sets_its_state_to_cancelled);
   tcase_add_test(tc_jt_case, cancelling_a_job_removes_it_from_the_system_once_a_worker_gets_to_it);
-  tcase_add_test(tc_jt_case, add_user_job_to_queue);
   tcase_add_test(tc_jt_case, suspended_classification_engine_processes_no_jobs);
   tcase_add_test(tc_jt_case, resuming_suspended_engine_processes_jobs);
   tcase_add_test(tc_jt_case, remove_classification_job_removes_the_job_from_the_engines_job_index_if_job_is_complete);

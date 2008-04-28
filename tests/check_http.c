@@ -22,6 +22,7 @@
 #include "fixtures.h"
 
 #define PORT 8008
+#define TAG_URL "http://localhost/tag"
 
 static ItemCacheOptions item_cache_options = {1};
 ItemCache *item_cache;
@@ -193,7 +194,7 @@ START_TEST(delete_with_missing_job_id_is_404) {
 
 
 START_TEST(deleting_job_sets_it_cancelled) {
-  ClassificationJob *job = ce_add_classification_job_for_tag(ce, 48);
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_URL);
   char url[256];
   snprintf(url, 256, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
   assert_delete(url, 200, devnull);
@@ -201,7 +202,7 @@ START_TEST(deleting_job_sets_it_cancelled) {
 } END_TEST
 
 START_TEST (deleting_a_completed_job_removes_it_from_the_engine) {
-  ClassificationJob *job = ce_add_classification_job_for_tag(ce, 48);
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_URL);
   char id[64];
   strncpy(id, cjob_id(job), 64);
   char url[256];
@@ -226,7 +227,7 @@ START_TEST (deleting_a_completed_job_removes_it_from_the_engine) {
 //
 START_TEST(test_job_status) {
   char url[256];
-  ClassificationJob *job = ce_add_classification_job_for_tag(ce, 39);
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_URL);
   sprintf(url, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
   assert_get(url, 200, data);
   fclose(data);
@@ -246,7 +247,7 @@ START_TEST(test_job_status) {
 
 START_TEST(test_job_status_with_xml_suffix) {
   char url[256];
-  ClassificationJob *job = ce_add_classification_job_for_tag(ce, 39);
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_URL);
   sprintf(url, "http://localhost:8008/classifier/jobs/%s.xml", cjob_id(job));
   assert_get(url, 200, data);
   fclose(data);
@@ -266,7 +267,7 @@ START_TEST(test_job_status_with_xml_suffix) {
 
 START_TEST(test_completed_job_status) {
   char url[256];
-  ClassificationJob *job = ce_add_classification_job_for_tag(ce, 39);
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_URL);
   ce_start(ce);
   ce_stop(ce);
   sprintf(url, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
@@ -290,7 +291,7 @@ START_TEST(test_completed_job_status) {
 
 START_TEST(cancelled_job_returns_404) {
   char url[256];
-  ClassificationJob *job = ce_add_classification_job_for_tag(ce, 48);
+  ClassificationJob *job = ce_add_classification_job(ce, TAG_URL);
   cjob_cancel(job);
   sprintf(url, "http://localhost:8008/classifier/jobs/%s", cjob_id(job));
   assert_get(url, 404, devnull);

@@ -129,11 +129,11 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
   xmlNodePtr root = xmlNewNode(NULL, BAD_CAST "job");
   xmlDocSetRootElement(doc, root);
   
-  xmlNewChild(root, NULL, BAD_CAST "id", BAD_CAST cjob_id(job));
+  xmlNewChild(root, NULL, BAD_CAST "id", BAD_CAST job->id);
   
-  switch (cjob_type(job)) {
+  switch (job->type) {
     case CJOB_TYPE_TAG_JOB:
-      add_element(root, "tag-id", "integer", "%d", cjob_tag_id(job));    
+// TODO      add_element(root, "tag-id", "integer", "%d", cjob_tag_id(job));    
       break;
     case CJOB_TYPE_USER_JOB:
       // TODO add_element(root, "user-id", "integer", "%d", cjob_user_id(job));
@@ -142,12 +142,12 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
       break;
   }
   
-  if (CJOB_STATE_ERROR == cjob_state(job)) {
+  if (CJOB_STATE_ERROR == job->state) {
     xmlNewChild(root, NULL, BAD_CAST "error-message", BAD_CAST cjob_error_msg(job));
   }
   
   add_element(root, "duration", "float", "%.2f", cjob_duration(job));
-  add_element(root, "progress", "float", "%.1f", cjob_progress(job));  
+  add_element(root, "progress", "float", "%.1f", job->progress);  
   xmlNewChild(root, NULL, BAD_CAST "status", BAD_CAST cjob_state_msg(job));
   
   xmlDocDumpFormatMemory(doc, &buffer, &buffersize, 1);
@@ -158,7 +158,7 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
 
 static char * url_for_job(const ClassificationJob *job) {
   char *url = calloc(128, sizeof(char));
-  snprintf(url, 128, "/classifier/jobs/%s", cjob_id(job));
+  snprintf(url, 128, "/classifier/jobs/%s", job->id);
   return url;
 }
 
@@ -441,7 +441,7 @@ static int start_job(const HTTPRequest * request, HTTPResponse * response) {
       if (!xmlXPathNodeSetIsEmpty(result->nodesetval)) {
         int tag_id = (int) strtol((char *) result->nodesetval->nodeTab[0]->content, NULL, 10);
         info("Starting classification job for tag %i", tag_id);
-        job = ce_add_classification_job_for_tag(request->ce, tag_id);
+        //job = ce_add_classification_job_for_tag(request->ce, tag_id);
       } else {
         xmlXPathFreeObject(result);
         result = xmlXPathEvalExpression(BAD_CAST "/job/user-id/text()", context);
@@ -449,7 +449,7 @@ static int start_job(const HTTPRequest * request, HTTPResponse * response) {
         if (!xmlXPathNodeSetIsEmpty(result->nodesetval)) {
           int user_id = (int) strtol((char *) result->nodesetval->nodeTab[0]->content, NULL, 10);
           info("Starting classification job for user %i", user_id);
-          job = ce_add_classification_job_for_user(request->ce, user_id);
+          //job = ce_add_classification_job_for_user(request->ce, user_id);
         } else {
           response->code = MHD_HTTP_UNPROCESSABLE_ENTITY;
           response->content = MISSING_TAG_ID;
@@ -483,7 +483,7 @@ static int job_handler(const HTTPRequest * request, HTTPResponse * response) {
     HTTP_NOT_FOUND(response)
   } else if (NULL == (job = ce_fetch_classification_job(request->ce, job_id))) {
     HTTP_NOT_FOUND(response);
-  } else if (CJOB_STATE_CANCELLED == cjob_state(job)) {
+  } else if (CJOB_STATE_CANCELLED == job->state) {
     // Cancelled jobs are considered deleted to the outside world.
     HTTP_NOT_FOUND(response);
   } else if (GET == request->method) {
@@ -493,7 +493,7 @@ static int job_handler(const HTTPRequest * request, HTTPResponse * response) {
     response->content = (char*) xml;
     response->free_content = MHD_YES;    
   } else if (DELETE == request->method) {
-    if (CJOB_STATE_COMPLETE == cjob_state(job)) {
+    if (CJOB_STATE_COMPLETE == job->state) {
       ce_remove_classification_job(request->ce, job);
       free_classification_job(job);
     } else {
