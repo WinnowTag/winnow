@@ -105,33 +105,6 @@ START_TEST(test_http_initialization) {
   assert_get("http://localhost:8008/classifier", 200, devnull);
 } END_TEST
 
-START_TEST(test_missing_job_returns_404) {
-  assert_get("http://localhost:8008/classifier/jobs/missing", 404, devnull);
-} END_TEST
-
-START_TEST(test_missing_job_id_returns_405) {
-  /* 405 is Method NOT allowed.
-   * We get this because you can only POST to classifier/jobs/
-   */
-  assert_get("http://localhost:8008/classifier/jobs/", 405, test_data);
-} END_TEST
-
-START_TEST(test_post_to_create_job_with_tag_id_missing_returns_422) {
-  char *post_data = "<?xml version='1.0'?>\n<job><tag-id></tag-id></job>\n";
-  assert_post("http://localhost:8008/classifier/jobs", post_data, 422, devnull, devnull);
-} END_TEST
-
-/* Missing XML returns Unsupported media type (415) */
-START_TEST(test_post_to_create_job_with_invalid_xml_returns_400) {
-  char *post_data = "xxx";
-  assert_post("http://localhost:8008/classifier/jobs", post_data, 400, devnull, devnull);
-} END_TEST
-
-START_TEST(test_post_to_create_job_without_xml_returns_415) {
-  char *post_data = "";
-  assert_post("http://localhost:8008/classifier/jobs", post_data, 415, devnull, devnull);
-} END_TEST
-
 START_TEST(test_post_with_valid_tag_id_queues_job) {
   
   assert_equal(0, ce_num_jobs_in_system(ce));
@@ -166,32 +139,6 @@ START_TEST(test_post_with_valid_tag_id_queues_job) {
   xmlXPathFreeContext(context);
   xmlFree(doc);
 } END_TEST
-
-START_TEST(test_post_with_user_id_queues_job) {
-  char *post_data = "<?xml version='1.0'?>\n<job><user-id>2</user-id></job>";
-  assert_post("http://localhost:8008/classifier/jobs", post_data, 201, data, devnull);
-  fclose(data);
-  mark_point();
-  
-  assert_equal(1, ce_num_jobs_in_system(ce));
-  xmlDocPtr doc = xmlReadFile("/tmp/test_data.xml", NULL, 0);
-  fail_unless(doc != NULL, "Failed to parse XML");
-  assert_xpath("/job/id/text()", doc);
-  assert_xpath("/job/user-id[text() = '2']", doc);
-  
-  xmlFree(doc);
-} END_TEST
-
-
-START_TEST(delete_without_job_id_is_405) {
-  /* This is 405 since it goes to the start job handler */
-  assert_delete("http://localhost:8008/classifier/jobs/", 405, devnull);
-} END_TEST
-
-START_TEST(delete_with_missing_job_id_is_404) {
-  assert_delete("http://localhost:8008/classifier/jobs/missing", 404, devnull);
-} END_TEST
-
 
 START_TEST(deleting_job_sets_it_cancelled) {
   ClassificationJob *job = ce_add_classification_job(ce, TAG_URL);
@@ -321,157 +268,12 @@ START_TEST(test_error_job_status) {
 } END_TEST
 
 /** Item Cache Tests **/
-START_TEST (test_adding_a_feed_with_no_content_returns_400) {
-  char *url = "http://localhost:8008/feeds";
-  char *post_data = "";
-  assert_post(url, post_data, 400, data, devnull);
-} END_TEST
-
-START_TEST (test_adding_a_feed_returns_201) {
-  char *url = "http://localhost:8008/feeds";
-  char *post_data = "<?xml version=\"1.0\" ?>\n<entry xmlns=\"http://www.w3.org/2005/Atom\"><title>Feed 1337</title><id>urn:peerworks.org:feeds#1337</id></entry>\n";
-  assert_post(url, post_data, 201, data, devnull);
-} END_TEST
-
-START_TEST (test_adding_a_feed_responds_with_the_location_in_the_header) {
-  char *url = "http://localhost:8008/feeds";
-  char *post_data = "<?xml version=\"1.0\" ?>\n<entry xmlns=\"http://www.w3.org/2005/Atom\"><title>Feed 1337</title><id>urn:peerworks.org:feeds#1337</id></entry>\n";
-  assert_post(url, post_data, 201, data, headers);
-  fclose(headers);
-  assert_file_contains_line("/tmp/headers.txt", "Location: http://localhost:8008/feeds/1337");
-} END_TEST
-
-START_TEST (test_adding_a_feed_adds_it_to_the_database) {
-  char *url = "http://localhost:8008/feeds";
-  char *post_data = "<?xml version=\"1.0\" ?>\n<entry xmlns=\"http://www.w3.org/2005/Atom\"><title>Feed 1337</title><id>urn:peerworks.org:feeds#1337</id></entry>\n";
-  assert_post(url, post_data, 201, data, devnull);
-  
-  sqlite3 *db;
-  sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
-  sqlite3_prepare_v2(db, "select * from feeds where id = 1337", -1, &stmt, NULL);
-  int rc = sqlite3_step(stmt);
-  assert_equal(SQLITE_ROW, rc);
-  assert_equal_s("Feed 1337", sqlite3_column_text(stmt, 1));
-  sqlite3_close(db);
-} END_TEST
-
-START_TEST (test_updating_a_feed_returns_202) {
-  char *url = "http://localhost:8008/feeds/1337";
-  FILE *file = fopen("fixtures/entry.atom", "r");
-  fseek(file, 0, SEEK_END);
-  int size = ftell(file);
-  fseek(file, 0, SEEK_SET);
-
-  assert_put(url, file, size, 202, data, devnull);
-} END_TEST
-
-START_TEST (test_removing_a_feed_returns_204) {
-  char *url = "http://localhost:8008/feeds/141";
-  assert_delete(url, 204, devnull);
-} END_TEST
-
-//START_TEST (test_removing_a_feed_that_doesnt_exist_returns_404) {
-//  char *url = "http://localhost:8008/feeds/1337";
-//  assert_delete(url, 404, devnull);
-//} END_TEST
-
-START_TEST (test_removing_a_feed_removes_it_from_the_database) {
-  char *url = "http://localhost:8008/feeds/141";
-  assert_delete(url, 204, devnull);
-  
-  sqlite3 *db;
-  sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
-  sqlite3_prepare_v2(db, "select * from feeds where id = 1337", -1, &stmt, NULL);
-  int rc = sqlite3_step(stmt);
-  assert_equal(SQLITE_DONE, rc);
-  sqlite3_close(db);
-} END_TEST
-
-START_TEST (test_adding_an_entry_using_get_returns_405) {
-  char *url = "http://localhost:8008/feeds/1/feed_items";
-  assert_get(url, 405, devnull);
-} END_TEST
-
-START_TEST (test_adding_an_empty_entry_returns_400) {
-  char *url = "http://localhost:8008/feeds/141/feed_items";
-  assert_post(url, "", 400, data, devnull);
-} END_TEST
-
-START_TEST (test_adding_an_entry_to_nonexistant_feed_returns_422) {
-  char *url = "http://localhost:8008/feeds/1/feed_items";
-  char xml[2048];
-  read_file("fixtures/entry.atom", xml);
-  assert_post(url, xml, 422, data, devnull);
-} END_TEST
-
-START_TEST (test_adding_an_entry_returns_201) {
-  char *url = "http://localhost:8008/feeds/141/feed_items";
-  char xml[2048];
-  read_file("fixtures/entry.atom", xml);
-  assert_post(url, xml, 201, data, devnull);
-} END_TEST
-
-START_TEST (test_adding_an_entry_saves_it_in_the_database) {
-  char *url = "http://localhost:8008/feeds/141/feed_items";
-  char xml[2048];
-  read_file("fixtures/entry.atom", xml);
-  assert_post(url, xml, 201, data, devnull);
-  
-  sqlite3 *db;
-  sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
-  sqlite3_prepare_v2(db, "select * from entries where id = 1", -1, &stmt, NULL);
-  int rc = sqlite3_step(stmt);
-  assert_equal(SQLITE_ROW, rc);
-  assert_equal_s("urn:peerworks.org:entry#1", sqlite3_column_text(stmt, 1));
-  assert_equal_s("Entry 1", sqlite3_column_text(stmt, 2));
-  assert_equal_s("Sean Geoghegan", sqlite3_column_text(stmt, 3));
-  assert_not_null(sqlite3_column_text(stmt, 4));
-  assert_equal_s("http://example.org/entry.html", sqlite3_column_text(stmt, 4));
-  assert_not_null(sqlite3_column_text(stmt, 5));
-  assert_equal_s("http://example.org/entry.atom", sqlite3_column_text(stmt, 5));
-  assert_not_null(sqlite3_column_text(stmt, 6));
-  assert_equal_s("http://example.org/entry/spider", sqlite3_column_text(stmt, 6));
-  assert_not_null(sqlite3_column_text(stmt, 7));
-  assert_equal_s("<p><i>This is an example</i></p>", sqlite3_column_text(stmt, 7));
-  assert_equal_f(2453583.02047454, sqlite3_column_double(stmt, 8));
-  assert_equal(141, sqlite3_column_int(stmt, 9));
-  sqlite3_close(db);
-} END_TEST
-
-START_TEST (test_removing_an_entry_returns_204) {
-  char *url = "http://localhost:8008/feed_items/753459";
-  assert_delete(url, 204, devnull);
-} END_TEST
-
-START_TEST (test_removing_an_entry_removes_it_from_the_database) {
-  char *url = "http://localhost:8008/feed_items/753459";
-  assert_delete(url, 204, devnull);
-  
-  sqlite3 *db;
-  sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
-  sqlite3_prepare_v2(db, "select * from entries where id = 753459", -1, &stmt, NULL);
-  int rc = sqlite3_step(stmt);
-  assert_equal(SQLITE_DONE, rc);
-  sqlite3_close(db);
-} END_TEST
-
-START_TEST (test_removing_a_random_background_entry_returns_202) {
-  char *url = "http://localhost:8008/feed_items/890806";
-  assert_delete(url, 202, devnull);
-} END_TEST
-
 #endif
 
 Suite * http_suite(void) {
   Suite *s = suite_create("http");
   TCase *tc_case = tcase_create("classifier engine");
   tcase_add_checked_fixture(tc_case, setup_httpd, teardown_httpd);
-  TCase *tc_item_cache = tcase_create("item cache");
-  tcase_add_checked_fixture(tc_item_cache, setup_httpd, teardown_httpd);
   
 #ifdef HAVE_LIBCURL
   tcase_add_test(tc_case, test_http_initialization);
@@ -491,27 +293,9 @@ Suite * http_suite(void) {
   tcase_add_test(tc_case, delete_without_job_id_is_405);
   tcase_add_test(tc_case, delete_with_missing_job_id_is_404);
   tcase_add_test(tc_case, deleting_a_completed_job_removes_it_from_the_engine);
-  
-  tcase_add_test(tc_item_cache, test_adding_a_feed_with_no_content_returns_400);
-  tcase_add_test(tc_item_cache, test_adding_a_feed_adds_it_to_the_database);
-  tcase_add_test(tc_item_cache, test_adding_a_feed_returns_201);
-  tcase_add_test(tc_item_cache, test_adding_a_feed_responds_with_the_location_in_the_header);
-  tcase_add_test(tc_item_cache, test_removing_a_feed_removes_it_from_the_database);
-   //tcase_add_test(tc_item_cache, test_removing_a_feed_that_doesnt_exist_returns_404);
-  tcase_add_test(tc_item_cache, test_removing_a_feed_returns_204);
-  tcase_add_test(tc_item_cache, test_adding_an_entry_using_get_returns_405);
-  tcase_add_test(tc_item_cache, test_adding_an_entry_returns_201);
-  tcase_add_test(tc_item_cache, test_adding_an_entry_saves_it_in_the_database);
-  tcase_add_test(tc_item_cache, test_adding_an_empty_entry_returns_400);
-  tcase_add_test(tc_item_cache, test_adding_an_entry_to_nonexistant_feed_returns_422);
-  tcase_add_test(tc_item_cache, test_removing_an_entry_returns_204);
-  tcase_add_test(tc_item_cache, test_removing_an_entry_removes_it_from_the_database);
-  tcase_add_test(tc_item_cache, test_removing_a_random_background_entry_returns_202);
-  tcase_add_test(tc_item_cache, test_updating_a_feed_returns_202);
 
 #endif
   suite_add_tcase(s, tc_case);
-  suite_add_tcase(s, tc_item_cache);
   return s;
 }
 

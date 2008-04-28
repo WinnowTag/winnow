@@ -38,6 +38,9 @@ describe "The Classifier's Item Cache" do
       create_feed(:title => 'My new feed', :id => 'urn:peerworks.org:feeds#1337')
       @sqlite.get_first_value("select title from feeds where id = 1337").should == 'My new feed'
     end
+    
+    it "should return 400 when there is no content"
+    it "should return 202 when updating a feed"
   end
   
   describe "feed deletion" do
@@ -78,6 +81,11 @@ describe "The Classifier's Item Cache" do
       r = @sqlite.get_first_row("select updated, created_at from entries where id = 1111")
       r[0].to_f.should < r[1].to_f
     end
+    
+    it "should return 400 for an empty entry"
+    it "should return 422 when adding an entry to an non-existent feed"
+    it "should return 405 when trying to GET the feed_items"
+    
   end
   
   describe "entry tokenization" do
