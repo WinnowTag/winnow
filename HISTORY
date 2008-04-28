@@ -1,3 +1,8 @@
+=== 1.1.12 (28 April 2008) 
+
+ * Fixed missing NULL termination of data posted via HTTP.
+ * Fixed some compiler warnings.
+
 === 1.1.11 (17 April 2008) 
 
  * Fixed random background loading when some items aren't in the in-memory cache.
