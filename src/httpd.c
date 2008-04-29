@@ -436,25 +436,16 @@ static int start_job(const HTTPRequest * request, HTTPResponse * response) {
     } else {
       ClassificationJob *job = NULL;
       xmlXPathContextPtr context = xmlXPathNewContext(doc);    
-      xmlXPathObjectPtr result = xmlXPathEvalExpression(BAD_CAST "/job/tag-id/text()", context);
+      xmlXPathObjectPtr result = xmlXPathEvalExpression(BAD_CAST "/job/tag-url/text()", context);
       
       if (!xmlXPathNodeSetIsEmpty(result->nodesetval)) {
-        int tag_id = (int) strtol((char *) result->nodesetval->nodeTab[0]->content, NULL, 10);
-        info("Starting classification job for tag %i", tag_id);
-        //job = ce_add_classification_job_for_tag(request->ce, tag_id);
+        char * tag_url = (char*) result->nodesetval->nodeTab[0]->content;
+        info("Starting classification job for tag %i", tag_url);
+        job = ce_add_classification_job(request->ce, tag_url);
       } else {
-        xmlXPathFreeObject(result);
-        result = xmlXPathEvalExpression(BAD_CAST "/job/user-id/text()", context);
-        
-        if (!xmlXPathNodeSetIsEmpty(result->nodesetval)) {
-          int user_id = (int) strtol((char *) result->nodesetval->nodeTab[0]->content, NULL, 10);
-          info("Starting classification job for user %i", user_id);
-          //job = ce_add_classification_job_for_user(request->ce, user_id);
-        } else {
-          response->code = MHD_HTTP_UNPROCESSABLE_ENTITY;
-          response->content = MISSING_TAG_ID;
-          response->content_type = CONTENT_TYPE;
-        }     
+        response->code = MHD_HTTP_UNPROCESSABLE_ENTITY;
+        response->content = MISSING_TAG_ID;
+        response->content_type = CONTENT_TYPE;             
       }
               
       xmlXPathFreeObject(result);

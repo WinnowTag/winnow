@@ -18,10 +18,25 @@ describe "Classifier Job Processing" do
   end
   
   describe "POST job" do
-    it "should return 422 when the tag id is missing"
-    it "should return 400 with invalid xml"
-    it "should return 415 with missing xml"
-    it "should return 201 when job is valid"
+    it "should return 422 when the tag id is missing" do
+      Job.new.save.should be_false
+    end
+    
+    it "should return 400 with invalid xml" do
+      classifier_http do |http|
+        http.request_post("/classifier/jobs", "blahblah").code.should == "400"
+      end
+    end
+    
+    it "should return 415 with missing xml" do
+      classifier_http do |http|
+        http.request_post("/classifier/jobs", "").code.should == "415"
+      end
+    end
+    
+    it "should return 201 when job is valid" do
+      Job.new(:tag_url => "http://localhost/tag.atom").save.should be_true
+    end
   end
   
   describe "DELETE job" do
