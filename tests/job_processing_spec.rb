@@ -26,6 +26,29 @@ describe "Classifier Job Processing" do
       req.request_method.should == 'GET'
     end    
   end
+  
+  it "should not include IF-MODIFIED-SINCE on first request" do
+    @http.should receive_request("/mytag-training.atom") do |req, res|
+      req['IF-MODIFIED-SINCE'].should be_nil
+    end    
+  end
+  
+  it "should include IF-MODIFIED-SINCE on second request" do
+    requests = 0
+    time = Time.now.httpdate
+    
+    @http.should receive_request("/mytag-training.atom") do |req, res|
+      res['last-modified'] = time 
+    end
+    
+    sleep(1)
+    create_job('http://localhost:8888/mytag-training.atom')
+    
+    
+    @http.should receive_request("/mytag-training.atom", 5) do |req, res|
+      req['IF-MODIFIED-SINCE'].should == time
+    end
+  end
     
   it "should accept application/atom+xml" do
     @http.should receive_request("/mytag-training.atom") do |req, res|

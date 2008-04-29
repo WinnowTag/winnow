@@ -216,6 +216,7 @@ static void run_classifcation_job(ClassificationJob * job, ItemCache * item_cach
   /* Try and get the tagger from the tagger_cache */
   Tagger *tagger = NULL;
   int cache_rc = get_tagger(tagger_cache, job->tag_url, &tagger, NULL);  
+  debug("return from get_tagger with %i", cache_rc);
   
   switch (cache_rc) {
     case TAGGER_OK:
@@ -228,12 +229,15 @@ static void run_classifcation_job(ClassificationJob * job, ItemCache * item_cach
       NOW(job->classified_at);
     break;
     case TAG_NOT_FOUND:
+      debug("TAG_NOT_FOUND");
       job->error = CJOB_ERROR_NO_SUCH_TAG;
     break;
     case TAGGER_CHECKED_OUT:
+      debug("TAG_CHECKEDOUT");
       // TODO handle checked out tagger
     break;
     case TAGGER_PENDING_ITEM_ADDITION:
+      debug("TAGGER_PENDING_ITEM_ADDITION");
       // TODO handle pending items
     break;
     default:

@@ -181,6 +181,8 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
     }
     pthread_mutex_unlock(&tagger_cache->mutex);
     
+    debug("checkout complete");
+    
     if (TAGGER_CHECKED_OUT != cache_rc) {
       /* If we get here the tagger has not been cached so attempt to fetch it,
        * if we get it we need to store it and mark it as checked out.

@@ -429,7 +429,7 @@ static int start_job(const HTTPRequest * request, HTTPResponse * response) {
       
       if (!xmlXPathNodeSetIsEmpty(result->nodesetval)) {
         char * tag_url = (char*) result->nodesetval->nodeTab[0]->content;
-        info("Starting classification job for tag %i", tag_url);
+        info("Starting classification job for tag %s", tag_url);
         job = ce_add_classification_job(request->ce, tag_url);
       } else {
         response->code = MHD_HTTP_UNPROCESSABLE_ENTITY;

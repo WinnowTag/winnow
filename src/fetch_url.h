@@ -22,6 +22,7 @@
  *  Should support file and http at least.
  */
 static int fetch_url(const char * url, time_t if_modified_since, char ** data, char ** error) {
+  debug("fetching %s", url);
   int rc;
   char curlerr[512];
   struct RESPONSE response;
@@ -52,6 +53,7 @@ static int fetch_url(const char * url, time_t if_modified_since, char ** data, c
   curl_slist_free_all(http_headers);
   curl_easy_cleanup(curl);
 
+  debug("fetching complete");
   return rc;
 }
 
