@@ -54,16 +54,14 @@ end
 class TestHttpServer  
   attr_accessor :server
   def initialize(opts = {})
-    @port = opts[:port]
-    @server = WEBrick::HTTPServer.new(:Port => @port, 
-                                      :Logger => WEBrick::Log.new('/dev/null'),
-                                      :AccessLog => [])
-    ['INT', 'TERM'].each { |signal|
-       trap(signal){ @server.shutdown} 
-    }
+    @port = opts[:port]    
   end
   
   def start
+    @server = WEBrick::HTTPServer.new(:Port => @port)
+    ['INT', 'TERM'].each { |signal|
+       trap(signal){ @server.shutdown} 
+    }
     yield(@server) if block_given?
     Thread.new do      
       @server.start
