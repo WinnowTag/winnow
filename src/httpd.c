@@ -131,17 +131,6 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
   
   xmlNewChild(root, NULL, BAD_CAST "id", BAD_CAST job->id);
   
-  switch (job->type) {
-    case CJOB_TYPE_TAG_JOB:
-// TODO      add_element(root, "tag-id", "integer", "%d", cjob_tag_id(job));    
-      break;
-    case CJOB_TYPE_USER_JOB:
-      // TODO add_element(root, "user-id", "integer", "%d", cjob_user_id(job));
-      break;
-    default:
-      break;
-  }
-  
   if (CJOB_STATE_ERROR == job->state) {
     xmlNewChild(root, NULL, BAD_CAST "error-message", BAD_CAST cjob_error_msg(job));
   }

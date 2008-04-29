@@ -22,6 +22,7 @@ class HttpRequestMatcher
     request_received = false
     request_received.extend(MonitorMixin)
     cond = request_received.new_cond
+    exception = nil
     
     http.start do |server|
       server.mount_proc(@path) do |req, res|
@@ -29,15 +30,20 @@ class HttpRequestMatcher
           request_received = true
           cond.signal
         end
-        yield(req) if block_given?
+        begin
+          yield(req, res) if block_given?
+        rescue Exception => e
+          exception = e
+        end
       end
     end
     
     request_received.synchronize do      
       cond.wait(@timeout) unless request_received
-      http.shutdown
-      request_received
+      http.shutdown      
     end
+    
+    exception and raise(exception) or request_received
   end
   
   def failure_message
@@ -49,7 +55,9 @@ class TestHttpServer
   attr_accessor :server
   def initialize(opts = {})
     @port = opts[:port]
-    @server = WEBrick::HTTPServer.new(:Port => @port, :Logger => WEBrick::Log.new('/dev/null'))
+    @server = WEBrick::HTTPServer.new(:Port => @port, 
+                                      :Logger => WEBrick::Log.new('/dev/null'),
+                                      :AccessLog => [])
     ['INT', 'TERM'].each { |signal|
        trap(signal){ @server.shutdown} 
     }

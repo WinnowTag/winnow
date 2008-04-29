@@ -20,7 +20,7 @@ START_TEST (test_fetching_from_a_file) {
   sprintf(url, "file:%s/fixtures/entry.atom", path);
   
   char *data = NULL;
-  int rc = fetch_url(url, &data);
+  int rc = fetch_url(url, 0, &data, NULL);
   assert_equal(URL_OK, rc);
   assert_not_null(data);
   assert_equal(920, strlen(data));
@@ -28,7 +28,7 @@ START_TEST (test_fetching_from_a_file) {
 
 START_TEST (test_fetching_non_existent_file_returns_null) {
   char *data = NULL;
-  int rc = fetch_url("file:/foo/bar.txt", &data);
+  int rc = fetch_url("file:/foo/bar.txt", 0, &data, NULL);
   assert_equal(URL_FAIL, rc);
   assert_null(data);
 } END_TEST

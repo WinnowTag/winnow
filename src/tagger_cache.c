@@ -31,17 +31,27 @@ TaggerCache * create_tagger_cache(ItemCache * item_cache, TaggerCacheOptions *op
 }
 
 static Tagger * fetch_tagger(TaggerCache * tagger_cache, const char * tag_training_url, time_t if_modified_since, char ** errmsg) {
+  if (tagger_cache->tag_retriever == NULL) {
+    fatal("tagger_cache->tag_retriever not set");
+  }
+  
   Tagger *tagger = NULL;
   char *tag_document = NULL;
   int rc = tagger_cache->tag_retriever(tag_training_url, if_modified_since, &tag_document, errmsg);
   
   if (rc == TAG_OK && tag_document != NULL) {
     tagger = build_tagger(tag_document);
-    tagger->probability_function = &naive_bayes_probability;
-    tagger->classification_function = &naive_bayes_classify;
     
-    if (tagger->state != TAGGER_LOADED) {
-      tagger = NULL;
+    if (tagger) {
+      tagger->probability_function = &naive_bayes_probability;
+      tagger->classification_function = &naive_bayes_classify;
+    
+      if (tagger->state != TAGGER_LOADED) {
+        tagger = NULL; // free_tagger
+      }      
+    } else {
+      info("The tag document was badly formed");      
+      if (errmsg) *errmsg = strdup("The tag document was badly formed");      
     }
     
     free(tag_document);    

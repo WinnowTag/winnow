@@ -116,10 +116,14 @@ Tagger * build_tagger(const char * atom) {
             
       xmlXPathFreeContext(ctx);
       xmlFreeDoc(doc);
-    }
-    
-    tagger->state = TAGGER_LOADED;
-    tagger->atom = strdup(atom);
+      
+      tagger->state = TAGGER_LOADED;
+      tagger->atom = strdup(atom);
+    } else {
+      debug("Got bad xml back from tag url: %s", atom);
+      free(tagger);
+      tagger = NULL;
+    }    
   }
   
   return tagger;

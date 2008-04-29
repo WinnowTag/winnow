@@ -13,6 +13,7 @@ describe "Classifier Job Processing" do
     @http = TestHttpServer.new(:port => 8888)
     system("rm /tmp/perf.log")   
     start_classifier
+    job = create_job('http://localhost:8888/mytag-training.atom')
   end
   
   after(:each) do
@@ -21,17 +22,43 @@ describe "Classifier Job Processing" do
   end
   
   it "should attempt to fetch a tag for the URL given in the Job description" do
-    job = create_job('http://localhost:8888/mytag-training.atom')
-    @http.should receive_request("/mytag-training.atom") do |r|
-      r.request_method.should == 'GET'
+    @http.should receive_request("/mytag-training.atom") do |req, res|
+      req.request_method.should == 'GET'
     end    
   end
     
   it "should accept application/atom+xml" do
-    job = create_job('http://localhost:8888/mytag-training.atom')
-    @http.should receive_request("/mytag-training.atom") do |r|
-      r['ACCEPT'].should == "application/atom+xml"
+    @http.should receive_request("/mytag-training.atom") do |req, res|
+      req['ACCEPT'].should == "application/atom+xml"
     end
+  end
+  
+  it "should not crash if it gets a 404" do
+    @http.should receive_request("/mytag-training.atom") do |req, res|
+      res.status = 404
+    end
+    
+    should_not_crash
+  end
+  
+  it "should not crash if it gets a 500" do
+    @http.should receive_request("/mytag-training.atom") do |req, res|
+      res.status = 500
+    end
+    
+    should_not_crash
+  end
+  
+  it "should not crash if it gets junk back in the body" do
+    @http.should receive_request("/mytag-training.atom") do |req, res|
+      res.body = "blahbalh"
+    end
+    
+    should_not_crash
+  end
+  
+  def should_not_crash
+    lambda {create_job('http://localhost:8888/mytag-training.atom')}.should_not raise_error
   end
   
   def create_job(training_url)

@@ -13,6 +13,7 @@
 #include "../src/classification_engine.h"
 #include "../src/logging.h"
 #include "../src/item_cache.h"
+#include "../src/fetch_url.h"
 #include "fixtures.h"
 
 #define TAG_ID "http://localhost:8000/test.atom"
@@ -23,6 +24,7 @@
  ************************************************************************/
 static ItemCacheOptions item_cache_options = {1, 3650};
 static ItemCache *item_cache;
+static TaggerCache *tagger_cache;
 static ClassificationEngine *ce;
 static Config *ce_config;
 
@@ -137,8 +139,10 @@ static void setup_engine() {
   setup_fixture_path();
   item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
   item_cache_load(item_cache);
+  tagger_cache = create_tagger_cache(item_cache, NULL);
+  tagger_cache->tag_retriever = &fetch_url;
   ce_config = load_config("conf/test.conf");
-  ce = create_classification_engine(item_cache, ce_config);
+  ce = create_classification_engine(item_cache, tagger_cache, ce_config);
 }
 
 static void teardown_engine() {
@@ -242,9 +246,10 @@ START_TEST(test_engine_initialization) {
   ItemCache *item_cache;
   item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
   item_cache_load(item_cache);
+  tagger_cache = create_tagger_cache(item_cache, NULL);
   Config *config = load_config("conf/test.conf");
   assert_not_null(config);
-  ClassificationEngine *engine = create_classification_engine(item_cache, config);
+  ClassificationEngine *engine = create_classification_engine(item_cache, tagger_cache, config);
   assert_not_null(engine);
   assert_false(ce_is_running(engine));
   free_classification_engine(engine);
@@ -255,10 +260,11 @@ START_TEST(test_engine_starting_and_stopping) {
   ItemCache *item_cache;
   item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
   item_cache_load(item_cache);
+  tagger_cache = create_tagger_cache(item_cache, NULL);
   Config *config = load_config("conf/test.conf");
   assert_not_null(config);
   
-  ClassificationEngine *engine = create_classification_engine(item_cache, config);
+  ClassificationEngine *engine = create_classification_engine(item_cache, tagger_cache, config);
   assert_not_null(engine);
   int start_code = ce_start(engine);
   assert_equal(1, start_code);

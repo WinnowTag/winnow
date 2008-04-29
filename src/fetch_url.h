@@ -10,6 +10,7 @@
 #define _FETCH_URL_H_
 
 #include <curl/curl.h>
+#include <time.h>
 #include "curl_response.h"
 #include "logging.h"
 
@@ -20,12 +21,15 @@
  *
  *  Should support file and http at least.
  */
-static int fetch_url(const char * url, char ** data) {
+static int fetch_url(const char * url, time_t if_modified_since, char ** data, char ** error) {
   int rc;
   char curlerr[512];
   struct RESPONSE response;
   response.size = 0;
   response.data = NULL;
+  
+  struct curl_slist *http_headers = NULL;
+  http_headers = curl_slist_append(http_headers, "Accept: application/atom+xml");
   
   CURL *curl = curl_easy_init();
   curl_easy_setopt(curl, CURLOPT_URL, url);
@@ -34,6 +38,7 @@ static int fetch_url(const char * url, char ** data) {
   curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_response);
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, http_headers);
 
   if (curl_easy_perform(curl)) {
     error("URL %s not accessible: %s", url, curlerr);
@@ -44,6 +49,7 @@ static int fetch_url(const char * url, char ** data) {
     rc = URL_OK;
   }
   
+  curl_slist_free_all(http_headers);
   curl_easy_cleanup(curl);
 
   return rc;

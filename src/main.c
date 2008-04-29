@@ -24,6 +24,7 @@
 #include "misc.h"
 #include "git_revision.h"
 #include "feature_extractor.h"
+#include "fetch_url.h"
 
 #define DEFAULT_CONFIG_FILE "config/classifier.conf"
 #define DEFAULT_LOG_FILE "log/classifier.log"
@@ -46,6 +47,7 @@
 static ItemCacheOptions item_cache_options;
 static Config *config;
 static ItemCache *item_cache;
+static TaggerCache *tagger_cache;
 static ClassificationEngine *engine;
 static Httpd *httpd;
 
@@ -128,7 +130,9 @@ static int start_classifier(const char * db_file, const char * tokenizer_url) {
     item_cache_start_feature_extractor(item_cache);
     item_cache_start_cache_updater(item_cache);
     item_cache_start_purger(item_cache, 60 * 60 * 24);
-    engine = create_classification_engine(item_cache, config);
+    tagger_cache = create_tagger_cache(item_cache, NULL);
+    tagger_cache->tag_retriever = &fetch_url;
+    engine = create_classification_engine(item_cache, tagger_cache, config);
     httpd = httpd_start(config, engine, item_cache);  
     ce_run(engine);
     return EXIT_SUCCESS;
