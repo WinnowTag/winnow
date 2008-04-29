@@ -129,6 +129,7 @@ def destroy_entry(id)
 end
 
 def start_classifier(opts = {})
+  @classifier_url = URI.parse("http://localhost:8008")
   options = {:min_tokens => 0, :load_items_since => 3650}.update(opts)
   system("cp -f #{File.join(ROOT, 'fixtures/valid.db')} #{Database}")
   system("chmod 644 #{Database}") 
@@ -152,6 +153,10 @@ def start_classifier(opts = {})
   
   system(classifier_cmd)
   sleep(0.1)
+end
+
+def classifier_http(&block)
+  Net::HTTP.start(@classifier_url.host, @classifier_url.port, &block) 
 end
 
 def stop_classifier
