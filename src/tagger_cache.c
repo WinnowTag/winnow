@@ -117,9 +117,9 @@ static int cache_tagger(TaggerCache * tagger_cache, Tagger * tagger) {
   return 0;
 }
 
-static int release_tagger_without_locks(TaggerCache *tagger_cache, Tagger *tagger) {
+static int release_tagger_without_locks(TaggerCache *tagger_cache, uint8_t * tag_url) {
   int rc;
-  JSLD(rc, tagger_cache->checked_out_taggers, (uint8_t*) tagger->training_url);
+  JSLD(rc, tagger_cache->checked_out_taggers, tag_url);
   return rc;
 }
 
@@ -218,7 +218,7 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
         
         /* If the new tagger is not in the PRECOMPUTED state check it back in since we don't return it */
         if (temp_tagger->state != TAGGER_PRECOMPUTED) {
-          release_tagger_without_locks(tagger_cache, temp_tagger);
+          release_tagger_without_locks(tagger_cache, tag_training_url);
         }
         
         pthread_mutex_unlock(&tagger_cache->mutex);
@@ -249,6 +249,11 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
         error("Unaccounted for tagger state: %i", temp_tagger->state);
       } else {
         rc = TAG_NOT_FOUND;
+        
+        /* Make sure a missing tag is not checked out */
+        pthread_mutex_lock(&tagger_cache->mutex);
+        release_tagger_without_locks(tagger_cache, tag_training_url);
+        pthread_mutex_unlock(&tagger_cache->mutex);
       }
     } else {
       if (errmsg) *errmsg = strdup("Tagger already being processed");        
@@ -262,8 +267,9 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
 int release_tagger(TaggerCache *tagger_cache, Tagger * tagger) {
   int rc = 1;
   if (tagger_cache && tagger) {
+    debug("releasing tagger %s", tagger->training_url);
     pthread_mutex_lock(&tagger_cache->mutex);
-    rc = release_tagger_without_locks(tagger_cache, tagger);
+    rc = release_tagger_without_locks(tagger_cache, tagger->training_url);
     pthread_mutex_unlock(&tagger_cache->mutex);
   }
   

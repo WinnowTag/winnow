@@ -93,6 +93,14 @@ START_TEST (test_get_tagger_returns_TAG_NOT_FOUND_when_missing) {
   assert_equal(TAG_NOT_FOUND, rc);
 } END_TEST
 
+START_TEST (test_get_tagger_returns_TAG_NOT_FOUND_when_missing_but_doesnt_check_it_out) {
+  Tagger *tagger = NULL;
+  int rc = get_tagger(tagger_cache, "http://example.org/missing.atom", &tagger, NULL);
+  assert_equal(TAG_NOT_FOUND, rc);
+  rc = get_tagger(tagger_cache, "http://example.org/missing.atom", &tagger, NULL);
+  assert_equal(TAG_NOT_FOUND, rc);  
+} END_TEST
+
 START_TEST (test_get_tagger_when_tagger_missing_returns_NULL) {
   Tagger *tagger = NULL;
   get_tagger(tagger_cache, "http://example.org/missing.atom", &tagger, NULL);
@@ -290,6 +298,7 @@ check_get_tagger_suite(void) {
   tcase_add_checked_fixture(tc_case, setup, teardown);
   tcase_add_test(tc_case, test_get_tagger_returns_NULL_for_NULL_tag_url);
   tcase_add_test(tc_case, test_get_tagger_returns_TAG_NOT_FOUND_when_missing);
+  tcase_add_test(tc_case, test_get_tagger_returns_TAG_NOT_FOUND_when_missing_but_doesnt_check_it_out);
   tcase_add_test(tc_case, test_get_tagger_when_tagger_missing_returns_NULL);
   tcase_add_test(tc_case, test_get_tagger_when_tagger_missing_sets_error_message);
   tcase_add_test(tc_case, test_get_tagger_returns_TAGGER_OK_when_valid);
