@@ -69,6 +69,6 @@ class TestHttpServer
   end
   
   def shutdown
-    @server.shutdown
+    @server.shutdown if @server
   end
 end
