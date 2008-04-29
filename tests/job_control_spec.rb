@@ -39,10 +39,28 @@ describe "Classifier Job Processing" do
     end
   end
   
-  describe "DELETE job" do
-    it "should return 405 when a job is is not provided"
-    it "should return 404 when the job is missing"
-    it "should return 404 on subsequent gets"
+  describe "DELETE job" do    
+    it "should return 405 when a job is is not provided" do
+      classifier_http do |http|
+        http.send_request('DELETE', "/classifier/jobs/").code.should == "405"
+      end
+    end
+    
+    it "should return 404 when the job is missing" do
+      classifier_http do |http|
+        http.send_request('DELETE', "/classifier/jobs/missing").code.should == "404"
+      end
+    end
+    
+    it "should return 404 on subsequent gets" do
+      id = Job.create(:tag_url => "http://localhost/tag.atom").id
+      classifier_http do |http|
+        http.send_request('DELETE', "/classifier/jobs/#{id}").code.should == "200"
+      end
+      classifier_http do |http|
+        http.send_request('DELETE', "/classifier/jobs/#{id}").code.should == "404"
+      end
+    end
   end
   
   describe "GET job" do
