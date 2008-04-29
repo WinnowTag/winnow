@@ -63,12 +63,55 @@ describe "Classifier Job Processing" do
     end
   end
   
+  describe "GET job errors" do    
+    it "should return 404 when the job is missing" do
+      classifier_http do |http|
+        http.request_get("/classifier/jobs/missing").code.should == "404"
+      end
+    end
+    
+    it "should return 405 when not providing a job id" do
+      classifier_http do |http|
+        http.request_get("/classifier/jobs").code.should == "405"
+      end
+    end
+    
+    it "should return 404 when getting a cancelled job" do
+      id = Job.create(:tag_url => "http://localhost/tag.atom").id
+      classifier_http do |http|
+        http.send_request('DELETE', "/classifier/jobs/#{id}").code.should == "200"
+      end
+      classifier_http do |http|
+        http.request_get("/classifier/jobs/#{id}").code.should == "404"
+      end        
+    end
+  end
+  
   describe "GET job" do
-    it "should return the job status"
-    it "should return the job status when there is an xml suffix"
-    it "should return 404 when getting a cancelled job"
-    it "should return an error job status"
-    it "should return 404 when the job is missing"
-    it "should return 405 when not providing a job id"
+    before(:each) do
+      @job = Job.create(:tag_url => "http://localhost/tag.atom")
+    end
+    
+    it "should return 200 for valid job" do
+      classifier_http do |http|
+        http.request_get("/classifier/jobs/#{@job.id}").code.should == "200"
+      end
+    end
+    
+    it "should return the job status" do
+      @job.reload
+      @job.should respond_to(:progress, :duration, :status)
+    end
+    
+    it "should return the job status when there is an xml suffix" do
+      classifier_http do |http|
+        http.request_get("/classifier/jobs/#{@job.id}.xml").code.should == "200"
+      end
+    end
+    
+    it "should return an error job status because the tag url is unreachable" do
+      @job.reload
+      @job.status.should == "Error"
+    end
   end
 end
