@@ -7,7 +7,7 @@
 
 require File.dirname(__FILE__) + "/spec_helper.rb"
 
-describe "Classifier Job Processing" do
+describe "Classifier Job Control" do
   before(:each) do
     system("rm /tmp/perf.log")   
     start_classifier

@@ -18,6 +18,7 @@ require 'atom'
 require 'atom/pub'
 require 'sqlite3'
 require 'net/http'
+require File.dirname(__FILE__) + "/test_http_server.rb"
 
 CLASSIFIER_URL = "http://localhost:8008"
 ROOT = File.expand_path(File.dirname(__FILE__))
@@ -148,7 +149,7 @@ def start_classifier(opts = {})
                                      "--db #{Database} 2> /dev/null" 
                                      
   if options[:malloc_log]
-    classifier_cmd = "MallocStackLogging=1 #{classifier_cmd}"
+    classifier_cmd = "export MallocStackLogging=1 && #{classifier_cmd}"
   end
   
   system(classifier_cmd)
@@ -170,6 +171,29 @@ end
 
 def stop_tokenizer
   system("tokenizer_control stop")
+end
+
+def create_job(training_url)
+  job = Job.create(:tag_url => training_url)
+  job.errors.should be_empty
+  job
+end
+
+def run_job(training_url = 'http://localhost:8888/mytag-training.atom')
+ job = create_job(training_url)
+  
+  @http.should receive_request("/mytag-training.atom") do |req, res|
+    res.body = File.read(File.join(File.dirname(__FILE__), 'fixtures', 'complete_tag.atom'))
+  end
+  
+  tries = 0
+  while job.progress < 100 && tries < 100
+    job.reload
+    tries += 1
+  end
+  
+  job.progress.should >= 100
+  job.destroy
 end
 
 def not_leak

@@ -200,7 +200,7 @@ float cjob_duration(const ClassificationJob *job) {
   } else {
     struct timeval now;
     NOW(now);
-    duration = tdiff(job->started_at, now);
+    duration = tdiff(job->created_at, now);
   }
   
   return duration;
@@ -227,6 +227,7 @@ static void run_classifcation_job(ClassificationJob * job, ItemCache * item_cach
       tagger = NULL;
       job->state = CJOB_STATE_INSERTING;
       NOW(job->classified_at);
+      job->progress = 100.0; // TODO remove job->progress = 100 for testing
     break;
     case TAG_NOT_FOUND:
       debug("TAG_NOT_FOUND");

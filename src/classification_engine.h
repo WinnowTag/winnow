@@ -77,6 +77,10 @@ extern ClassificationJob    * ce_add_classification_job(ClassificationEngine *en
 extern ClassificationJob    * ce_add_classification_job_for_user(ClassificationEngine *engine, int user_id);
 extern ClassificationJob    * ce_fetch_classification_job(const ClassificationEngine *engine, const char * job_id);
 extern int                    ce_remove_classification_job(ClassificationEngine *engine, const ClassificationJob *job);
+extern float                  cjob_duration(const ClassificationJob *job);
+extern const char *           cjob_error_msg(const ClassificationJob *job);
+extern const char *           cjob_state_msg(const ClassificationJob * job);
+extern void                   cjob_cancel(ClassificationJob *job);
 
 extern void                   free_classification_job(ClassificationJob * job);
 #endif /*CLASSIFICATION_ENGINE_H_*/

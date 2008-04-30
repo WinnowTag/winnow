@@ -73,12 +73,12 @@ describe "The Classifier's Item Cache" do
     
     it "should store entry in the database" do
       create_entry
-      @sqlite.get_first_value("select count(*) from entries where id = 1111").should == "1"
+      @sqlite.get_first_value("select count(*) from entries where full_id = 'urn:peerworks.org:entries#1111'").should == "1"
     end
   
     it "should properly parse the updated date" do
       create_entry(:updated => Time.now.yesterday.yesterday)
-      r = @sqlite.get_first_row("select updated, created_at from entries where id = 1111")
+      r = @sqlite.get_first_row("select updated, created_at from entries where full_id = 'urn:peerworks.org:entries#1111'")
       r[0].to_f.should < r[1].to_f
     end
     
@@ -100,7 +100,7 @@ describe "The Classifier's Item Cache" do
     it "should tokenize the item" do
       create_entry
       sleep(1)
-      @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = 1111").to_i.should > 0
+      @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = (select id from entries where full_id = 'urn:peerworks.org:entries#1111')").to_i.should > 0
     end
   end
   
@@ -124,14 +124,11 @@ describe "The Classifier's Item Cache" do
   describe "number of items classified" do
     before(:each) do
       @item_count = @sqlite.get_first_value("select count(*) from entries;").to_i
+      @http = TestHttpServer.new(:port => 8888)
     end
     
     it "should be equal to the number of items in the cache" do
-      job = Job.create(:tag_id => 48)
-      while job.progress < 100
-        job.reload
-      end
-      
+      run_job
       Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
     end
     
@@ -147,20 +144,12 @@ describe "The Classifier's Item Cache" do
       it "should include the added item" do
         create_entry
         sleep(1) # let the item get into the cache
-        job = Job.create(:tag_id => 48)
-        while job.progress < 100
-          job.reload
-        end
-
+        run_job
         Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 1)        
       end
       
       it "should automatically classify the new item" do
-        job = Job.create(:tag_id => 48)
-        while job.progress < 100
-          job.reload
-        end
-        
+        run_job
         Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
         
         create_entry
@@ -169,11 +158,7 @@ describe "The Classifier's Item Cache" do
       end
       
       it "should only create a single job that classifies both items for each tag" do
-        job = Job.create(:tag_id => 48)
-        while job.progress < 100
-          job.reload
-        end
-        
+        run_job
         Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
         
         create_entry(:id => "1111")

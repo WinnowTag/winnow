@@ -83,10 +83,4 @@ describe "Classifier Job Processing" do
   def should_not_crash
     lambda {create_job('http://localhost:8888/mytag-training.atom')}.should_not raise_error
   end
-  
-  def create_job(training_url)
-    job = Job.create(:tag_url => training_url)
-    job.errors.should be_empty
-    job
-  end
 end
