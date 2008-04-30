@@ -38,15 +38,15 @@ describe "Classifier Job Processing" do
     time = Time.now.httpdate
     
     @http.should receive_request("/mytag-training.atom") do |req, res|
-      res['last-modified'] = time 
+      res.body = File.read(File.join(File.dirname(__FILE__), 'fixtures', 'complete_tag.atom'))
     end
     
     sleep(1)
-    create_job('http://localhost:8888/mytag-training.atom')
+    create_job('http://localhost:8888/mytag-training.atom')    
     
-    
-    @http.should receive_request("/mytag-training.atom", 5) do |req, res|
-      req['IF-MODIFIED-SINCE'].should == time
+    @http.should receive_request("/mytag-training.atom") do |req, res|
+      req['IF-MODIFIED-SINCE'].should == "Sun, 30 Mar 2008 01:24:18 GMT" # Date in atom:updated
+      res.status = 304
     end
   end
     

@@ -43,6 +43,11 @@ static Tagger * fetch_tagger(TaggerCache * tagger_cache, const char * tag_traini
     tagger = build_tagger(tag_document);
     
     if (tagger) {
+      /* Replace the training url with the url we actually used to fetch it,
+       * i.e. don't trust the atom document to report this correctly.
+       */
+      free(tagger->training_url);
+      tagger->training_url = strdup(tag_training_url);
       tagger->probability_function = &naive_bayes_probability;
       tagger->classification_function = &naive_bayes_classify;
     
@@ -199,6 +204,8 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
         if (updated_tagger) {
           new_tagger = true;
           temp_tagger = updated_tagger;          
+        } else {
+          debug("Tag %s not modified, using cached version", temp_tagger->training_url);
         }
       }
       

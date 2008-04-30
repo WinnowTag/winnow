@@ -40,6 +40,11 @@ static int fetch_url(const char * url, time_t if_modified_since, char ** data, c
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_response);
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, http_headers);
+  
+  if (if_modified_since > 0) {
+    curl_easy_setopt(curl, CURLOPT_TIMEVALUE, if_modified_since);
+    curl_easy_setopt(curl, CURLOPT_TIMECONDITION, CURL_TIMECOND_IFMODSINCE);
+  }
 
   if (curl_easy_perform(curl)) {
     error("URL %s not accessible: %s", url, curlerr);
