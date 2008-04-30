@@ -11,6 +11,7 @@
 #include "tagger.h"
 #include "logging.h"
 #include "classifier.h"
+#include "fetch_url.h"
 
 TaggerCache * create_tagger_cache(ItemCache * item_cache, TaggerCacheOptions *opts) {
   TaggerCache *tagger_cache = calloc(1, sizeof(struct TAGGER_CACHE));
@@ -39,7 +40,7 @@ static Tagger * fetch_tagger(TaggerCache * tagger_cache, const char * tag_traini
   char *tag_document = NULL;
   int rc = tagger_cache->tag_retriever(tag_training_url, if_modified_since, &tag_document, errmsg);
   
-  if (rc == TAG_OK && tag_document != NULL) {
+  if (rc == URL_OK && tag_document != NULL) {
     tagger = build_tagger(tag_document);
     
     if (tagger) {
@@ -201,6 +202,7 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
         /* The tagger is cached, so we need to see if it has been updated. */
         Tagger *updated_tagger = fetch_tagger(tagger_cache, temp_tagger->training_url, temp_tagger->updated, errmsg);
         
+        // TODO do we need to check if it is not found or there is a network error?
         if (updated_tagger) {
           new_tagger = true;
           temp_tagger = updated_tagger;          
