@@ -58,7 +58,7 @@ class TestHttpServer
   end
   
   def start
-    @server = WEBrick::HTTPServer.new(:Port => @port)
+    @server = WEBrick::HTTPServer.new(:Port => @port, :Logger => WEBrick::Log.new('/dev/null'), :AccessLog => [])
     ['INT', 'TERM'].each { |signal|
        trap(signal){ @server.shutdown} 
     }
