@@ -139,20 +139,26 @@ def start_classifier(opts = {})
   if ENV['srcdir']
     classifier = File.join(ENV['PWD'], '../src/classifier')
   end
-  classifier_cmd = "#{classifier} -d --pid /tmp/classifier-test.pid " +
+  classifier_cmd = "#{classifier} --pid /tmp/classifier-test.pid " +
                                      "-t http://localhost:8010/tokenize " +
                                      "-l /tmp/classifier-item_cache_spec.log " +
                                      "-c #{File.join(ROOT, "fixtures/real-db.conf")} " +
                                      "--cache-update-wait-time 1 " +
                                      "--load-items-since #{options[:load_items_since]} " +
                                      "--min-tokens #{options[:min_tokens] or 0} " +
-                                     "--db #{Database} 2> /dev/null" 
+                                     "--db #{Database}" 
                                      
-  if options[:malloc_log]
-    classifier_cmd = "export MallocStackLogging=1 && #{classifier_cmd}"
-  end
   
-  system(classifier_cmd)
+  
+  @classifier_pid = fork do
+    if options[:malloc_log]
+      STDERR.close
+      ENV['MallocStackLogging'] = '1'
+      classifier_cmd = "#{classifier_cmd}"    
+    end
+    exec(classifier_cmd)
+  end
+    
   sleep(0.1)
 end
 
@@ -161,7 +167,7 @@ def classifier_http(&block)
 end
 
 def stop_classifier
-  system("kill -9 `cat /tmp/classifier-test.pid`")
+  system("kill -9 #{@classifier_pid}")
 end
 
 def start_tokenizer
@@ -211,9 +217,9 @@ class MemoryLeaks
   
   def matches?(target)
     @target = target
-    @result = `leaks -exclude regcomp #{@target}`
+    @result = `leaks -exclude regcomp -exclude JudySLIns #{@target}`
     if @result =~ /(\d+) leaks?/
-      @leaks = $1.to_i
+      @leaks = @result.scan(/Leak:/).size 
       @leaks <= @n
     end
   end

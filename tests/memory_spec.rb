@@ -52,7 +52,8 @@ describe 'the classifier' do
     end
     
     it "should not leak memory while processing a classification job" do
-      run_job    
+      run_job
+      sleep(0.5)
       'classifier'.should have_no_more_than_leaks(1)
     end
   end
