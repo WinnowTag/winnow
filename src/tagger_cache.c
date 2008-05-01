@@ -113,7 +113,10 @@ static int cache_tagger(TaggerCache * tagger_cache, Tagger * tagger) {
     if (*tagger_pointer != 0) {
        // we are replacing a tagger in the cache, so free the old one
        // TODO free_tagger((Tagger*) (*tagger_pointer));
-    } 
+      debug("Replacing %s in cache", tagger->training_url);
+    } else {
+      debug("Inserting %s into cache for the first time", tagger->training_url);
+    }
     
     *tagger_pointer = (Word_t) tagger;
   } else {
