@@ -8,6 +8,7 @@
 
 #include "tagger.h"
 
+#include <config.h>
 #include <string.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
@@ -339,6 +340,10 @@ int save_taggings(const Tagger *tagger, char ** errmsg) {
   if (tagger && tagger->classifier_taggings_url) {
     debug("save_taggings: %s", tagger->classifier_taggings_url);
     char curlerr[CURL_ERROR_SIZE];
+    struct curl_slist *http_headers = NULL;
+    
+    http_headers = curl_slist_append(http_headers, "Content-Type: application/atom+xml");
+    
     CURL *curl = curl_easy_init();
     curl_easy_setopt(curl, CURLOPT_URL, tagger->classifier_taggings_url);
   
@@ -347,12 +352,16 @@ int save_taggings(const Tagger *tagger, char ** errmsg) {
     curl_easy_setopt(curl, CURLOPT_UPLOAD, 1);
     curl_easy_setopt(curl, CURLOPT_READFUNCTION, &curl_read_function);
     curl_easy_setopt(curl, CURLOPT_READDATA, NULL);
-    curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t) 0); 
+    curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t) 0);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, http_headers);
+    
+    char ua[512];
+    snprintf(ua, sizeof(ua), "\"Peerworks classifier\"/%s %s", PACKAGE_VERSION, curl_version());
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, ua);
     // curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     // curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_response);
   
 
-    debug("about to perform");
     if (curl_easy_perform(curl)) {
       error("URL %s not accessible: %s", tagger->classifier_taggings_url, curlerr);
       rc = FAIL;
@@ -362,7 +371,8 @@ int save_taggings(const Tagger *tagger, char ** errmsg) {
     }
   
     curl_easy_cleanup(curl);
-
+    curl_slist_free_all(http_headers);
+    
     debug("save_taggings complete");
   }
   

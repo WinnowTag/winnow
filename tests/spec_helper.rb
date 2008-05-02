@@ -134,6 +134,7 @@ def start_classifier(opts = {})
   options = {:min_tokens => 0, :load_items_since => 3650}.update(opts)
   system("cp -f #{File.join(ROOT, 'fixtures/valid.db')} #{Database}")
   system("chmod 644 #{Database}") 
+  system("rm -f /tmp/classifier-test.pid")
   classifier = File.join(ROOT, "../src/classifier")
   
   if ENV['srcdir']
@@ -150,14 +151,16 @@ def start_classifier(opts = {})
                                      
   
   
-  @classifier_pid = fork do
-    if options[:malloc_log]
-      STDERR.close
+  if options[:malloc_log]
+    @classifier_pid = fork do
+       STDERR.close
       ENV['MallocStackLogging'] = '1'
       classifier_cmd = "#{classifier_cmd}"    
+      exec(classifier_cmd)
     end
-    exec(classifier_cmd)
-  end
+  else
+    system("#{classifier_cmd} -d")
+  end  
     
   sleep(0.1)
 end
@@ -167,7 +170,12 @@ def classifier_http(&block)
 end
 
 def stop_classifier
-  system("kill -9 #{@classifier_pid}")
+  if @classifier_pid
+    system("kill -9 #{@classifier_pid}")
+    @classifier_pid = nil
+  else
+    system("kill -9 `cat /tmp/classifier-test.pid`")
+  end
 end
 
 def start_tokenizer

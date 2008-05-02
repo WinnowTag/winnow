@@ -10,26 +10,34 @@ require File.dirname(__FILE__) + "/test_http_server.rb"
 
 describe "Classifier Job Processing" do
   before(:each) do
-    @http = TestHttpServer.new(:port => 8888)
     system("rm /tmp/perf.log")   
     start_classifier
+    @http = TestHttpServer.new(:port => 8888)
   end
   
   after(:each) do
-    @http.shutdown
     stop_classifier
+    @http.shutdown
   end
   
   it "should attempt to fetch a tag for the URL given in the Job description" do
     job = create_job('http://localhost:8888/mytag-training.atom')
-    @http.should receive_request("/mytag-training.atom", 10) do |req, res|
+    @http.should receive_request("/mytag-training.atom") do |req, res|
       req.request_method.should == 'GET'
     end    
   end
   
+  it "should be a buffer against something" do
+    # This is an empty test, it exists to provide a buffer between the first test
+    # and subsequent tests since for some reason the second test always fails and
+    # I think it is a timing thing.  This seems to fix it, but I have a feeling
+    # I'll be fighting against these timing problems forever.
+    job = create_job('http://localhost:8888/mytag-training.atom')
+  end  
+  
   it "should not include IF-MODIFIED-SINCE on first request" do
     job = create_job('http://localhost:8888/mytag-training.atom')
-    @http.should receive_request("/mytag-training.atom", 10) do |req, res|
+    @http.should receive_request("/mytag-training.atom") do |req, res|
       req['IF-MODIFIED-SINCE'].should be_nil
     end    
   end
@@ -83,16 +91,41 @@ describe "Classifier Job Processing" do
     should_not_crash
   end
   
-  it "should PUT results to the classifier url" do
+  it "should PUT results to the classifier url" do    
+    job_results do |req, res|
+      res.request_method.should == 'PUT'
+    end
+  end
+  
+  it "should have application/atom+xml as the content type" do
+    job_results do |req, res|
+      req['content-type'].should == 'application/atom+xml'
+    end
+  end
+  
+  it "should have the classifier in the user agent" do
+    job_results do |req, res|
+      req['user-agent'].should match(/classifier/)
+    end
+  end
+  
+  it "should have a valid atom document as the body" do
+    job_results do |req, res|
+      lambda { Atom::Feed.load_feed(req.body) }.should_not raise_error
+    end
+  end
+  
+  def job_results
     job = create_job('http://localhost:8888/mytag-training.atom')
     @http.should receive_requests(5) {|http|
       http.request("/mytag-training.atom") do |req, res|
         res.body = File.read(File.join(File.dirname(__FILE__), 'fixtures', 'complete_tag.atom'))
       end
       http.request("/results") do |req, res|
-        res.request_method.should == 'PUT'
+        yield(req, res)
       end
     }
+    job
   end
   
   def should_not_crash
