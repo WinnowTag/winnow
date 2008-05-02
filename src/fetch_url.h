@@ -24,7 +24,7 @@
 static int fetch_url(const char * url, time_t if_modified_since, char ** data, char ** error) {
   debug("fetching %s", url);
   int rc;
-  char curlerr[512];
+  char curlerr[CURL_ERROR_SIZE];
   struct RESPONSE response;
   response.size = 0;
   response.data = NULL;

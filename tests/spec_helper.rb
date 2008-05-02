@@ -180,8 +180,8 @@ def stop_tokenizer
 end
 
 def create_job(training_url)
-  job = Job.create(:tag_url => training_url)
-  job.errors.should be_empty
+  job = Job.new(:tag_url => training_url)
+  job.save.should be_true
   job
 end
 

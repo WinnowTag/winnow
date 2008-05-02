@@ -13,6 +13,7 @@
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
 #include <libxml/uri.h>
+#include <curl/curl.h>
 #include "xml.h"
 #include "uri.h"
 #include "logging.h"
@@ -322,6 +323,47 @@ int classify_item(const Tagger *tagger, const Item *item, double * probability) 
   if (tagger && tagger->state == TAGGER_PRECOMPUTED && tagger->classification_function != NULL && probability != NULL) {
     rc = TAGGER_OK;
     *probability = tagger->classification_function(tagger->clues, item);
+  }
+  
+  return rc;
+}
+
+static size_t curl_read_function(void *ptr, size_t size, size_t nmemb, void *stream) {
+  debug("curl_read_function");
+  return 0;
+}
+
+int save_taggings(const Tagger *tagger, char ** errmsg) {
+  int rc;
+  
+  if (tagger && tagger->classifier_taggings_url) {
+    debug("save_taggings: %s", tagger->classifier_taggings_url);
+    char curlerr[CURL_ERROR_SIZE];
+    CURL *curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_URL, tagger->classifier_taggings_url);
+  
+    curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);
+    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1);
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, &curl_read_function);
+    curl_easy_setopt(curl, CURLOPT_READDATA, NULL);
+    curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t) 0); 
+    // curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+    // curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_response);
+  
+
+    debug("about to perform");
+    if (curl_easy_perform(curl)) {
+      error("URL %s not accessible: %s", tagger->classifier_taggings_url, curlerr);
+      rc = FAIL;
+    } else {
+      debug("save_taggings success");
+      rc = OK;
+    }
+  
+    curl_easy_cleanup(curl);
+
+    debug("save_taggings complete");
   }
   
   return rc;

@@ -7,7 +7,7 @@
   <ns1:bias>1.2</ns1:bias>
   <ns1:classified>2008-04-15T01:16:23Z</ns1:classified>
   <link href="http://trunk.mindloom.org:80/seangeo/tags/a-religion.atom" rel="alternate"/>
-  <link href="http://trunk.mindloom.org:80/seangeo/tags/a-religion/classifier_taggings.atom" rel="http://peerworks.org/classifier/edit"/>
+  <link href="http://localhost:8888/results" rel="http://peerworks.org/classifier/edit"/>
   <link href="http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom" rel="self"/>
   <entry>
     <title>a more secularized religion</title>

@@ -223,6 +223,7 @@ static void run_classifcation_job(ClassificationJob * job, ItemCache * item_cach
       NOW(job->trained_at);
       job->state = CJOB_STATE_CLASSIFYING;
       /* Do classification */
+      save_taggings(tagger, NULL);
       release_tagger(tagger_cache, tagger);
       tagger = NULL;
       job->state = CJOB_STATE_INSERTING;
