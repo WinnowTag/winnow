@@ -8,6 +8,9 @@
 require File.dirname(__FILE__) + "/spec_helper.rb"
 require File.dirname(__FILE__) + "/test_http_server.rb"
 
+gem 'ratom'
+require 'atom'
+
 describe "Classifier Job Processing" do
   before(:each) do
     system("rm /tmp/perf.log")   
@@ -112,6 +115,13 @@ describe "Classifier Job Processing" do
   it "should have a valid atom document as the body" do
     job_results do |req, res|
       lambda { Atom::Feed.load_feed(req.body) }.should_not raise_error
+    end
+  end
+  
+  it "should have a tag's id as the id of the feed in the atom document" do
+    job_results do |req, res|
+      feed = Atom::Feed.load_feed(req.body)
+      feed.id.should == "http://trunk.mindloom.org:80/seangeo/tags/a-religion"
     end
   end
   

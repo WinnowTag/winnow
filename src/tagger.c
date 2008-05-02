@@ -329,8 +329,38 @@ int classify_item(const Tagger *tagger, const Item *item, double * probability) 
   return rc;
 }
 
+static struct output {
+  int pos;
+  int size;
+  char *data;
+};
+
 static size_t curl_read_function(void *ptr, size_t size, size_t nmemb, void *stream) {
-  debug("curl_read_function");
+  debug("read");
+  struct output *out = (struct output*) stream;
+  
+  if (out->pos < out->size) {
+    memcpy(ptr, out->data, size * nmemb);
+    out->pos += (size * nmemb);
+    return size * nmemb;
+  } else {
+    return 0;    
+  }
+}
+
+static int xml_for_tagger(const Tagger *tagger, struct output * out) {
+  xmlDocPtr doc = xmlNewDoc(BAD_CAST "1.0");
+  xmlNodePtr feed = xmlNewNode(NULL, BAD_CAST "feed");
+  xmlNewProp(feed, BAD_CAST "xmlns", BAD_CAST ATOM);  
+  xmlDocSetRootElement(doc, feed);
+  
+  if (tagger->tag_id) {
+    xmlNewChild(feed, NULL, BAD_CAST "id", BAD_CAST tagger->tag_id);    
+  }
+  
+  xmlDocDumpFormatMemory(doc, (xmlChar **) &out->data, &out->size, 1);
+  xmlFreeDoc(doc);
+  
   return 0;
 }
 
@@ -341,6 +371,10 @@ int save_taggings(const Tagger *tagger, char ** errmsg) {
     debug("save_taggings: %s", tagger->classifier_taggings_url);
     char curlerr[CURL_ERROR_SIZE];
     struct curl_slist *http_headers = NULL;
+    struct output tagger_xml;
+    memset(&tagger_xml, 0, sizeof(tagger_xml));
+    xml_for_tagger(tagger, &tagger_xml);
+    debug("xml data = \n%s", tagger_xml.data);
     
     http_headers = curl_slist_append(http_headers, "Content-Type: application/atom+xml");
     
@@ -351,8 +385,8 @@ int save_taggings(const Tagger *tagger, char ** errmsg) {
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);
     curl_easy_setopt(curl, CURLOPT_UPLOAD, 1);
     curl_easy_setopt(curl, CURLOPT_READFUNCTION, &curl_read_function);
-    curl_easy_setopt(curl, CURLOPT_READDATA, NULL);
-    curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t) 0);
+    curl_easy_setopt(curl, CURLOPT_READDATA, &tagger_xml);
+    curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t) tagger_xml.size);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, http_headers);
     
     char ua[512];
