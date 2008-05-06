@@ -141,6 +141,15 @@ describe "Classifier Job Processing" do
     end
   end
   
+  it "should have a single category for each entry" do
+    job_results do |req, res|
+      feed = Atom::Feed.load_feed(req.body)
+      feed.entries.each do |e|
+        e.should have(1).categories
+      end
+    end
+  end
+  
   def job_results
     job = create_job('http://localhost:8888/mytag-training.atom')
     @http.should receive_requests(5) {|http|
