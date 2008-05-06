@@ -33,7 +33,7 @@ typedef enum TAGGER_STATE {
 
 typedef struct TAGGING {
     /* Id of the tagged item */
-    const char *item_id;
+    const unsigned char *item_id;
     /* Strength of the tagging */
     double strength;
 } Tagging;

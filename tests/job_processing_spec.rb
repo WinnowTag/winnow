@@ -132,6 +132,15 @@ describe "Classifier Job Processing" do
     end
   end
   
+  it "should have ids for each entry that match the item id" do
+    job_results do |req, res|
+      feed = Atom::Feed.load_feed(req.body)
+      feed.entries.each do |e|
+        e.id.should match(/urn:peerworks.org:entry#/)
+      end
+    end
+  end
+  
   def job_results
     job = create_job('http://localhost:8888/mytag-training.atom')
     @http.should receive_requests(5) {|http|

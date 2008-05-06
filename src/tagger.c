@@ -348,7 +348,7 @@ static size_t curl_read_function(void *ptr, size_t size, size_t nmemb, void *str
   }
 }
 
-static int xml_for_tagger(const Tagger *tagger, const TaggingList *taggings, struct output * out) {
+static int xml_for_tagger(const Tagger *tagger, const TaggingList *list, struct output * out) {
   xmlDocPtr doc = xmlNewDoc(BAD_CAST "1.0");
   xmlNodePtr feed = xmlNewNode(NULL, BAD_CAST "feed");
   xmlNewProp(feed, BAD_CAST "xmlns", BAD_CAST ATOM);  
@@ -359,9 +359,9 @@ static int xml_for_tagger(const Tagger *tagger, const TaggingList *taggings, str
   }
   
   int i;
-  for (i = 0; i < taggings->size; i++) {
+  for (i = 0; i < list->size; i++) {
     xmlNodePtr entry = xmlNewChild(feed, NULL, BAD_CAST "entry", NULL);
-    xmlNewChild(entry, NULL, BAD_CAST "id", NULL);
+    xmlNewChild(entry, NULL, BAD_CAST "id", BAD_CAST list->taggings[i]->item_id);
   }
   
   xmlDocDumpFormatMemory(doc, (xmlChar **) &out->data, &out->size, 1);
