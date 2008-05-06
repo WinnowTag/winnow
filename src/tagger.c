@@ -363,13 +363,20 @@ static int xml_for_tagger(const Tagger *tagger, const TaggingList *list, struct 
     xmlNewChild(feed, NULL, BAD_CAST "id", BAD_CAST tagger->tag_id);    
   }
   
+  char timebuf[24];
+  struct tm tm_time;
+  memset(&tm_time, 0, sizeof(tm_time));
+  gmtime_r(&tagger->last_classified, &tm_time);
+  strftime(timebuf, sizeof(timebuf), "%Y-%m-%dT%H:%M:%SZ", &tm_time);
+  xmlNewChild(feed, classifier_ns, BAD_CAST "classified", BAD_CAST timebuf);
+  
   int i;
   for (i = 0; i < list->size; i++) {
     xmlNodePtr entry = xmlNewChild(feed, NULL, BAD_CAST "entry", NULL);
     xmlNewChild(entry, NULL, BAD_CAST "id", BAD_CAST list->taggings[i]->item_id);
     xmlNodePtr category = xmlNewChild(entry, NULL, BAD_CAST "category", NULL);
-    xmlNewProp(category, BAD_CAST "term", tagger->term);
-    xmlNewProp(category, BAD_CAST "scheme", tagger->scheme);
+    xmlNewProp(category, BAD_CAST "term", BAD_CAST tagger->term);
+    xmlNewProp(category, BAD_CAST "scheme", BAD_CAST tagger->scheme);
     char buffer[24];
     snprintf(buffer, 24, "%.6f", list->taggings[i]->strength);
     xmlNewNsProp(category, classifier_ns, BAD_CAST "strength", BAD_CAST buffer);

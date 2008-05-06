@@ -261,6 +261,7 @@ static void run_classifcation_job(ClassificationJob * job, ItemCache * item_cach
       job_stuff.taggings = create_tagging_list(1000);
       item_cache_each_item(item_cache, &classify_item_cb, &job_stuff);
       NOW(job->classified_at);
+      job_stuff.tagger->last_classified = time(NULL);
       
       /* Save the results */
       job->state = CJOB_STATE_INSERTING;
@@ -270,7 +271,7 @@ static void run_classifcation_job(ClassificationJob * job, ItemCache * item_cach
       release_tagger(tagger_cache, job_stuff.tagger);
       free_tagging_list(job_stuff.taggings);
       
-      NOW(job->completed_at)
+      NOW(job->completed_at);
       job->progress = 100.0;
       job->state = CJOB_STATE_COMPLETE;
     break;

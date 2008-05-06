@@ -169,7 +169,13 @@ describe "Classifier Job Processing" do
     end
   end
   
-  it "should include a new classified date on the tag"
+  it "should include a new classified date on the tag" do
+    job_results do |req, res|
+      Atom::Feed.load_feed(req.body)['http://peerworks.org/classifier', 'classified'].should_not be_empty
+      new_time = Time.parse(Atom::Feed.load_feed(req.body)['http://peerworks.org/classifier', 'classified'].first)
+      new_time.should > Time.parse('2008-04-15T01:16:23Z')
+    end
+  end
   
   def job_results
     job = create_job('http://localhost:8888/mytag-training.atom')
