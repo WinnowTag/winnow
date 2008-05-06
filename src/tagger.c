@@ -355,7 +355,8 @@ static size_t curl_read_function(void *ptr, size_t size, size_t nmemb, void *str
 static int xml_for_tagger(const Tagger *tagger, const TaggingList *list, struct output * out) {
   xmlDocPtr doc = xmlNewDoc(BAD_CAST "1.0");
   xmlNodePtr feed = xmlNewNode(NULL, BAD_CAST "feed");
-  xmlNewProp(feed, BAD_CAST "xmlns", BAD_CAST ATOM);  
+  xmlNsPtr classifier_ns = xmlNewNs(feed, BAD_CAST CLASSIFIER, BAD_CAST "classifier");
+  xmlNewProp(feed, BAD_CAST "xmlns", BAD_CAST ATOM);
   xmlDocSetRootElement(doc, feed);
   
   if (tagger->tag_id) {
@@ -369,6 +370,9 @@ static int xml_for_tagger(const Tagger *tagger, const TaggingList *list, struct 
     xmlNodePtr category = xmlNewChild(entry, NULL, BAD_CAST "category", NULL);
     xmlNewProp(category, BAD_CAST "term", tagger->term);
     xmlNewProp(category, BAD_CAST "scheme", tagger->scheme);
+    char buffer[24];
+    snprintf(buffer, 24, "%.6f", list->taggings[i]->strength);
+    xmlNewNsProp(category, classifier_ns, BAD_CAST "strength", BAD_CAST buffer);
   }
   
   xmlDocDumpFormatMemory(doc, (xmlChar **) &out->data, &out->size, 1);

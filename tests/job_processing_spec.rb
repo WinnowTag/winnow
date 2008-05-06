@@ -150,8 +150,15 @@ describe "Classifier Job Processing" do
     end
   end
   
-  it "should have a strength attribute on each category"
-  
+  it "should have a strength attribute on each category" do
+    job_results do |req, res|
+      Atom::Feed.load_feed(req.body).entries.each do |e|
+        e.categories.first['http://peerworks.org/classifier', 'strength'].should_not be_empty
+        e.categories.first['http://peerworks.org/classifier', 'strength'].first.should match(/\d+\.\d+/)
+      end
+    end    
+  end
+    
   it "should have a term and scheme that match the term and scheme on the tag definition" do
     job_results do |req, res|
       feed = Atom::Feed.load_feed(req.body)
