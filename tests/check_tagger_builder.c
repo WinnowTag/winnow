@@ -59,7 +59,7 @@ START_TEST (test_load_tagger_from_tag_definition_document_sets_training_url) {
 START_TEST (test_load_tagger_from_tag_definition_document_sets_classifier_taggings_url) {
   Tagger *tagger = build_tagger(document);
   assert_not_null(tagger->classifier_taggings_url);
-  assert_equal_s("http://trunk.mindloom.org:80/seangeo/tags/a-religion/classifier_taggings.atom", tagger->classifier_taggings_url);
+  assert_equal_s("http://localhost:8888/results", tagger->classifier_taggings_url);
 } END_TEST
 
 START_TEST (test_load_tagger_from_tag_definition_document_sets_tag_id) {
