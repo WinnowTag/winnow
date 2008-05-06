@@ -367,6 +367,8 @@ static int xml_for_tagger(const Tagger *tagger, const TaggingList *list, struct 
     xmlNodePtr entry = xmlNewChild(feed, NULL, BAD_CAST "entry", NULL);
     xmlNewChild(entry, NULL, BAD_CAST "id", BAD_CAST list->taggings[i]->item_id);
     xmlNodePtr category = xmlNewChild(entry, NULL, BAD_CAST "category", NULL);
+    xmlNewProp(category, BAD_CAST "term", tagger->term);
+    xmlNewProp(category, BAD_CAST "scheme", tagger->scheme);
   }
   
   xmlDocDumpFormatMemory(doc, (xmlChar **) &out->data, &out->size, 1);

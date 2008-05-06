@@ -151,7 +151,17 @@ describe "Classifier Job Processing" do
   end
   
   it "should have a strength attribute on each category"
-  it "should have a term and scheme that match the term and scheme on the tag definition"
+  
+  it "should have a term and scheme that match the term and scheme on the tag definition" do
+    job_results do |req, res|
+      feed = Atom::Feed.load_feed(req.body)
+      feed.entries.each do |e|
+        e.categories.first.term.should == 'a-religion'
+        e.categories.first.scheme.should == 'http://trunk.mindloom.org:80/seangeo/tags/'
+      end
+    end
+  end
+  
   it "should include a new classified date on the tag"
   
   def job_results
