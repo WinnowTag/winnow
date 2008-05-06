@@ -150,6 +150,10 @@ describe "Classifier Job Processing" do
     end
   end
   
+  it "should have a strength attribute on each category"
+  it "should have a term and scheme that match the term and scheme on the tag definition"
+  it "should include a new classified date on the tag"
+  
   def job_results
     job = create_job('http://localhost:8888/mytag-training.atom')
     @http.should receive_requests(5) {|http|
