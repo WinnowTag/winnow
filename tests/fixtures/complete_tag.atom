@@ -9,6 +9,7 @@
   <link href="http://trunk.mindloom.org:80/seangeo/tags/a-religion.atom" rel="alternate"/>
   <link href="http://localhost:8888/results" rel="http://peerworks.org/classifier/edit"/>
   <link href="http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom" rel="self"/>
+  <category term="a-religion" scheme="http://trunk.mindloom.org:80/seangeo/tags/" />
   <entry>
     <title>a more secularized religion</title>
     <id>urn:peerworks.org:entry#753459</id>

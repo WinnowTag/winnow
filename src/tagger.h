@@ -59,6 +59,12 @@ typedef struct TAGGER {
   /* The URL to send classifier taggings to */
   char *classifier_taggings_url;
   
+  /* The atom:category 'term' for the tagger */
+  char * term;
+  
+  /* The atom:category 'scheme' for the tagger */
+  char * scheme;
+  
   /* The time the user last updated the tag */
   time_t updated;
   

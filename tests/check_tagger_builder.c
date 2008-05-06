@@ -61,6 +61,18 @@ START_TEST (test_load_tagger_from_tag_definition_document_sets_classifier_taggin
   assert_not_null(tagger->classifier_taggings_url);
   assert_equal_s("http://localhost:8888/results", tagger->classifier_taggings_url);
 } END_TEST
+        
+START_TEST (test_load_tagging_from_tag_definition_document_set_tagger_term) {
+  Tagger *tagger = build_tagger(document);
+  assert_not_null(tagger->term);
+  assert_equal_s("a-religion", tagger->term);
+} END_TEST
+        
+START_TEST (test_load_tagging_from_tag_definition_document_set_tagger_scheme) {
+  Tagger *tagger = build_tagger(document);
+  assert_not_null(tagger->scheme);
+  assert_equal_s("http://trunk.mindloom.org:80/seangeo/tags/", tagger->scheme);
+} END_TEST
 
 START_TEST (test_load_tagger_from_tag_definition_document_sets_tag_id) {
   Tagger *tagger = build_tagger(document);
@@ -109,6 +121,8 @@ tag_loading_suite(void) {
   tcase_add_test(tc_complete_tag, test_loads_right_number_of_negative_examples);
   tcase_add_test(tc_complete_tag, test_loads_right_positive_examples);
   tcase_add_test(tc_complete_tag, test_loads_right_negative_examples);
+  tcase_add_test(tc_complete_tag, test_load_tagging_from_tag_definition_document_set_tagger_term);
+  tcase_add_test(tc_complete_tag, test_load_tagging_from_tag_definition_document_set_tagger_scheme);
 
   suite_add_tcase(s, tc_complete_tag);
   return s;

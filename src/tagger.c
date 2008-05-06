@@ -106,9 +106,13 @@ Tagger * build_tagger(const char * atom) {
       tagger->tag_id = get_element_value(ctx, "/atom:feed/atom:id/text()");
       tagger->training_url = get_attribute_value(ctx, "/atom:feed/atom:link[@rel = 'self']", "href");
       tagger->classifier_taggings_url = get_attribute_value(ctx, "/atom:feed/atom:link[@rel = 'http://peerworks.org/classifier/edit']", "href");
+      tagger->term = get_attribute_value(ctx, "/atom:feed/atom:category", "term");
+      tagger->scheme = get_attribute_value(ctx, "/atom:feed/atom:category", "scheme");
       tagger->updated = get_element_value_time(ctx, "/atom:feed/atom:updated/text()");
       tagger->last_classified = get_element_value_time(ctx, "/atom:feed/classifier:classified/text()");
       tagger->bias = get_element_value_double(ctx, "/atom:feed/classifier:bias/text()");
+      
+      // TODO Validate the above!
       
       if (FAIL == load_positive_examples(tagger, ctx)) {
         // TODO unwind and return NULL

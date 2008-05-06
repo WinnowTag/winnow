@@ -65,7 +65,7 @@ char * get_attribute_value(xmlXPathContextPtr context, const char * path, const 
   
   xmlXPathObjectPtr xp = xmlXPathEvalExpression(BAD_CAST path, context);
   if (!xmlXPathNodeSetIsEmpty(xp->nodesetval)) {
-    value = (char*) xmlGetProp(xp->nodesetval->nodeTab[0], BAD_CAST "href");;
+    value = (char*) xmlGetProp(xp->nodesetval->nodeTab[0], BAD_CAST attr);;
   }
   
   xmlXPathFreeObject(xp);
