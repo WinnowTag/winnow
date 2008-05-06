@@ -348,7 +348,7 @@ static size_t curl_read_function(void *ptr, size_t size, size_t nmemb, void *str
   }
 }
 
-static int xml_for_tagger(const Tagger *tagger, struct output * out) {
+static int xml_for_tagger(const Tagger *tagger, const TaggingList *taggings, struct output * out) {
   xmlDocPtr doc = xmlNewDoc(BAD_CAST "1.0");
   xmlNodePtr feed = xmlNewNode(NULL, BAD_CAST "feed");
   xmlNewProp(feed, BAD_CAST "xmlns", BAD_CAST ATOM);  
@@ -358,13 +358,19 @@ static int xml_for_tagger(const Tagger *tagger, struct output * out) {
     xmlNewChild(feed, NULL, BAD_CAST "id", BAD_CAST tagger->tag_id);    
   }
   
+  int i;
+  for (i = 0; i < taggings->size; i++) {
+    xmlNodePtr entry = xmlNewChild(feed, NULL, BAD_CAST "entry", NULL);
+    xmlNewChild(entry, NULL, BAD_CAST "id", NULL);
+  }
+  
   xmlDocDumpFormatMemory(doc, (xmlChar **) &out->data, &out->size, 1);
   xmlFreeDoc(doc);
   
   return 0;
 }
 
-int save_taggings(const Tagger *tagger, char ** errmsg) {
+int save_taggings(const Tagger *tagger, TaggingList *taggings, char ** errmsg) {
   int rc;
   
   if (tagger && tagger->classifier_taggings_url) {
@@ -373,7 +379,7 @@ int save_taggings(const Tagger *tagger, char ** errmsg) {
     struct curl_slist *http_headers = NULL;
     struct output tagger_xml;
     memset(&tagger_xml, 0, sizeof(tagger_xml));
-    xml_for_tagger(tagger, &tagger_xml);
+    xml_for_tagger(tagger, taggings, &tagger_xml);
     debug("xml data = \n%s", tagger_xml.data);
     
     http_headers = curl_slist_append(http_headers, "Content-Type: application/atom+xml");

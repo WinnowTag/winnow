@@ -36,7 +36,7 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            feature_extractor.h       \
                            xml.c xml.h \
                            uri.h                     \
-                           tagger.c tagger.h tagger_cache.c \
+                           tagger.c tagger.h tagger_cache.c tagging.c \
                            fetch_url.h
 
 libclassifier_la_LIBADD = @LTLIBOBJS@
@@ -51,9 +51,9 @@ classifier_LDADD = libclassifier.la
 #cls_bench_LDADD = libclassifier.la
 
 if DEBUG
-classifier_CFLAGS = -g -D_DEBUG
+classifier_CFLAGS = -g3 -D_DEBUG -gdwarf-2
 classifier_LDFLAGS = -static
-libclassifier_la_CFLAGS = -g -D_DEBUG
+libclassifier_la_CFLAGS = -g3 -D_DEBUG -gdwarf-2
 endif
 
 # noinst_PROGRAMS = cls_bench

@@ -206,7 +206,38 @@ float cjob_duration(const ClassificationJob *job) {
   return duration;
 }
 
+struct JobStuff {
+  ClassificationJob *job;
+  Tagger *tagger;
+  TaggingList *taggings;
+};
+
+static int classify_item_cb(const Item *item, void *memo) {
+  struct JobStuff *stuff = (struct JobStuff*) memo;
+  int rc = CLASSIFIER_OK;
+
+  if (stuff->job->item_scope == ITEM_SCOPE_NEW && item_get_time(item) < stuff->tagger->last_classified) {
+    rc = CLASSIFIER_FAIL;
+  } else {
+    double probability;
+    if (TAGGER_OK == classify_item(stuff->tagger, item, &probability)) {
+      add_to_tagging_list(stuff->taggings, create_tagging(item_get_id(item), probability));
+    } else {
+      error("Error classifying item");
+      rc = CLASSIFIER_FAIL;
+    }
+  }
+
+  stuff->job->progress += stuff->job->progress_increment;
+  
+  return rc;
+}
+
+
 static void run_classifcation_job(ClassificationJob * job, ItemCache * item_cache, TaggerCache * tagger_cache) {
+  struct JobStuff job_stuff;  
+  job_stuff.job = job;
+  
   /* If the job is cancelled bail out before doing anything */
   if (job->state == CJOB_STATE_CANCELLED) return;
      
@@ -214,21 +245,34 @@ static void run_classifcation_job(ClassificationJob * job, ItemCache * item_cach
   job->state = CJOB_STATE_TRAINING;
    
   /* Try and get the tagger from the tagger_cache */
-  Tagger *tagger = NULL;
-  int cache_rc = get_tagger(tagger_cache, job->tag_url, &tagger, NULL);  
+  job_stuff.tagger = NULL;
+  int cache_rc = get_tagger(tagger_cache, job->tag_url, &(job_stuff.tagger), NULL);  
   debug("return from get_tagger with %i", cache_rc);
   
   switch (cache_rc) {
-    case TAGGER_OK:
+    case TAGGER_OK:        
       NOW(job->trained_at);
-      job->state = CJOB_STATE_CLASSIFYING;
+      
       /* Do classification */
-      save_taggings(tagger, NULL);
-      release_tagger(tagger_cache, tagger);
-      tagger = NULL;
-      job->state = CJOB_STATE_INSERTING;
+      job->state = CJOB_STATE_CLASSIFYING;
+      job->progress = 20.0;
+      job->progress_increment = 60.0 / item_cache_cached_size(item_cache);
+      
+      job_stuff.taggings = create_tagging_list(1000);
+      item_cache_each_item(item_cache, &classify_item_cb, &job_stuff);
       NOW(job->classified_at);
-      job->progress = 100.0; // TODO remove job->progress = 100 for testing
+      
+      /* Save the results */
+      job->state = CJOB_STATE_INSERTING;
+      save_taggings(job_stuff.tagger, job_stuff.taggings, NULL);
+      
+      /* Release the tagger  and clean up*/
+      release_tagger(tagger_cache, job_stuff.tagger);
+      free_tagging_list(job_stuff.taggings);
+      
+      NOW(job->completed_at)
+      job->progress = 100.0;
+      job->state = CJOB_STATE_COMPLETE;
     break;
     case TAG_NOT_FOUND:
       debug("TAG_NOT_FOUND");
@@ -854,45 +898,7 @@ void item_cache_updated_hook(ItemCache * item_cache, void *memo) {
 
 
 
-// static int classify_item(const Item *item, void *memo) {
-//   ClassificationJob *job = (ClassificationJob *) memo;
-//   int rc = CLASSIFIER_OK;
-//   int i;
-//         
-//   for (i = 0; i < job->taglist->size; i++) {
-//     if (job->item_scope == ITEM_SCOPE_NEW && 
-//         item_get_time(item) < tag_last_classified_at(job->taglist->tags[i])) {
-//       /* Only classifying new items and we have reached the point where
-//        * the tag has already been applied to subsequent items, so if
-//        * this is the only tag we bail out completely, if there are other
-//        * tags just try the next one.
-//        */
-//       if (job->taglist->size > 1) {
-//         continue;
-//       } else {
-//         debug("item time %i less than last classified time %i", item_get_time(item), tag_last_classified_at(job->taglist->tags[i]));
-//         rc = CLASSIFIER_FAIL;
-//         break;
-//       }
-//     }
-//      
-//     job->items_classified++;
-//     debug("classifying %d", item_get_id(item));
-//     // TODO Tagging *tagging = classify(job->classifiers[i], item);
-//     //     if (!tagging) MALLOC_ERR();
-//     //     
-//     //     job->taggings[job->num_taggings++] = tagging;        
-//   }
-// 
-//   job->progress += job->progress_increment;
-//   
-//   return rc;
-// malloc_error:
-//   job->error = CJOB_STATE_ERROR;
-//   job->error = CJOB_ERROR_UNKNOWN_ERROR;
-//   fatal("Malloc error in classification processing, probably out of memory??");
-//   return CLASSIFIER_FAIL;
-// }
+
 
 /** Do the actual classification.
  * 

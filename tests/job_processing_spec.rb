@@ -125,6 +125,13 @@ describe "Classifier Job Processing" do
     end
   end
   
+  it "should have an entry for each item" do
+    job_results do |req, res|
+      feed = Atom::Feed.load_feed(req.body)
+      feed.should have(10).entries
+    end
+  end
+  
   def job_results
     job = create_job('http://localhost:8888/mytag-training.atom')
     @http.should receive_requests(5) {|http|
