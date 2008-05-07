@@ -208,6 +208,7 @@ struct JobStuff {
   ClassificationJob *job;
   Tagger *tagger;
   TaggingList *taggings;
+  double threshold;
 };
 
 static int classify_item_cb(const Item *item, void *memo) {
@@ -219,7 +220,9 @@ static int classify_item_cb(const Item *item, void *memo) {
   } else {
     double probability;
     if (TAGGER_OK == classify_item(stuff->tagger, item, &probability)) {
-      add_to_tagging_list(stuff->taggings, create_tagging(item_get_id(item), probability));
+      if (probability >= stuff->threshold) {
+        add_to_tagging_list(stuff->taggings, create_tagging(item_get_id(item), probability));
+      }
     } else {
       error("Error classifying item");
       rc = CLASSIFIER_FAIL;
@@ -232,9 +235,10 @@ static int classify_item_cb(const Item *item, void *memo) {
 }
 
 
-static void run_classifcation_job(ClassificationJob * job, ItemCache * item_cache, TaggerCache * tagger_cache) {
+static void run_classifcation_job(ClassificationJob * job, ItemCache * item_cache, TaggerCache * tagger_cache, double threshold) {
   struct JobStuff job_stuff;  
   job_stuff.job = job;
+  job_stuff.threshold = threshold;
   
   /* If the job is cancelled bail out before doing anything */
   if (job->state == CJOB_STATE_CANCELLED) return;
@@ -712,7 +716,7 @@ void *classification_worker_func(void *engine_vp) {
       /* Get the reference to the item source here so we get it fresh for each job. This means that if
        * the item source is flushed we get a new copy on the next job.
        */
-      run_classifcation_job(job, ce->item_cache, ce->tagger_cache);
+      run_classifcation_job(job, ce->item_cache, ce->tagger_cache, ce->options->positive_threshold);
       
       if (CJOB_STATE_ERROR != job->state) {
         q_enqueue(ce->tagging_store_queue, job);
