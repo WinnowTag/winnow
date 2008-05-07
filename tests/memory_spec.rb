@@ -51,7 +51,7 @@ describe 'the classifier' do
       @http = TestHttpServer.new(:port => 8888)
     end
     
-    it "should not leak memory while processing a classification job" do
+    xit "should not leak memory while processing a classification job" do
       run_job
       sleep(1)
       'classifier'.should have_no_more_than_leaks(1)

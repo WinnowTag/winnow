@@ -141,7 +141,7 @@ def start_classifier(opts = {})
     classifier = File.join(ENV['PWD'], '../src/classifier')
   end
   classifier_cmd = "#{classifier} --pid /tmp/classifier-test.pid " +
-                                     "-t http://localhost:8010/tokenize " +
+                                     "--tokenizer-url http://localhost:8010/tokenize " +
                                      "-o /tmp/classifier-item_cache_spec.log " +
                                      "--performance-log /tmp/perf.log " +
                                      "--cache-update-wait-time 1 " +
