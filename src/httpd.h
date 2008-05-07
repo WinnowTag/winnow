@@ -9,11 +9,15 @@
 #ifndef HTTPD_H_
 #define HTTPD_H_
 
-#include "cls_config.h"
 #include "classification_engine.h"
 
 typedef struct HTTPD Httpd;
 
-extern Httpd * httpd_start(Config *config, ClassificationEngine *ce, ItemCache *item_cache);
+typedef struct HTTP_CONFIG {
+  int port;
+  const char *allowed_ip;
+} HttpConfig;
+
+extern Httpd * httpd_start(HttpConfig *config, ClassificationEngine *ce, ItemCache *item_cache);
 extern void    httpd_stop (Httpd *httpd);
 #endif /*HTTPD_H_*/

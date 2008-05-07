@@ -398,7 +398,6 @@ int save_taggings(const Tagger *tagger, TaggingList *taggings, char ** errmsg) {
     struct output tagger_xml;
     memset(&tagger_xml, 0, sizeof(tagger_xml));
     xml_for_tagger(tagger, taggings, &tagger_xml);
-    debug("xml data = \n%s", tagger_xml.data);
     
     http_headers = curl_slist_append(http_headers, "Content-Type: application/atom+xml");
     

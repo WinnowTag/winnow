@@ -176,21 +176,40 @@ describe "Classifier Job Processing" do
       new_time.should > Time.parse('2008-04-15T01:16:23Z')
     end
   end
-  
-  def job_results
-    job = create_job('http://localhost:8888/mytag-training.atom')
-    @http.should receive_requests(5) {|http|
-      http.request("/mytag-training.atom") do |req, res|
-        res.body = File.read(File.join(File.dirname(__FILE__), 'fixtures', 'complete_tag.atom'))
-      end
-      http.request("/results") do |req, res|
-        yield(req, res)
-      end
-    }
-    job
+end
+
+describe "Job Processing with a threshold set" do
+  before(:each) do
+    system("rm /tmp/perf.log")   
+    start_classifier(:positive_threshold => 0.9)
+    @http = TestHttpServer.new(:port => 8888)
   end
   
-  def should_not_crash
-    lambda {create_job('http://localhost:8888/mytag-training.atom')}.should_not raise_error
+  after(:each) do
+    stop_classifier
+    @http.shutdown
   end
+  
+  it "should only send entries for items above the threshold" do
+    job_results do |req, res|
+      Atom::Feed.load_feed(req.body).should have(6).entries
+    end
+  end
+end
+  
+def job_results
+  job = create_job('http://localhost:8888/mytag-training.atom')
+  @http.should receive_requests(5) {|http|
+    http.request("/mytag-training.atom") do |req, res|
+      res.body = File.read(File.join(File.dirname(__FILE__), 'fixtures', 'complete_tag.atom'))
+    end
+    http.request("/results") do |req, res|
+      yield(req, res)
+    end
+  }
+  job
+end
+
+def should_not_crash
+  lambda {create_job('http://localhost:8888/mytag-training.atom')}.should_not raise_error
 end

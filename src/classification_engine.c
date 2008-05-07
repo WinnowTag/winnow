@@ -37,10 +37,8 @@
 
 struct CLASSIFICATION_ENGINE {
   /* Pointer to classification engine configuration */
-  const Config *config;
+  ClassificationEngineOptions *options;
   
-  EngineConfig engine_config;
-    
   /* Performance log file */
   FILE *performance_log;
   
@@ -297,23 +295,22 @@ static void run_classifcation_job(ClassificationJob * job, ItemCache * item_cach
  * This verifies that the classifiation engine has a valid item source,
  * if the item source is invalid it returns NULL.
  */
-ClassificationEngine * create_classification_engine(ItemCache *item_cache, TaggerCache * tagger_cache, const Config *config) {
+ClassificationEngine * create_classification_engine(ItemCache *item_cache, TaggerCache * tagger_cache, ClassificationEngineOptions *options) {
   ClassificationEngine *engine = calloc(1, sizeof(ClassificationEngine));
   
   if (engine) {
-    engine->config = config;
+    engine->options = options;
     engine->item_cache = item_cache;
     engine->tagger_cache = tagger_cache;
     item_cache_set_update_callback(item_cache, item_cache_updated_hook, engine);
-    cfg_engine_config(config, &(engine->engine_config));
     engine->is_running = false;
     engine->is_inserting = false;
     engine->is_classification_suspended = false;
     engine->classification_job_queue = NULL;
     engine->num_threads_suspended = 0;
             
-    if (engine->engine_config.performance_log) {
-      const char *performance_log = engine->engine_config.performance_log;
+    if (engine->options->performance_log) {
+      const char *performance_log = engine->options->performance_log;
       engine->performance_log = fopen(performance_log, "a");
       if (NULL == engine->performance_log) {
         fprintf(stderr, "Error opening %s: %s", performance_log, strerror(errno));
@@ -506,8 +503,8 @@ int ce_start(ClassificationEngine * engine) {
 
     int i;
     
-    engine->classification_worker_threads = calloc(engine->engine_config.num_workers, sizeof(pthread_t));
-    for (i = 0; i < engine->engine_config.num_workers; i++) {
+    engine->classification_worker_threads = calloc(engine->options->worker_threads, sizeof(pthread_t));
+    for (i = 0; i < engine->options->worker_threads; i++) {
       if (pthread_create(&(engine->classification_worker_threads[i]), NULL, classification_worker_func, engine)) {
         fatal("Error creating thread %i for classification", i + 1);
         exit(1);
@@ -539,7 +536,7 @@ int ce_stop(ClassificationEngine * engine) {
     pthread_mutex_unlock(engine->classification_suspension_mutex);
         
     int i;
-    for (i = 0; i < engine->engine_config.num_workers; i++) {
+    for (i = 0; i < engine->options->worker_threads; i++) {
       debug("joining thread %i", engine->classification_worker_threads[i]);
       pthread_join(engine->classification_worker_threads[i], NULL);
     }
@@ -564,7 +561,7 @@ void ce_run(ClassificationEngine *engine) {
     
     info("Classification Engine started, now blocking.");
     int i;
-    for (i = 0; i < engine->engine_config.num_workers; i++) {
+    for (i = 0; i < engine->options->worker_threads; i++) {
       pthread_join(engine->classification_worker_threads[i], NULL);
     }
     
@@ -590,7 +587,7 @@ int ce_suspend(ClassificationEngine * engine) {
      */
     if (engine->is_running) {
       pthread_mutex_lock(engine->suspension_notification_mutex);
-      if (engine->num_threads_suspended < engine->engine_config.num_workers) {
+      if (engine->num_threads_suspended < engine->options->worker_threads) {
         pthread_cond_wait(engine->suspension_notification_cond, engine->suspension_notification_mutex);
       }
       pthread_mutex_unlock(engine->suspension_notification_mutex);
@@ -645,7 +642,7 @@ static void ce_record_classification_job_timings(ClassificationEngine *ce, const
   debug("Classification is suspended in %i", pthread_self());         \
   pthread_mutex_lock(ce->suspension_notification_mutex);              \
   ce->num_threads_suspended++;                                        \
-  if (ce->num_threads_suspended >= ce->engine_config.num_workers) {   \
+  if (ce->num_threads_suspended >= ce->options->worker_threads) {   \
     pthread_cond_signal(ce->suspension_notification_cond);            \
   }                                                                   \
   pthread_mutex_unlock(ce->suspension_notification_mutex);

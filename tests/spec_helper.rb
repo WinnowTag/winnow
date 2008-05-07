@@ -142,11 +142,13 @@ def start_classifier(opts = {})
   end
   classifier_cmd = "#{classifier} --pid /tmp/classifier-test.pid " +
                                      "-t http://localhost:8010/tokenize " +
-                                     "-l /tmp/classifier-item_cache_spec.log " +
-                                     "-c #{File.join(ROOT, "fixtures/real-db.conf")} " +
+                                     "-o /tmp/classifier-item_cache_spec.log " +
+                                     "--performance-log /tmp/perf.log " +
                                      "--cache-update-wait-time 1 " +
+                                     "-p 8008 " +
                                      "--load-items-since #{options[:load_items_since]} " +
                                      "--min-tokens #{options[:min_tokens] or 0} " +
+                                     "--positive-threshold #{options[:positive_threshold] or 0} " +
                                      "--db #{Database}" 
                                      
   

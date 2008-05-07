@@ -7,7 +7,6 @@
 
 #ifndef CLASSIFIER_H
 #define CLASSIFIER_H
-#include "tag.h"
 #include "item_cache.h"
 #include "clue.h"
 #include <Judy.h>

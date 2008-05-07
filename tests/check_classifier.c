@@ -9,7 +9,6 @@
 #include <math.h>
 #include <check.h>
 #include "../src/classifier.h"
-#include "../src/tag.h"
 #include "../src/clue.h"
 #include "assertions.h"
 #include "mock_items.h"

@@ -15,7 +15,6 @@
 #include <sys/time.h>
 #include <regex.h>
 #include "httpd.h"
-#include "cls_config.h"
 #include "item_cache.h"
 #include "logging.h"
 #include "misc.h"
@@ -77,7 +76,7 @@ typedef enum HTTP_METHOD {
 
 struct HTTPD {
   struct MHD_Daemon *mhd;
-  Config *config;
+  HttpConfig *config;
   ClassificationEngine *ce;
   ItemCache *item_cache;
   regex_t start_job_regex;
@@ -626,7 +625,7 @@ static int access_policy(void *ip_vp, const struct sockaddr * addr, socklen_t ad
   return allow;
 }
 
-Httpd * httpd_start(Config *config, ClassificationEngine *ce, ItemCache *item_cache) {
+Httpd * httpd_start(HttpConfig *config, ClassificationEngine *ce, ItemCache *item_cache) {
   Httpd *httpd = malloc(sizeof(Httpd));
   if (httpd) {
     int regex_error;
@@ -669,14 +668,11 @@ Httpd * httpd_start(Config *config, ClassificationEngine *ce, ItemCache *item_ca
       regerror(regex_error, &httpd->item_cache_feed_items_regex, buffer, sizeof(buffer));
       fatal("Error compiling REGEX: %s", buffer);
     }
-    
-    HttpdConfig httpd_config;
-    cfg_httpd_config(config, &httpd_config);
-    
+        
     httpd->mhd = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG,
-                                  httpd_config.port,
+                                  httpd->config->port,
                                   access_policy,
-                                  (void*) httpd_config.allowed_ip,
+                                  (void*) httpd->config->allowed_ip,
                                   process_request,
                                   httpd,
                                   MHD_OPTION_END);

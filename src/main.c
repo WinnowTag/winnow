@@ -18,7 +18,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "logging.h"
-#include "cls_config.h"
 #include "classification_engine.h"
 #include "httpd.h"
 #include "misc.h"
@@ -26,7 +25,6 @@
 #include "feature_extractor.h"
 #include "fetch_url.h"
 
-#define DEFAULT_CONFIG_FILE "config/classifier.conf"
 #define DEFAULT_LOG_FILE "log/classifier.log"
 #define DEFAULT_PID_FILE "log/classifier.pid"
 #define DEFAULT_DB_FILE "log/classifier.db"
@@ -41,15 +39,23 @@
 #define CACHE_UPDATE_WAIT_TIME_VAL 515
 #define LOAD_ITEMS_SINCE_VAL 516
 #define MIN_TOKENS_VAL 517
-#define SHORT_OPTS "hvdc:l:t:"
-#define USAGE "Usage: classifier [-dvh] [-c CONFIGFILE] [-l LOGFILE] [--db DATABASE_FILE] [--pid PIDFILE] [-t tokenizer_url] [--create-db]\n"
+#define TOKENIZER_URL_VAL 518
+#define PERFORMANCE_LOG_FILE_VAL 519
+
+#define SHORT_OPTS "hvdo:t:n:p:a:"
+#define USAGE "Usage: classifier [-dvh] [-o LOGFILE] [--db DATABASE_FILE] [--pid PIDFILE] [-t tokenizer_url] [--create-db]\n"
 
 static ItemCacheOptions item_cache_options;
-static Config *config;
 static ItemCache *item_cache;
 static TaggerCache *tagger_cache;
+static ClassificationEngineOptions ce_options = {1, 0.0, NULL};
 static ClassificationEngine *engine;
 static Httpd *httpd;
+static HttpConfig http_config = {8080, NULL};
+
+static void printHelp(void) {
+  
+}
 
 volatile sig_atomic_t termination_in_progress = 0;
 
@@ -77,10 +83,6 @@ void termination_handler(int sig) {
     }
     
     fprintf(stderr, "Complete.\n");
-    if (config) {
-      free_config(config);
-    }
-    
     exit(sig);
   }
 }
@@ -132,8 +134,8 @@ static int start_classifier(const char * db_file, const char * tokenizer_url) {
     item_cache_start_purger(item_cache, 60 * 60 * 24);
     tagger_cache = create_tagger_cache(item_cache, NULL);
     tagger_cache->tag_retriever = &fetch_url;
-    engine = create_classification_engine(item_cache, tagger_cache, config);
-    httpd = httpd_start(config, engine, item_cache);  
+    engine = create_classification_engine(item_cache, tagger_cache, &ce_options);
+    httpd = httpd_start(&http_config, engine, item_cache);  
     ce_run(engine);
     return EXIT_SUCCESS;
   }
@@ -143,11 +145,9 @@ int main(int argc, char **argv) {
   int create_database = false;
   int daemonize = false;
   char *tokenizer_url = DEFAULT_TOKENIZER_URL;
-  char *config_file = DEFAULT_CONFIG_FILE;
   char *log_file = DEFAULT_LOG_FILE;
   char *pid_file = DEFAULT_PID_FILE;
   char *db_file = DEFAULT_DB_FILE;
-  char real_config_file[MAXPATHLEN];
   char real_log_file[MAXPATHLEN];
   char real_db_file[MAXPATHLEN];
   item_cache_options.cache_update_wait_time = DEFAULT_CACHE_UPDATE_WAIT_TIME;
@@ -159,58 +159,86 @@ int main(int argc, char **argv) {
   static struct option long_options[] = {
       {"version", no_argument, 0, 'v'},
       {"help", no_argument, 0, 'h'},
-      {"config-file", required_argument, 0, 'c'},
-      {"log-file", required_argument, 0, 'l'},
-      {"tokenizer-url", required_argument, 0, 't'},
+      
+      {"log-file", required_argument, 0, 'o'},
       {"pid", required_argument, 0, PID_VAL},
       {"db", required_argument, 0, DB_VAL},      
       {"create-db", no_argument, 0, CREATE_DB_VAL},
+      
       {"cache-update-wait-time", required_argument, 0, CACHE_UPDATE_WAIT_TIME_VAL},
       {"load-items-since", required_argument, 0, LOAD_ITEMS_SINCE_VAL},
+      {"tokenizer-url", required_argument, 0, TOKENIZER_URL_VAL},
       {"min-tokens", required_argument, 0, MIN_TOKENS_VAL},
+      
+      {"worker-threads", required_argument, 0, 'n'},
+      {"positive-threshold", required_argument, 0, 't'},
+      {"performance-log", required_argument, 0, PERFORMANCE_LOG_FILE_VAL},
+      
+      {"port", required_argument, 0, 'p'},
+      {"allowed_ip", required_argument, 0, 'a'},
+      
       {0, 0, 0, 0}
   };
   
   while (-1 != (opt = getopt_long(argc, argv, SHORT_OPTS, long_options, &longindex))) {
     switch (opt) {
+      case 'o':
+        log_file = optarg;
+        break;
+      case PID_VAL:
+        pid_file = optarg;
+        break;
+      case DB_VAL:
+        db_file = optarg;
+        break;
+      case CREATE_DB_VAL:
+        create_database = true;
+        break;      
+      case 'd':
+        daemonize = true;
+        break;
+      
+      /* Item Cache Options */
+      case CACHE_UPDATE_WAIT_TIME_VAL:
+        item_cache_options.cache_update_wait_time = strtol(optarg, NULL, 10);
+        break;
+      case LOAD_ITEMS_SINCE_VAL:
+        item_cache_options.load_items_since = strtol(optarg, NULL, 10);
+        break;
+      case MIN_TOKENS_VAL:
+        item_cache_options.min_tokens = strtol(optarg, NULL, 10);
+        break;
+      case TOKENIZER_URL_VAL:
+        tokenizer_url = optarg;
+        break;
+        
+      /* Classification Engine Options */
+      case 'n': /* Number of worker threads */
+        ce_options.worker_threads = strtol(optarg, NULL, 10);
+        break;
+      case 't': /* Positive threshold for classification */
+        ce_options.positive_threshold = strtod(optarg, NULL);
+        break;
+      case PERFORMANCE_LOG_FILE_VAL:
+        ce_options.performance_log = optarg;
+        break;
+        
+      /* HTTP options */
+      case 'p':
+        http_config.port = strtol(optarg, NULL, 10);
+        break;
+      case 'a':
+        http_config.allowed_ip = optarg;
+        break;       
+        
+      case 'h':
+        // TODO Add help
+        printHelp();
+        exit(0);
       case 'v':
         printf("%s, build: %s\n", PACKAGE_STRING, git_revision);
         exit(EXIT_SUCCESS);
-      break;
-      case 'c':
-        config_file = optarg;
-      break;
-      case 'l':
-        log_file = optarg;
-      break;
-      case PID_VAL:
-        pid_file = optarg;
-      break;
-      case DB_VAL:
-        db_file = optarg;
-      break;
-      case CREATE_DB_VAL:
-        create_database = true;
-      break;
-      case 't':
-        tokenizer_url = optarg;
-      break;
-      case 'd':
-        daemonize = true;
-      break;
-      case CACHE_UPDATE_WAIT_TIME_VAL:
-        item_cache_options.cache_update_wait_time = strtol(optarg, NULL, 10);
-      break;
-      case LOAD_ITEMS_SINCE_VAL:
-        item_cache_options.load_items_since = strtol(optarg, NULL, 10);
-      break;
-      case MIN_TOKENS_VAL:
-        item_cache_options.min_tokens = strtol(optarg, NULL, 10);
-      break;
-      case 'h':
-        // TODO Add help
-        printf(USAGE);
-        exit(0);
+        break;
       default:
         fprintf(stderr, USAGE);
         exit(EXIT_FAILURE);
@@ -234,11 +262,6 @@ int main(int argc, char **argv) {
       exit(EXIT_FAILURE);
     }
     
-    if (NULL == realpath(config_file, real_config_file)) {
-      fprintf(stderr, "Could not find %s: %s\n", real_config_file, strerror(errno));
-      exit(EXIT_FAILURE);
-    }
-    
     if (NULL == realpath(log_file, real_log_file)) {
       fprintf(stderr, "Could not find %s: %s\n", real_log_file, strerror(errno));
       exit(EXIT_FAILURE);
@@ -248,12 +271,7 @@ int main(int argc, char **argv) {
       fprintf(stderr, "Could not find %s: %s\n", real_db_file, strerror(errno));
       exit(EXIT_FAILURE);
     }
-    
-    /* Load config before we daemonize to allow us to pick
-     * up and relative paths defined in the config file.
-     */
-    config = load_config(real_config_file);
-      
+          
     if (daemonize) {
       _daemonize(pid_file);
     }

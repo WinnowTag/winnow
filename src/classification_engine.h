@@ -9,13 +9,16 @@
 #ifndef CLASSIFICATION_ENGINE_H_
 #define CLASSIFICATION_ENGINE_H_
 
-#include "cls_config.h"
 #include "item_cache.h"
 #include "tagger.h"
 
 typedef struct CLASSIFICATION_ENGINE ClassificationEngine;
 
-
+typedef struct CLASSIFICATION_ENGINE_OPTIONS {
+  int worker_threads;
+  double positive_threshold;
+  char *performance_log;
+} ClassificationEngineOptions;
 
 typedef enum CLASSIFICATION_JOB_STATE {
   CJOB_STATE_WAITING,
@@ -59,7 +62,7 @@ typedef struct CLASSIFICATION_JOB {
   struct timeval completed_at;
 } ClassificationJob;
 
-extern ClassificationEngine * create_classification_engine(ItemCache *item_cache, TaggerCache *tagger_cache, const Config * config);
+extern ClassificationEngine * create_classification_engine(ItemCache *item_cache, TaggerCache *tagger_cache, ClassificationEngineOptions *options);
 extern void                   free_classification_engine(ClassificationEngine * engine);
 extern int                    ce_is_running(const ClassificationEngine *engine);
 extern int                    ce_start(ClassificationEngine *engine);
