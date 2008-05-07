@@ -400,10 +400,12 @@ int save_taggings(const Tagger *tagger, TaggingList *taggings, char ** errmsg) {
     xml_for_tagger(tagger, taggings, &tagger_xml);
     
     http_headers = curl_slist_append(http_headers, "Content-Type: application/atom+xml");
+    http_headers = curl_slist_append(http_headers, "Expect:");
     
     CURL *curl = curl_easy_init();
+    
     curl_easy_setopt(curl, CURLOPT_URL, tagger->classifier_taggings_url);
-  
+    //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
     curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);
     curl_easy_setopt(curl, CURLOPT_UPLOAD, 1);
