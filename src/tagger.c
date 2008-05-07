@@ -429,6 +429,7 @@ int save_taggings(const Tagger *tagger, TaggingList *taggings, char ** errmsg) {
   
     curl_easy_cleanup(curl);
     curl_slist_free_all(http_headers);
+    free(tagger_xml.data);
     
     debug("save_taggings complete");
   }
