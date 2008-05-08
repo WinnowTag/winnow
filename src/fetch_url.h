@@ -21,7 +21,7 @@
  *
  *  Should support file and http at least.
  */
-static int fetch_url(const char * url, time_t if_modified_since, char ** data, char ** error) {
+static int fetch_url(const char * url, time_t if_modified_since, char ** data, char ** errmsg) {
   debug("fetching %s", url);
   int rc;
   char curlerr[CURL_ERROR_SIZE];
@@ -50,6 +50,7 @@ static int fetch_url(const char * url, time_t if_modified_since, char ** data, c
     error("URL %s not accessible: %s", url, curlerr);
     response.data = NULL;
     rc = URL_FAIL;
+    *errmsg = strdup(curlerr);
   } else {
     *data = response.data;
     rc = URL_OK;

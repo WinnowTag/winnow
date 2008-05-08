@@ -110,8 +110,10 @@ describe "Classifier Job Control" do
     end
     
     it "should return an error job status because the tag url is unreachable" do
+      sleep(2)
       @job.reload
       @job.status.should == "Error"
+      @job.error_message.should == "Tag could not be retrieved: couldn't connect to host"
     end
   end
 end

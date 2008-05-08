@@ -50,6 +50,7 @@ typedef struct CLASSIFICATION_JOB {
   float progress_increment;
   ClassificationJobState state;
   ClassificationJobError error;
+  char *errmsg;
   int auto_cleanup;
   ItemScope item_scope;
   int tags_classified;
@@ -81,7 +82,7 @@ extern ClassificationJob    * ce_add_classification_job_for_user(ClassificationE
 extern ClassificationJob    * ce_fetch_classification_job(const ClassificationEngine *engine, const char * job_id);
 extern int                    ce_remove_classification_job(ClassificationEngine *engine, const ClassificationJob *job);
 extern float                  cjob_duration(const ClassificationJob *job);
-extern const char *           cjob_error_msg(const ClassificationJob *job);
+extern const char *           cjob_error_msg(const ClassificationJob *job, char * buffer, size_t size);
 extern const char *           cjob_state_msg(const ClassificationJob * job);
 extern void                   cjob_cancel(ClassificationJob *job);
 

@@ -143,6 +143,7 @@ static ClassificationJob * create_classification_job(const char * tag_url) {
     job->id           = generate_job_id();
     job->state            = CJOB_STATE_WAITING;
     job->error            = CJOB_ERROR_NO_ERROR;
+    job->errmsg           = NULL;
     job->item_scope       = ITEM_SCOPE_ALL;
     job->tags_classified  = 0;
     job->items_classified = 0;
@@ -164,7 +165,6 @@ void free_classification_job(ClassificationJob * job) {
 static const char * state_msgs[] = {
     "Waiting",
     "Training",
-    "Calculating",
     "Classifying",
     "Inserting",
     "Complete",
@@ -174,17 +174,25 @@ static const char * state_msgs[] = {
 
 static const char * error_msgs[] = {
     "No error",
-    "Tag does not exist",
+    "Tag could not be retrieved",
     "No tags to classify for user",
     "Bad job type",
     "Unknown error"
 };
 
 const char * cjob_state_msg(const ClassificationJob * job) {
+  debug("state = %i", job->state);
   return state_msgs[job->state];
 }
-const char * cjob_error_msg(const ClassificationJob *job) {
-  return error_msgs[job->error];
+
+const char * cjob_error_msg(const ClassificationJob *job, char * buffer, size_t size) {
+  if (job->errmsg) {
+    snprintf(buffer, size, "%s: %s", error_msgs[job->error], job->errmsg);
+  } else {
+    snprintf(buffer, size, error_msgs[job->error]);
+  }
+  
+  return buffer;
 }
 
 void cjob_cancel(ClassificationJob *job) {
@@ -250,7 +258,7 @@ static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache
    
   /* Try and get the tagger from the tagger_cache */
   job_stuff.tagger = NULL;
-  int cache_rc = get_tagger(tagger_cache, job->tag_url, &(job_stuff.tagger), NULL);  
+  int cache_rc = get_tagger(tagger_cache, job->tag_url, &(job_stuff.tagger), &job->errmsg);  
   debug("return from get_tagger with %i", cache_rc);
   
   switch (cache_rc) {
@@ -269,7 +277,7 @@ static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache
       
       /* Save the results */
       job->state = CJOB_STATE_INSERTING;
-      save_taggings(job_stuff.tagger, job_stuff.taggings, NULL);
+      save_taggings(job_stuff.tagger, job_stuff.taggings, &job->errmsg);
       
       /* Release the tagger  and clean up*/
       release_tagger(tagger_cache, job_stuff.tagger);
@@ -280,8 +288,9 @@ static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache
       job->state = CJOB_STATE_COMPLETE;
       break;
     case TAG_NOT_FOUND:
-      debug("TAG_NOT_FOUND");
-      job->error = CJOB_ERROR_NO_SUCH_TAG;
+      debug("TAG_NOT_FOUND: %s", job->errmsg);
+      job->state = CJOB_STATE_ERROR;
+      job->error = CJOB_ERROR_NO_SUCH_TAG;      
       break;
     case TAGGER_CHECKED_OUT:
       debug("TAG_CHECKEDOUT");

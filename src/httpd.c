@@ -132,7 +132,8 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
   xmlNewChild(root, NULL, BAD_CAST "id", BAD_CAST job->id);
   
   if (CJOB_STATE_ERROR == job->state) {
-    xmlNewChild(root, NULL, BAD_CAST "error-message", BAD_CAST cjob_error_msg(job));
+    char buffer[256];
+    xmlNewChild(root, NULL, BAD_CAST "error-message", BAD_CAST cjob_error_msg(job, buffer, sizeof(buffer)));
   }
   
   add_element(root, "duration", "float", "%.2f", cjob_duration(job));
