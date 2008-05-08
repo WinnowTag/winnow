@@ -192,17 +192,17 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
     
     debug("checkout complete");
     
-    if (TAGGER_CHECKED_OUT != cache_rc) {
-      /* If we get here the tagger has not been cached so attempt to fetch it,
+    if (TAGGER_CHECKED_OUT != cache_rc) {      
+      if (cache_rc == TAGGER_NOT_CACHED) {
+        /* If we get here the tagger has not been cached so attempt to fetch it,
        * if we get it we need to store it and mark it as checked out.
        */
-      if (cache_rc == TAGGER_NOT_CACHED) {
         temp_tagger = fetch_tagger(tagger_cache, tag_training_url, -1, errmsg);
         if (temp_tagger) {
           new_tagger = true;
         }
-      } else if (tagger) {
-        /* The tagger is cached, so we need to see if it has been updated. */
+      } else if (temp_tagger && temp_tagger->state != TAGGER_PARTIALLY_TRAINED) {
+        /* The tagger is cached, so we need to see if it has been updated, but only if it has no pending items. */
         Tagger *updated_tagger = fetch_tagger(tagger_cache, temp_tagger->training_url, temp_tagger->updated, errmsg);
         
         // TODO do we need to check if it is not found or there is a network error?

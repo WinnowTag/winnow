@@ -21,6 +21,7 @@
 #include "misc.h"
 #include "logging.h"
 
+#define CLASSIFIER_REQUEUE 4
 #define INIT_MUTEX(mutex) \
   mutex = calloc(1, sizeof(pthread_mutex_t)); \
   if (!mutex) MALLOC_ERR();              \
@@ -235,7 +236,8 @@ static int classify_item_cb(const Item *item, void *memo) {
 }
 
 
-static void run_classifcation_job(ClassificationJob * job, ItemCache * item_cache, TaggerCache * tagger_cache, double threshold) {
+static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache, TaggerCache * tagger_cache, double threshold) {
+  int rc = CLASSIFIER_OK;
   struct JobStuff job_stuff;  
   job_stuff.job = job;
   job_stuff.threshold = threshold;
@@ -276,22 +278,25 @@ static void run_classifcation_job(ClassificationJob * job, ItemCache * item_cach
       NOW(job->completed_at);
       job->progress = 100.0;
       job->state = CJOB_STATE_COMPLETE;
-    break;
+      break;
     case TAG_NOT_FOUND:
       debug("TAG_NOT_FOUND");
       job->error = CJOB_ERROR_NO_SUCH_TAG;
-    break;
+      break;
     case TAGGER_CHECKED_OUT:
       debug("TAG_CHECKEDOUT");
       // TODO handle checked out tagger
-    break;
+      break;
     case TAGGER_PENDING_ITEM_ADDITION:
       debug("TAGGER_PENDING_ITEM_ADDITION");
       // TODO handle pending items
-    break;
+      rc = CLASSIFIER_REQUEUE;
+      break;
     default:
     fatal("Got unknown value from get_tagger: %i", cache_rc);    
   }
+  
+  return rc;
 }
 
 /* Creates but doesn't start a classification engine.
@@ -716,11 +721,17 @@ void *classification_worker_func(void *engine_vp) {
       /* Get the reference to the item source here so we get it fresh for each job. This means that if
        * the item source is flushed we get a new copy on the next job.
        */
-      run_classifcation_job(job, ce->item_cache, ce->tagger_cache, ce->options->positive_threshold);
+      int rc = run_classifcation_job(job, ce->item_cache, ce->tagger_cache, ce->options->positive_threshold);
       
+      if (rc == CLASSIFIER_REQUEUE) {
+        debug("Requeuing job");
+        q_enqueue(job_queue, job);
+      }
+/*
       if (CJOB_STATE_ERROR != job->state) {
         q_enqueue(ce->tagging_store_queue, job);
       }     
+*/
     }    
   }
 

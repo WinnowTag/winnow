@@ -458,12 +458,16 @@ static ItemCacheEntry * create_entry(xmlXPathContextPtr ctx, char * entry_id) {
      * we can use the create_entry_from_atom_xml_document function which
      * expects an entry element as the root node of the document.
      */
+    xmlChar *atom;
+    int size;
     xmlDocPtr doc = xmlNewDoc(BAD_CAST "1.0");
     xmlDocSetRootElement(doc, xmlDocCopyNode(xp->nodesetval->nodeTab[0], doc, 1));
-    entry = create_entry_from_atom_xml_document(0, doc, NULL);
+    xmlDocDumpFormatMemory(doc, &atom, &size, 1);
+    entry = create_entry_from_atom_xml_document(0, doc, atom);
     xmlFreeDoc(doc);
-      
-    if (entry) {
+    xmlFree(atom);
+    
+    if (!entry) {
       error("Couldn't create entry for %s", entry_id);
     }
   } else {

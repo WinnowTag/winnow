@@ -1275,7 +1275,9 @@ static void * feature_extraction_thread_func(void *memo) {
         UpdateJob *job = create_add_job(item);
         q_enqueue(item_cache->update_queue, job);
         debug("Update added to update_queue");
-      }       
+      } else {
+        error("Got null back from feature extraction queue for %s.", entry->full_id);
+      }    
       free_entry(entry);
     }
   }

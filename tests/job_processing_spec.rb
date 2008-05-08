@@ -197,14 +197,49 @@ describe "Job Processing with a threshold set" do
   end
 end
   
-def job_results
+describe "Job Processing with an incomplete tag" do
+  before(:each) do
+    system("rm /tmp/perf.log")   
+    start_classifier(:positive_threshold => 0.9)
+    start_tokenizer
+    @http = TestHttpServer.new(:port => 8888)
+  end
+  
+  after(:each) do
+    stop_classifier
+    stop_tokenizer
+    @http.shutdown
+  end
+  
+  it "should result in new items in the item cache" do
+    job_results('incomplete_tag.atom')
+    sqlite = SQLite3::Database.open(Database)
+    sqlite.get_first_value("select count(*) from entries").should == '13'
+    sqlite.close
+  end
+  
+  it "should PUT results" do
+    job_results('incomplete_tag.atom') do |req, res|
+      req.request_method.should == 'PUT'
+    end
+  end
+end
+
+def job_results(atom = 'complete_tag.atom', times_gotten = 1)
+  gets = 0
   job = create_job('http://localhost:8888/mytag-training.atom')
   @http.should receive_requests(5) {|http|
-    http.request("/mytag-training.atom") do |req, res|
-      res.body = File.read(File.join(File.dirname(__FILE__), 'fixtures', 'complete_tag.atom'))
+    http.request("/mytag-training.atom", times_gotten) do |req, res|
+      gets += 1
+      
+      if gets > 1
+        res.status = '304'
+      else
+        res.body = File.read(File.join(File.dirname(__FILE__), 'fixtures', atom))
+      end
     end
     http.request("/results") do |req, res|
-      yield(req, res)
+      yield(req, res) if block_given?
     end
   }
   job

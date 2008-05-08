@@ -33,8 +33,10 @@ class MultipleHttpRequestMatcher
     @received_requests = []
   end
   
-  def request(path, &block)
-    @request_paths << path
+  def request(path, times = 1, &block)
+    times.times do
+      @request_paths << path
+    end
     @requests[path] = block
   end
   
@@ -69,7 +71,7 @@ class MultipleHttpRequestMatcher
   end
   
   def failure_message
-    "Expected requests to [#{@request_paths.join(', ')}] got [#{@received_requests.join('m')}] after #{@timeout}s."
+    "Expected requests to [#{@request_paths.join(', ')}] got [#{@received_requests.join(', ')}] after #{@timeout}s."
   end
 end
   
