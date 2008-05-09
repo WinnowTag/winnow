@@ -50,7 +50,9 @@ static int fetch_url(const char * url, time_t if_modified_since, char ** data, c
     error("URL %s not accessible: %s", url, curlerr);
     response.data = NULL;
     rc = URL_FAIL;
-    *errmsg = strdup(curlerr);
+    if (errmsg) {
+      *errmsg = strdup(curlerr);
+    }
   } else {
     *data = response.data;
     rc = URL_OK;
