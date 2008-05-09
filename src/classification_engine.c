@@ -60,12 +60,6 @@ struct CLASSIFICATION_ENGINE {
    */   
   Queue *classification_job_queue;
   
-  /* Queue for tagging store jobs.
-   * 
-   * This is only used by the tagging store insertion worker.
-   */ 
-  Queue *tagging_store_queue;
-  
   /* Store of all the current classification jobs in the system, keyed by job id.
    */
   Pvoid_t classification_jobs;
@@ -73,9 +67,6 @@ struct CLASSIFICATION_ENGINE {
   
   /* Flag for whether the engine is running */
   int is_running;
-  
-  /* Flag for whether insertion is running */
-  int is_inserting;
   
   /* Flag for whether classification is suspended */
   int is_classification_suspended;
@@ -91,10 +82,7 @@ struct CLASSIFICATION_ENGINE {
   int num_threads_suspended;
     
   /* Thread ids for classification workers */
-  pthread_t *classification_worker_threads;
-  
-  /* Thread id for tagging store worker */
-  pthread_t insertion_worker_thread;
+  pthread_t *classification_worker_threads;  
   
   /* ItemSource flushing thread */
   pthread_t flusher;
@@ -102,7 +90,6 @@ struct CLASSIFICATION_ENGINE {
 
 static void ce_record_classification_job_timings(ClassificationEngine *ce, const ClassificationJob *job);
 static void *classification_worker_func(void *engine_vp);
-static void *insertion_worker_func(void *engine_vp);
 //static void *flusher_func(void *engine_vp);
 static void cjob_process(ClassificationJob *job, ItemCache *is);
 static void cjob_free_taggings(ClassificationJob *job);
@@ -251,7 +238,7 @@ static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache
   job_stuff.threshold = threshold;
   
   /* If the job is cancelled bail out before doing anything */
-  if (job->state == CJOB_STATE_CANCELLED) return;
+  if (job->state == CJOB_STATE_CANCELLED) return CLASSIFIER_OK;
      
   NOW(job->started_at);
   job->state = CJOB_STATE_TRAINING;
@@ -322,7 +309,6 @@ ClassificationEngine * create_classification_engine(ItemCache *item_cache, Tagge
     engine->tagger_cache = tagger_cache;
     item_cache_set_update_callback(item_cache, item_cache_updated_hook, engine);
     engine->is_running = false;
-    engine->is_inserting = false;
     engine->is_classification_suspended = false;
     engine->classification_job_queue = NULL;
     engine->num_threads_suspended = 0;
@@ -350,7 +336,6 @@ ClassificationEngine * create_classification_engine(ItemCache *item_cache, Tagge
     INIT_COND(engine->suspension_notification_cond);    
         
     engine->classification_job_queue = new_queue();
-    engine->tagging_store_queue = new_queue();
   }
   
 exit:
@@ -391,7 +376,6 @@ void free_classification_engine(ClassificationEngine *engine) {
     pthread_mutex_destroy(engine->perf_log_mutex);
     
     free_queue(engine->classification_job_queue);
-    free_queue(engine->tagging_store_queue);
     free(engine);
   }
 }
@@ -517,7 +501,6 @@ int ce_start(ClassificationEngine * engine) {
   int success = true;
   if (engine) {
     engine->is_running = true;
-    engine->is_inserting = true;
 
     int i;
     
@@ -528,15 +511,6 @@ int ce_start(ClassificationEngine * engine) {
         exit(1);
       }
     }
-    
-    
-    // if (pthread_create(&(engine->insertion_worker_thread), NULL, insertion_worker_func, engine)) {
-    //      fatal("Error creating thread for insertion");
-    //    }
-    
-//    if (pthread_create(&(engine->flusher), NULL, flusher_func, engine)) {
-//      fatal("Error creating thread for item source flushing");
-//    }    
   }
   
   return success;
@@ -559,11 +533,6 @@ int ce_stop(ClassificationEngine * engine) {
       pthread_join(engine->classification_worker_threads[i], NULL);
     }
     debug("Returned from cw join");
-    engine->is_inserting = false;
-    debug("is_inserting set to false");
-     
-    pthread_join(engine->insertion_worker_thread, NULL);
-    info("finishing with %i insertion jobs on queue", q_size(engine->tagging_store_queue));
   }
   
   return success;
@@ -581,9 +550,7 @@ void ce_run(ClassificationEngine *engine) {
     int i;
     for (i = 0; i < engine->options->worker_threads; i++) {
       pthread_join(engine->classification_worker_threads[i], NULL);
-    }
-    
-    pthread_join(engine->insertion_worker_thread, NULL);
+    }    
   }
 }
 
