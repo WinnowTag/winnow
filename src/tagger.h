@@ -14,6 +14,7 @@
 #include <Judy.h>
 #include "item_cache.h"
 #include "clue.h"
+#include "array.h"
 
 typedef enum TAGGER_STATE {
   TAGGER_LOADED,
@@ -24,12 +25,17 @@ typedef enum TAGGER_STATE {
   TAGGER_SEQUENCE_ERROR
 } TaggerState;
 
+#define TAG_INDEX_OK 0
+#define TAG_INDEX_FAIL 1
 #define TAGGER_OK 0
 #define TAG_OK 0
 #define TAG_NOT_FOUND 1
 #define TAG_NOT_MODIFIED 2
 #define TAGGER_PENDING_ITEM_ADDITION 3
 #define TAGGER_CHECKED_OUT 4
+
+#define ATOM "http://www.w3.org/2005/Atom"
+#define CLASSIFIER "http://peerworks.org/classifier"
 
 typedef struct TAGGING {
     /* Id of the tagged item */
@@ -157,6 +163,8 @@ extern int           get_missing_entries (Tagger * tagger, ItemCacheEntry ** ent
 extern TaggerCache * create_tagger_cache (ItemCache * item_cache, TaggerCacheOptions * options);
 extern void          free_tagger_cache   (TaggerCache * tagger_cache);
 extern int           get_tagger          (TaggerCache * tagger_cache, const char * tag_training_url, Tagger ** tagger, char ** errmsg);
-extern int          release_tagger      (TaggerCache * tagger_cache, Tagger * tagger);
+extern int           release_tagger      (TaggerCache * tagger_cache, Tagger * tagger);
 
+/* Only in the header for testing. */
+extern int           parse_tag_index     (const char * document, Array * a);
 #endif /* _TAGGER_H_ */

@@ -24,8 +24,6 @@
  *  Functions for building taggers from Atom documents.
 *************************************************************************************************/
 
-#define ATOM "http://www.w3.org/2005/Atom"
-#define CLASSIFIER "http://peerworks.org/classifier"
 #define OK 0
 #define FAIL 1
 

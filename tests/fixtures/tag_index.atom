@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Winnow tags</title>
+  <updated>2008-05-12T02:42:14Z</updated>
+  <entry>
+    <title>tag</title>
+    <id>http://localhost:8888/quentin/tags/tag</id>
+    <updated>2008-05-12T02:42:14Z</updated>
+    <link href="http://localhost:8888/quentin/tags/tag/training.atom" rel="http://peerworks.org/classifier/training"/>
+  </entry>
+  <entry>
+    <title>other</title>
+    <id>http://localhost:8888/aaron/tags/other</id>
+    <updated>2008-05-12T02:42:14Z</updated>
+    <link href="http://localhost:8888/aaron/tags/other/training.atom" rel="http://peerworks.org/classifier/training"/>
+  </entry>
+</feed>
