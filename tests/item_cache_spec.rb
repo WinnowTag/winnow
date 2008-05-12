@@ -127,11 +127,6 @@ describe "The Classifier's Item Cache" do
       @http = TestHttpServer.new(:port => 8888)
     end
     
-    it "should be equal to the number of items in the cache" do
-      run_job
-      Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
-    end
-    
     describe "after item addition" do
       before(:each) do
         start_tokenizer
