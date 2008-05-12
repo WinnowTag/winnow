@@ -40,3 +40,4 @@ classifier.pid
 check_precompute_tagger
 check_classify
 check_get_tagger
+check_tag_index
