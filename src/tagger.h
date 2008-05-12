@@ -44,12 +44,6 @@ typedef struct TAGGING {
     double strength;
 } Tagging;
 
-typedef struct TAGGING_LIST {
-    int capacity;
-    int size;
-    Tagging **taggings;
-} TaggingList;
-
 typedef struct TAGGER {
   /***** Meta data for the tagger *****/
   
@@ -149,15 +143,12 @@ typedef struct TAGGER_CACHE {
 } TaggerCache;
 
 extern Tagging *     create_tagging      (const char * item_id, double strength);
-extern TaggingList * create_tagging_list (int capacity);
-extern int           add_to_tagging_list (TaggingList *list, Tagging * tagging);
-extern void          free_tagging_list   (TaggingList *list);
 
 extern Tagger *      build_tagger        (const char * atom);
 extern TaggerState   train_tagger        (Tagger * tagger, ItemCache * item_cache);
 extern TaggerState   precompute_tagger   (Tagger * tagger, const Pool * random_background);
 extern int           classify_item       (const Tagger * tagger, const Item * item, double * probability);
-extern int           save_taggings       (const Tagger * tagger, TaggingList *list, char ** errmsg);
+extern int           save_taggings       (const Tagger * tagger, Array *list, char ** errmsg);
 extern int           get_missing_entries (Tagger * tagger, ItemCacheEntry ** entries);
 
 extern TaggerCache * create_tagger_cache (ItemCache * item_cache, TaggerCacheOptions * options);

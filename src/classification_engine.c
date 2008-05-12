@@ -20,6 +20,7 @@
 #include "job_queue.h"
 #include "misc.h"
 #include "logging.h"
+#include "array.h"
 
 #define CLASSIFIER_REQUEUE 4
 #define INIT_MUTEX(mutex) \
@@ -203,7 +204,7 @@ float cjob_duration(const ClassificationJob *job) {
 struct JobStuff {
   ClassificationJob *job;
   Tagger *tagger;
-  TaggingList *taggings;
+  Array *taggings;
   double threshold;
 };
 
@@ -217,7 +218,7 @@ static int classify_item_cb(const Item *item, void *memo) {
     double probability;
     if (TAGGER_OK == classify_item(stuff->tagger, item, &probability)) {
       if (probability >= stuff->threshold) {
-        add_to_tagging_list(stuff->taggings, create_tagging(item_get_id(item), probability));
+        arr_add(stuff->taggings, create_tagging(item_get_id(item), probability));
       }
     } else {
       error("Error classifying item");
@@ -257,7 +258,7 @@ static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache
       job->progress = 20.0;
       job->progress_increment = 60.0 / item_cache_cached_size(item_cache);
       
-      job_stuff.taggings = create_tagging_list(1000);
+      job_stuff.taggings = create_array(1000);
       item_cache_each_item(item_cache, &classify_item_cb, &job_stuff);
       NOW(job->classified_at);
       job_stuff.tagger->last_classified = time(NULL);
@@ -268,7 +269,7 @@ static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache
       
       /* Release the tagger  and clean up*/
       release_tagger(tagger_cache, job_stuff.tagger);
-      free_tagging_list(job_stuff.taggings);
+      free_array(job_stuff.taggings);
       
       NOW(job->completed_at);
       job->progress = 100.0;
