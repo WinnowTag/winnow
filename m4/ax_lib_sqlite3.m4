@@ -85,7 +85,7 @@ AC_DEFUN([AX_LIB_SQLITE3],
             ac_sqlite3_ldflags="-L$ac_sqlite3_path/lib"
             ac_sqlite3_cppflags="-I$ac_sqlite3_path/include"
         else
-            for ac_sqlite3_path_tmp in /opt/local /usr /usr/local /opt ; do
+            for ac_sqlite3_path_tmp in /opt/local /usr/local /usr /opt ; do
                 if test -f "$ac_sqlite3_path_tmp/include/$ac_sqlite3_header" \
                     && test -r "$ac_sqlite3_path_tmp/include/$ac_sqlite3_header"; then
                     ac_sqlite3_path=$ac_sqlite3_path_tmp
