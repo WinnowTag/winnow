@@ -400,6 +400,7 @@ int save_taggings(const Tagger *tagger, Array *taggings, char ** errmsg) {
     
     http_headers = curl_slist_append(http_headers, "Content-Type: application/atom+xml");
     http_headers = curl_slist_append(http_headers, "Expect:");
+    http_headers = curl_slist_append(http_headers, "Connection: close");
     
     CURL *curl = curl_easy_init();
     

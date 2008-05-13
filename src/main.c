@@ -140,7 +140,7 @@ static int start_classifier(const char * db_file, const char * tokenizer_url) {
     tagger_cache->tag_index_retriever = &fetch_url;
     
     info("Fetching tag index for the first time...");
-    Array *tags;
+    Array *tags = NULL;
     char *errmsg = NULL;
     int rc = fetch_tags(tagger_cache, &tags, &errmsg);
     if (TAG_INDEX_OK == rc) {

@@ -328,6 +328,7 @@ int fetch_tags(TaggerCache * tagger_cache, Array ** a, char ** errmsg) {
       }      
     } else if (tagger_cache->tag_urls) {
       /* Return the cached version */
+      debug("Returning cached version of tag index");
       *a = tagger_cache->tag_urls;
     } else {
       debug("urlrc = %i, tag_document = %s", urlrc, tag_document);
@@ -335,6 +336,11 @@ int fetch_tags(TaggerCache * tagger_cache, Array ** a, char ** errmsg) {
       if (errmsg && *errmsg == NULL) {
         *errmsg = strdup("Could not find tag index");
       }
+    }
+  } else {
+    rc = TAG_INDEX_FAIL;
+    if (errmsg) {
+      *errmsg = strdup("No tag index defined");
     }
   }
   
