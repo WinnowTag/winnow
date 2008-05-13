@@ -24,74 +24,95 @@ describe "Classifier Job Processing" do
   end
   
   it "should attempt to fetch a tag for the URL given in the Job description" do
-    job = create_job('http://localhost:8888/mytag-training.atom')
-    @http.should receive_request("/mytag-training.atom") do |req, res|
-      req.request_method.should == 'GET'
+    @http.should_receive do
+      request("/mytag-training.atom") do |req, res|
+        req.request_method.should == 'GET'
+      end
     end    
+    
+    job = create_job('http://localhost:8888/mytag-training.atom')
+    @http.should have_received_requests
   end
   
-  it "should be a buffer against something" do
-    # This is an empty test, it exists to provide a buffer between the first test
-    # and subsequent tests since for some reason the second test always fails and
-    # I think it is a timing thing.  This seems to fix it, but I have a feeling
-    # I'll be fighting against these timing problems forever.
-    job = create_job('http://localhost:8888/mytag-training.atom')
-  end  
-  
   it "should not include IF-MODIFIED-SINCE on first request" do
-    job = create_job('http://localhost:8888/mytag-training.atom')
-    @http.should receive_request("/mytag-training.atom") do |req, res|
-      req['IF-MODIFIED-SINCE'].should be_nil
+    @http.should_receive do
+      request("/mytag-training.atom") do |req, res|
+        req['IF-MODIFIED-SINCE'].should be_nil
+      end
     end    
+    
+    job = create_job('http://localhost:8888/mytag-training.atom')
+    @http.should have_received_requests
   end
   
   it "should include IF-MODIFIED-SINCE on second request" do
-    job = create_job('http://localhost:8888/mytag-training.atom')
-    @http.should receive_request("/mytag-training.atom") do |req, res|
-      res.body = File.read(File.join(File.dirname(__FILE__), 'fixtures', 'complete_tag.atom'))
+    requests = 0
+    @http.should_receive do
+      request("/mytag-training.atom", 2) do |req, res|
+        requests += 1
+        
+        if requests == 1
+          res.body = File.read(File.join(File.dirname(__FILE__), 'fixtures', 'complete_tag.atom'))
+        else
+          req['IF-MODIFIED-SINCE'].should == "Sun, 30 Mar 2008 01:24:18 GMT" # Date in atom:updated
+          res.status = 304
+        end
+      end
     end
     
-    sleep(1)
+    job = create_job('http://localhost:8888/mytag-training.atom')
+    sleep(2)
     create_job('http://localhost:8888/mytag-training.atom')    
     
-    @http.should receive_request("/mytag-training.atom") do |req, res|
-      req['IF-MODIFIED-SINCE'].should == "Sun, 30 Mar 2008 01:24:18 GMT" # Date in atom:updated
-      res.status = 304
-    end
+    @http.should have_received_requests
   end
     
   it "should accept application/atom+xml" do
-    job = create_job('http://localhost:8888/mytag-training.atom')
-    @http.should receive_request("/mytag-training.atom") do |req, res|
-      req['ACCEPT'].should == "application/atom+xml"
+    @http.should_receive do
+      request("/mytag-training.atom") do |req, res|
+        req['ACCEPT'].should == "application/atom+xml"
+      end
     end
+    
+    job = create_job('http://localhost:8888/mytag-training.atom')
+    @http.should have_received_requests
   end
   
   it "should not crash if it gets a 404" do
-    job = create_job('http://localhost:8888/mytag-training.atom')
-    @http.should receive_request("/mytag-training.atom") do |req, res|
-      res.status = 404
+    @http.should_receive do
+      request("/mytag-training.atom") do |req, res|
+        res.status = 404
+      end
     end
     
+    job = create_job('http://localhost:8888/mytag-training.atom')
+    
     should_not_crash
+    @http.should have_received_requests
   end
   
   it "should not crash if it gets a 500" do
-    job = create_job('http://localhost:8888/mytag-training.atom')
-    @http.should receive_request("/mytag-training.atom") do |req, res|
-      res.status = 500
+    @http.should_receive do
+      request("/mytag-training.atom") do |req, res|
+        res.status = 500
+      end
     end
     
+    job = create_job('http://localhost:8888/mytag-training.atom')
     should_not_crash
+    @http.should have_received_requests
   end
   
   it "should not crash if it gets junk back in the body" do
-    job = create_job('http://localhost:8888/mytag-training.atom')
-    @http.should receive_request("/mytag-training.atom") do |req, res|
-      res.body = "blahbalh"
+    @http.should_receive do
+      request("/mytag-training.atom") do |req, res|
+        res.body = "blahbalh"
+      end
     end
     
+    job = create_job('http://localhost:8888/mytag-training.atom')
     should_not_crash
+    @http.should have_received_requests
   end
   
   it "should PUT results to the classifier url" do    
@@ -225,11 +246,52 @@ describe "Job Processing with an incomplete tag" do
   end
 end
 
+describe "Job Processing after item addition" do
+  before(:each) do
+    @item_count = 10    
+    @http = TestHttpServer.new(:port => 8888)
+    start_classifier
+    start_tokenizer
+  end
+
+  after(:each) do
+    stop_classifier
+    stop_tokenizer    
+  end
+
+  it "should include the added item" do
+    create_entry
+    
+    job_results do |req, res|
+      Atom::Feed.load_feed(req.body).should have(@item_count + 1).entries
+    end
+  end
+
+  it "should automatically classify the new item" do
+    run_job
+    Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
+
+    create_entry
+    sleep(2.5) # wait for it to be classified
+    Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 1)
+  end
+
+  it "should only create a single job that classifies both items for each tag" do
+    run_job
+    Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
+
+    create_entry(:id => "1111")
+    create_entry(:id => "1112")
+    sleep(2)
+    Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 2)
+    `wc -l /tmp/perf.log`.to_i.should == Tagging.count(:select => 'distinct tag_id') + 2 # +1 for header, +1 for previous job
+  end
+end
+    
 def job_results(atom = 'complete_tag.atom', times_gotten = 1)
   gets = 0
-  job = create_job('http://localhost:8888/mytag-training.atom')
-  @http.should receive_requests(5) {|http|
-    http.request("/mytag-training.atom", times_gotten) do |req, res|
+  @http.should_receive do
+    request("/mytag-training.atom", times_gotten) do |req, res|
       gets += 1
       
       if gets > 1
@@ -238,11 +300,13 @@ def job_results(atom = 'complete_tag.atom', times_gotten = 1)
         res.body = File.read(File.join(File.dirname(__FILE__), 'fixtures', atom))
       end
     end
-    http.request("/results") do |req, res|
+    request("/results") do |req, res|
       yield(req, res) if block_given?
     end
-  }
-  job
+  end
+  job = create_job('http://localhost:8888/mytag-training.atom')
+  
+  @http.should have_received_requests
 end
 
 def should_not_crash

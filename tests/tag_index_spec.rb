@@ -21,27 +21,43 @@ describe "Tag Index" do
   end
   
   it "should fetch GET tag index on load" do
-    @http.should receive_request("/tags.atom") do |req, res|
-      req.request_method.should == 'GET'
+    @http.should_receive do
+      request("/tags.atom") do |req, res|
+        req.request_method.should == 'GET'
+      end
     end
+    
+    @http.should have_received_requests
   end
   
   it "should handle 404 of tag index load" do
-    @http.should receive_request("/tags.atom") do |req, res|
-      res.status = 404
+    @http.should_receive do
+      request("/tags.atom") do |req, res|
+        res.status = 404
+      end
     end
+    
+    @http.should have_received_requests
   end
   
   it "should handle junk in the response" do
-    @http.should receive_request("/tags.atom") do |req, res|
-      res.body = "blah blah blah"
+    @http.should_receive do
+      request("/tags.atom") do |req, res|
+        res.body = "blah blah blah"
+      end
     end
+    
+    @http.should have_received_requests
   end
   
   it "should handle real content" do
-    @http.should receive_request("/tags.atom") do |req, res|
-      res.body = File.read(File.dirname(__FILE__) + "/fixtures/tag_index.atom")
+    @http.should_receive do 
+      request("/tags.atom") do |req, res|
+        res.body = File.read(File.dirname(__FILE__) + "/fixtures/tag_index.atom")
+      end
     end
+    
+    @http.should have_received_requests
   end
 end
 
@@ -59,16 +75,21 @@ describe "after item addition" do
   end
 
   it "should fetch again after adding an item" do
-    @http.should receive_request("/tags.atom") do |req, res|
-      res.body = File.read(File.dirname(__FILE__) + "/fixtures/tag_index.atom")
+    requests = 0
+    @http.should_receive do
+      request("/tags.atom", 2) do |req, res|
+        requests += 1
+        if requests == 1
+          res.body = File.read(File.dirname(__FILE__) + "/fixtures/tag_index.atom")
+        else
+          req['IF-MODIFIED-SINCE'].should == "Mon, 12 May 2008 02:42:14 GMT"
+          res.status = 304
+        end
+      end
     end
 
     sleep(0.1)
     create_entry
-
-    @http.should receive_request("/tags.atom") do |req, res|
-      req['IF-MODIFIED-SINCE'].should == "Mon, 12 May 2008 02:42:14 GMT"
-      res.status = 304
-    end
+    @http.should have_received_requests
   end    
 end

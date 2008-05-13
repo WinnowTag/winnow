@@ -119,49 +119,5 @@ describe "The Classifier's Item Cache" do
       destroy_entry(888769)
       @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = 888769").to_i.should == 0
     end
-  end
-  
-  describe "number of items classified" do
-    before(:each) do
-      @item_count = @sqlite.get_first_value("select count(*) from entries;").to_i
-      @http = TestHttpServer.new(:port => 8888)
-    end
-    
-    describe "after item addition" do
-      before(:each) do
-        start_tokenizer
-      end
-      
-      after(:each) do
-        system("tokenizer_control stop")
-      end
-      
-      it "should include the added item" do
-        create_entry
-        sleep(1) # let the item get into the cache
-        run_job
-        Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 1)        
-      end
-      
-      it "should automatically classify the new item" do
-        run_job
-        Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
-        
-        create_entry
-        sleep(2.5) # wait for it to be classified
-        Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 1)
-      end
-      
-      it "should only create a single job that classifies both items for each tag" do
-        run_job
-        Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
-        
-        create_entry(:id => "1111")
-        create_entry(:id => "1112")
-        sleep(2)
-        Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 2)
-        `wc -l /tmp/perf.log`.to_i.should == Tagging.count(:select => 'distinct tag_id') + 2 # +1 for header, +1 for previous job
-      end
-    end
-  end
+  end  
 end
