@@ -733,6 +733,7 @@ static void create_classify_new_item_jobs_for_all_tags(ClassificationEngine *ce)
       info("Created %i classify new items jobs", tag_urls->size);
     } else {
       error("Could not fetch tag urls: %s", errmsg);
+      free(errmsg);
     }    
   }
 }

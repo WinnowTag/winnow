@@ -147,6 +147,7 @@ static int start_classifier(const char * db_file, const char * tokenizer_url) {
       info("Fetched %i tags from %s", tags->size);
     } else {
       error("Error fetching tag index: %s", errmsg);
+      free(errmsg);
     }
     
     engine = create_classification_engine(item_cache, tagger_cache, &ce_options);
