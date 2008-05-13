@@ -16,6 +16,7 @@
 TaggerCache * create_tagger_cache(ItemCache * item_cache, TaggerCacheOptions *opts) {
   TaggerCache *tagger_cache = calloc(1, sizeof(struct TAGGER_CACHE));
   tagger_cache->item_cache = item_cache;
+  tagger_cache->options = opts;
   tagger_cache->random_background = item_cache_random_background(item_cache);
   if (tagger_cache->random_background == NULL) {
     info("Operating with empty random background");
@@ -285,6 +286,32 @@ int release_tagger(TaggerCache *tagger_cache, Tagger * tagger) {
     pthread_mutex_lock(&tagger_cache->mutex);
     rc = release_tagger_without_locks(tagger_cache, tagger->training_url);
     pthread_mutex_unlock(&tagger_cache->mutex);
+  }
+  
+  return rc;
+}
+
+int fetch_tags(TaggerCache * tagger_cache, Array ** a, char ** errmsg) {
+  int rc = TAG_INDEX_OK;
+  
+  if (tagger_cache && tagger_cache->options->tag_index_url && a) {
+    char *tag_document = NULL;
+    
+    int urlrc = tagger_cache->tag_index_retriever(tagger_cache->options->tag_index_url, -1, &tag_document, errmsg);
+    
+    if (urlrc == URL_OK && tag_document) {
+      *a = create_array(100);
+      rc = parse_tag_index(tag_document, *a);
+      if (rc == TAG_INDEX_FAIL && errmsg) {
+        *errmsg = strdup("Parser error in tag index");
+      }
+    } else {
+      debug("urlrc = %i, tag_document = %s", urlrc, tag_document);
+      rc = TAG_INDEX_FAIL;
+      if (errmsg && *errmsg == NULL) {
+        *errmsg = strdup("Could not find tag index");
+      }
+    }
   }
   
   return rc;

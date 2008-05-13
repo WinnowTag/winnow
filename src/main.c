@@ -41,12 +41,14 @@
 #define MIN_TOKENS_VAL 517
 #define TOKENIZER_URL_VAL 518
 #define PERFORMANCE_LOG_FILE_VAL 519
+#define TAG_INDEX_VAL 520
 
 #define SHORT_OPTS "hvdo:t:n:p:a:"
 #define USAGE "Usage: classifier [-dvh] [-o LOGFILE] [--db DATABASE_FILE] [--pid PIDFILE] [-t tokenizer_url] [--create-db]\n"
 
 static ItemCacheOptions item_cache_options;
 static ItemCache *item_cache;
+static TaggerCacheOptions tagger_cache_options;
 static TaggerCache *tagger_cache;
 static ClassificationEngineOptions ce_options = {1, 0.0, NULL};
 static ClassificationEngine *engine;
@@ -132,8 +134,21 @@ static int start_classifier(const char * db_file, const char * tokenizer_url) {
     item_cache_start_feature_extractor(item_cache);
     item_cache_start_cache_updater(item_cache);
     item_cache_start_purger(item_cache, 60 * 60 * 24);
-    tagger_cache = create_tagger_cache(item_cache, NULL);
+    
+    tagger_cache = create_tagger_cache(item_cache, &tagger_cache_options);
     tagger_cache->tag_retriever = &fetch_url;
+    tagger_cache->tag_index_retriever = &fetch_url;
+    
+    info("Fetching tag index for the first time...");
+    Array *tags;
+    char *errmsg = NULL;
+    int rc = fetch_tags(tagger_cache, &tags, &errmsg);
+    if (TAG_INDEX_OK == rc) {
+      info("Fetched %i tags from %s", tags->size);
+    } else {
+      error("Error fetching tag index: %s", errmsg);
+    }
+    
     engine = create_classification_engine(item_cache, tagger_cache, &ce_options);
     httpd = httpd_start(&http_config, engine, item_cache);  
     ce_run(engine);
@@ -176,6 +191,8 @@ int main(int argc, char **argv) {
       
       {"port", required_argument, 0, 'p'},
       {"allowed_ip", required_argument, 0, 'a'},
+      
+      {"tag-index", required_argument, 0, TAG_INDEX_VAL},
       
       {0, 0, 0, 0}
   };
@@ -229,8 +246,14 @@ int main(int argc, char **argv) {
         break;
       case 'a':
         http_config.allowed_ip = optarg;
-        break;       
+        break;  
         
+      /* Tagger Cache options */
+      case TAG_INDEX_VAL:
+        tagger_cache_options.tag_index_url = optarg;
+        break;
+        
+      /* Common Options */
       case 'h':
         // TODO Add help
         printHelp();

@@ -137,6 +137,8 @@ def start_classifier(opts = {})
   system("rm -f /tmp/classifier-test.pid")
   classifier = File.join(ROOT, "../src/classifier")
   
+  tag_index = "--tag-index #{opts[:tag_index]}" if opts[:tag_index]
+  
   if ENV['srcdir']
     classifier = File.join(ENV['PWD'], '../src/classifier')
   end
@@ -149,7 +151,7 @@ def start_classifier(opts = {})
                                      "--load-items-since #{options[:load_items_since]} " +
                                      "--min-tokens #{options[:min_tokens] or 0} " +
                                      "--positive-threshold #{options[:positive_threshold] or 0} " +
-                                     "--db #{Database}" 
+                                     "--db #{Database} #{tag_index}" 
                                      
   
   
@@ -164,7 +166,7 @@ def start_classifier(opts = {})
     system("#{classifier_cmd} -d")
   end  
     
-  sleep(0.1)
+  sleep(0.1) if opts[:sleep] != false
 end
 
 def classifier_http(&block)

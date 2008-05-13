@@ -39,7 +39,7 @@ int parse_tag_index(const char * document, Array * a) {
         info("No tags in tag index");
       }   
     } else {
-      error("Could not parse tag index");
+      error("Could not parse tag index: %s", document);
       rc = TAG_INDEX_FAIL;
     }
   }

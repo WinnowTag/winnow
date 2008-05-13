@@ -119,10 +119,13 @@ typedef struct TAGGER {
 } Tagger;
 
 typedef struct TAGGER_CACHE_OPTIONS {
-  
+  /* URL for the index of tags which will be handled by the classifier. */
+  const char * tag_index_url;
 } TaggerCacheOptions;
 
 typedef struct TAGGER_CACHE {
+  TaggerCacheOptions *options;
+  
   /* Tagger cache mutex.  Only one thread can access the internal arrays of the tagger cache at one time. */
   pthread_mutex_t mutex;
   
@@ -135,6 +138,9 @@ typedef struct TAGGER_CACHE {
   /* Function used to fetch tag documents. This is really just a function pointer to help testing. */
   int (*tag_retriever)(const char * tag_training_url, time_t last_updated, char ** tag_document, char ** errmsg);
   
+  /* Function used to fetch tag index documents. This is really just a function pointer to help testing. */
+  int (*tag_index_retriever)(const char * tag_index_url, time_t last_updated, char ** tag_index_document, char ** errmsg);
+    
   /* Array of taggers that are checked out.  A checked out tagger cannot be 'gotten' by anyone else. */
   Pvoid_t checked_out_taggers;
   
@@ -155,6 +161,7 @@ extern TaggerCache * create_tagger_cache (ItemCache * item_cache, TaggerCacheOpt
 extern void          free_tagger_cache   (TaggerCache * tagger_cache);
 extern int           get_tagger          (TaggerCache * tagger_cache, const char * tag_training_url, Tagger ** tagger, char ** errmsg);
 extern int           release_tagger      (TaggerCache * tagger_cache, Tagger * tagger);
+extern int           fetch_tags          (TaggerCache * tagger_cache, Array **a, char ** errmsg);
 
 /* Only in the header for testing. */
 extern int           parse_tag_index     (const char * document, Array * a);
