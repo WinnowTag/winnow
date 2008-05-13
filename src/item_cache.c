@@ -1,3 +1,6 @@
+
+#include "array.h"
+
 /* Copyright (c) 2008 The Kaphan Foundation
  *
  * Possession of a copy of this file grants no permission or license
@@ -27,12 +30,13 @@
 #include "job_queue.h"
 #include "xml.h"
 #include "uri.h"
+#include "array.h"
 
 #define CURRENT_USER_VERSION 2
 #define FETCH_ITEM_SQL "select full_id, id, strftime('%s', updated) from entries where full_id = ?"
 #define FETCH_ITEM_TOKENS_SQL "select token_id, frequency from entry_tokens where entry_id = ?"
 #define FETCH_ALL_ITEMS_SQL "select full_id, id, strftime('%s', updated) from entries where updated > (julianday('now') - ?) order by updated desc"
-#define FETCH_RANDOM_BACKGROUND "select entry_id from random_backgrounds"
+#define FETCH_RANDOM_BACKGROUND "select full_id from entries where id in (select entry_id from random_backgrounds)"
 #define INSERT_ENTRY_SQL "insert or replace into entries (full_id, title, author, alternate, self, spider, content, updated, feed_id, created_at) \
                           VALUES (:full_id, :title, :author, :alternate, :self, :spider, :content, julianday(:updated, 'unixepoch'), :feed_id, julianday(:created_at, 'unixepoch'))"
 #define DELETE_ENTRY_SQL "delete from entries where id = ?"
@@ -723,23 +727,39 @@ int item_cache_load(ItemCache *item_cache) {
    * 
    * TODO Fix this to fetch them from the database
    */
-  // Pool *rndbg = new_pool();
-  //   while (SQLITE_ROW == sqlite3_step(item_cache->random_background_stmt)) {
-  //     int id = sqlite3_column_int(item_cache->random_background_stmt, 0);
-  //     PWord_t item_pointer = NULL;
-  //     JLG(item_pointer, itemlist, id);
-  //     if (NULL != item_pointer) {
-  //       Item *item = (Item*) (*item_pointer);
-  //       if (item) {
-  //         pool_add_item(rndbg, item);
-  //       }      
-  //     }
-  //   }
+  Array *background_ids = create_array(5000);
+  Pool *rndbg = new_pool();
   
-  // sqlite3_reset(item_cache->random_background_stmt);
+  while (SQLITE_ROW == sqlite3_step(item_cache->random_background_stmt)) {
+    const char *id = sqlite3_column_text(item_cache->random_background_stmt, 0);
+    if (id) {
+      arr_add(background_ids, strdup(id));      
+    }
+  }
+  
+  sqlite3_reset(item_cache->random_background_stmt);
+  
+  /* Release the mutex here since we need it to call fetch_item */
+  pthread_mutex_unlock(&item_cache->db_access_mutex);
+  
+  int i;
+  for (i = 0; i < background_ids->size; i++) {
+    int free_when_done = 0;
+    Item *item = item_cache_fetch_item(item_cache, (unsigned char*) background_ids->elements[i], &free_when_done);
+    if (item) {
+      pool_add_item(rndbg, item);
+      if (free_when_done) {
+        free_item(item);
+      }
+    } else {
+      error("Missing Random background item %s", background_ids->elements[i]);
+    }
+  }
+  
+  free_array(background_ids);
   
   pthread_rwlock_wrlock(&item_cache->cache_lock);
-  // item_cache->random_background = rndbg;
+  item_cache->random_background = rndbg;
   item_cache->items_by_id = itemlist;
   item_cache->items_in_order = ordered_list;
   item_cache->loaded = true;
@@ -747,7 +767,6 @@ int item_cache_load(ItemCache *item_cache) {
   time_t end_time = time(NULL);
   pthread_rwlock_unlock(&item_cache->cache_lock);
   
-  pthread_mutex_unlock(&item_cache->db_access_mutex);
   
   info("loaded %i items in %i seconds", item_cache_cached_size(item_cache), end_time - start_time);
   return rc;

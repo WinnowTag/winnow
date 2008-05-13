@@ -234,7 +234,6 @@ START_TEST (test_random_background_has_right_count_for_a_token) {
   item_cache_load(item_cache);
   const Pool *bg = item_cache_random_background(item_cache);
   assert_not_null(bg);
-  printf("bg = %p\n", bg);
   assert_equal(2, pool_token_frequency(bg, 2515));
 } END_TEST
 
@@ -1220,7 +1219,7 @@ item_cache_suite(void) {
   suite_add_tcase(s, fetch_item_case);
   suite_add_tcase(s, load);
   suite_add_tcase(s, iteration);
-//  suite_add_tcase(s, rndbg);
+  suite_add_tcase(s, rndbg);
   suite_add_tcase(s, modification);
   suite_add_tcase(s, loaded_modification);
   suite_add_tcase(s, feature_extraction);

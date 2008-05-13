@@ -213,7 +213,7 @@ describe "Job Processing with a threshold set" do
   
   it "should only send entries for items above the threshold" do
     job_results do |req, res|
-      Atom::Feed.load_feed(req.body).should have(6).entries
+      Atom::Feed.load_feed(req.body).should have(4).entries
     end
   end
 end
