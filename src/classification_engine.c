@@ -91,9 +91,6 @@ struct CLASSIFICATION_ENGINE {
 
 static void ce_record_classification_job_timings(ClassificationEngine *ce, const ClassificationJob *job);
 static void *classification_worker_func(void *engine_vp);
-//static void *flusher_func(void *engine_vp);
-static void cjob_process(ClassificationJob *job, ItemCache *is);
-static void cjob_free_taggings(ClassificationJob *job);
 static void item_cache_updated_hook(ItemCache * item_cache, void * memo);
 
 /********************************************************************************
@@ -278,7 +275,7 @@ static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache
       
       NOW(job->completed_at);
       job->progress = 100.0;
-      job->state = CJOB_STATE_COMPLETE;
+      job->state = CJOB_STATE_COMPLETE;      
       break;
     case TAG_NOT_FOUND:
       if (job->errmsg) {
@@ -712,6 +709,12 @@ void *classification_worker_func(void *engine_vp) {
       if (rc == CLASSIFIER_REQUEUE) {
         debug("Requeuing job");
         q_enqueue(job_queue, job);
+      } else {
+        ce_record_classification_job_timings(ce, job);
+        if (job->auto_cleanup) {
+          ce_remove_classification_job(ce, job);
+          free_classification_job(job);
+        }
       }
 /*
       if (CJOB_STATE_ERROR != job->state) {
