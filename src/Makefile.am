@@ -23,8 +23,6 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            classification_engine.c   \
                            httpd.h httpd.c           \
                            misc.h                    \
-                           time_helper.h             \
-                           time_helper.c						 \
                            create_file.c             \
                            item_cache.c      				 \
                            item_cache.h				       \
