@@ -16,7 +16,7 @@
 #include "logging.h"
 #include "xml.h"
 
-int parse_tag_index(const char * document, Array * a) {
+int parse_tag_index(const char * document, Array * a, time_t * updated) {
   int rc = TAG_INDEX_OK;
   
   if (document && a) {
@@ -25,6 +25,10 @@ int parse_tag_index(const char * document, Array * a) {
       xmlXPathContextPtr ctx = xmlXPathNewContext(doc);
       xmlXPathRegisterNs(ctx, BAD_CAST "atom", BAD_CAST ATOM);
       xmlXPathRegisterNs(ctx, BAD_CAST "classifier", BAD_CAST CLASSIFIER);
+      
+      if (updated) {
+        *updated = get_element_value_time(ctx, "/atom:feed/atom:updated/text()");
+      }
       
       xmlXPathObjectPtr xp = xmlXPathEvalExpression(BAD_CAST "/atom:feed/atom:entry/atom:link[@rel = 'http://peerworks.org/classifier/training']", ctx);
       

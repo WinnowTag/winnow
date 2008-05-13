@@ -38,22 +38,29 @@ static void free_document(void) {
 
 START_TEST(test_parsing_tag_index_returns_TAG_INDEX_OK) {
   Array *a = create_array(1);
-  int rc = parse_tag_index(document, a);
+  int rc = parse_tag_index(document, a, NULL);
   assert_equal(TAG_INDEX_OK, rc);
 } END_TEST
 
 START_TEST(test_parsing_tag_index_with_bogus_data_returns_TAG_INDEX_FAIL) {
   Array *a = create_array(1);
-  int rc = parse_tag_index("bogus", a);
+  int rc = parse_tag_index("bogus", a, NULL);
   assert_equal(TAG_INDEX_FAIL, rc);
 } END_TEST
         
 START_TEST(test_parsing_tag_index_fills_array_with_training_links) {
   Array *a = create_array(1);
-  parse_tag_index(document, a);
+  parse_tag_index(document, a, NULL);
   assert_equal(2, a->size);
   assert_equal_s("http://localhost:8888/quentin/tags/tag/training.atom", (char *) a->elements[0]);
   assert_equal_s("http://localhost:8888/aaron/tags/other/training.atom", (char *) a->elements[1]);
+} END_TEST
+        
+START_TEST(test_parses_updated_date) {
+  Array *a = create_array(1);
+  time_t updated = -1;
+  parse_tag_index(document, a, &updated);
+  assert_equal(1210560134, updated);
 } END_TEST
         
 Suite *
@@ -65,6 +72,7 @@ tag_index_parsing_suite(void) {
   tcase_add_test(tag_index_parsing, test_parsing_tag_index_returns_TAG_INDEX_OK);
   tcase_add_test(tag_index_parsing, test_parsing_tag_index_with_bogus_data_returns_TAG_INDEX_FAIL);
   tcase_add_test(tag_index_parsing, test_parsing_tag_index_fills_array_with_training_links);
+  tcase_add_test(tag_index_parsing, test_parses_updated_date);
 
   suite_add_tcase(s, tag_index_parsing);
   return s;

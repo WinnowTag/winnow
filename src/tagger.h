@@ -141,6 +141,12 @@ typedef struct TAGGER_CACHE {
   /* Function used to fetch tag index documents. This is really just a function pointer to help testing. */
   int (*tag_index_retriever)(const char * tag_index_url, time_t last_updated, char ** tag_index_document, char ** errmsg);
     
+  /* Array of tag urls fetched from the tag index */
+  Array *tag_urls;
+  
+  /* Time the tag urls were last updated */
+  time_t tag_urls_last_updated;
+  
   /* Array of taggers that are checked out.  A checked out tagger cannot be 'gotten' by anyone else. */
   Pvoid_t checked_out_taggers;
   
@@ -164,5 +170,5 @@ extern int           release_tagger      (TaggerCache * tagger_cache, Tagger * t
 extern int           fetch_tags          (TaggerCache * tagger_cache, Array **a, char ** errmsg);
 
 /* Only in the header for testing. */
-extern int           parse_tag_index     (const char * document, Array * a);
+extern int           parse_tag_index     (const char * document, Array * a, time_t * updated);
 #endif /* _TAGGER_H_ */

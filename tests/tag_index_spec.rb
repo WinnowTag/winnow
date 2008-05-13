@@ -38,8 +38,37 @@ describe "Tag Index" do
     end
   end
   
-  describe "after item addition" do
-    it "should fetch again after adding an item"
-    it "should include a IF-MODIFIED-SINCE header"
+  it "should handle real content" do
+    @http.should receive_request("/tags.atom") do |req, res|
+      res.body = File.read(File.dirname(__FILE__) + "/fixtures/tag_index.atom")
+    end
   end
+end
+
+describe "after item addition" do
+  before(:each) do
+    start_tokenizer
+    system("rm /tmp/perf.log")   
+    start_classifier(:tag_index => 'http://localhost:8888/tags.atom', :sleep => false)
+    @http = TestHttpServer.new(:port => 8888)
+  end
+
+  after(:each) do
+    stop_tokenizer
+    stop_classifier
+  end
+
+  it "should fetch again after adding an item" do
+    @http.should receive_request("/tags.atom") do |req, res|
+      res.body = File.read(File.dirname(__FILE__) + "/fixtures/tag_index.atom")
+    end
+
+    sleep(0.1)
+    create_entry
+
+    @http.should receive_request("/tags.atom") do |req, res|
+      req['IF-MODIFIED-SINCE'].should == "Mon, 12 May 2008 02:42:14 GMT"
+      res.status = 304
+    end
+  end    
 end

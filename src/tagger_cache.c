@@ -17,6 +17,9 @@ TaggerCache * create_tagger_cache(ItemCache * item_cache, TaggerCacheOptions *op
   TaggerCache *tagger_cache = calloc(1, sizeof(struct TAGGER_CACHE));
   tagger_cache->item_cache = item_cache;
   tagger_cache->options = opts;
+  tagger_cache->tag_urls = NULL;
+  tagger_cache->tag_urls_last_updated = -1;
+  
   tagger_cache->random_background = item_cache_random_background(item_cache);
   if (tagger_cache->random_background == NULL) {
     info("Operating with empty random background");
@@ -291,20 +294,41 @@ int release_tagger(TaggerCache *tagger_cache, Tagger * tagger) {
   return rc;
 }
 
+/** Fetchs the tag urls from the tag index.
+ *
+ * @param tagger_cache The tagger cache that manages the tag index.
+ * @param a The array which will be a pointer to an array of tag urls if the operation
+ *          is successful.  The resulting array should not be modified externally.
+ * @param errmsg Storage for any error messages.
+ * @return TAG_INDEX_OK if operation is successfull, *a will point to the tag url array.
+ *         TAG_INDEX_FAIL if operation failed, if non-null errmsg was provided it will contain the error.
+ */
 int fetch_tags(TaggerCache * tagger_cache, Array ** a, char ** errmsg) {
   int rc = TAG_INDEX_OK;
   
   if (tagger_cache && tagger_cache->options->tag_index_url && a) {
     char *tag_document = NULL;
     
-    int urlrc = tagger_cache->tag_index_retriever(tagger_cache->options->tag_index_url, -1, &tag_document, errmsg);
+    int urlrc = tagger_cache->tag_index_retriever(tagger_cache->options->tag_index_url, tagger_cache->tag_urls_last_updated, &tag_document, errmsg);
     
     if (urlrc == URL_OK && tag_document) {
-      *a = create_array(100);
-      rc = parse_tag_index(tag_document, *a);
+      /* Tag Index updated or fetched for the first time */
+      if (tagger_cache->tag_urls) {
+        free_array(tagger_cache->tag_urls);
+      }
+      
+      tagger_cache->tag_urls = create_array(100);
+      tagger_cache->tag_urls_last_updated = time(NULL);
+      rc = parse_tag_index(tag_document, tagger_cache->tag_urls, &tagger_cache->tag_urls_last_updated);
+      
       if (rc == TAG_INDEX_FAIL && errmsg) {
         *errmsg = strdup("Parser error in tag index");
-      }
+      } else {
+        *a = tagger_cache->tag_urls;
+      }      
+    } else if (tagger_cache->tag_urls) {
+      /* Return the cached version */
+      *a = tagger_cache->tag_urls;
     } else {
       debug("urlrc = %i, tag_document = %s", urlrc, tag_document);
       rc = TAG_INDEX_FAIL;
