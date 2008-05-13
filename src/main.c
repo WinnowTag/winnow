@@ -24,6 +24,7 @@
 #include "git_revision.h"
 #include "feature_extractor.h"
 #include "fetch_url.h"
+#include "xml_error_functions.h"
 
 #define DEFAULT_LOG_FILE "log/classifier.log"
 #define DEFAULT_PID_FILE "log/classifier.pid"
@@ -124,6 +125,8 @@ static void _daemonize(const char * pid_file) {
 }
 
 static int start_classifier(const char * db_file, const char * tokenizer_url) {  
+  SET_XML_ERROR_HANDLERS;
+  
   if (CLASSIFIER_OK != item_cache_create(&item_cache, db_file, &item_cache_options)) {
     fprintf(stderr, "Error opening classifier database file at %s: %s\n", db_file, item_cache_errmsg(item_cache));
     free_item_cache(item_cache);

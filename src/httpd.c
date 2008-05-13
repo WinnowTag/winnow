@@ -32,6 +32,7 @@
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
 #include <libxml/uri.h>
+#include "xml_error_functions.h"
 
 #include "xml.h"
 #include "uri.h"
@@ -527,6 +528,7 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
                            const char * raw_url, const char * method, 
                            const char * version, const char * upload_data,
                            unsigned int * upload_data_size, void **memo) {
+  SET_XML_ERROR_HANDLERS;
   int new_request = false;
   int ret = MHD_YES;
   Httpd * httpd = (Httpd*) httpd_vp;

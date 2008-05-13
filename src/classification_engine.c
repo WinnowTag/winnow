@@ -21,6 +21,9 @@
 #include "misc.h"
 #include "logging.h"
 #include "array.h"
+#include "xml_error_functions.h"
+
+#include <libxml/xmlerror.h>
 
 #define CLASSIFIER_REQUEUE 4
 #define INIT_MUTEX(mutex) \
@@ -664,6 +667,8 @@ static void ce_record_classification_job_timings(ClassificationEngine *ce, const
  * 
  */
 void *classification_worker_func(void *engine_vp) {
+  SET_XML_ERROR_HANDLERS;
+  
   /* Grab references to shared resources */
   ClassificationEngine *ce = (ClassificationEngine*) engine_vp;
   Queue *job_queue         = ce->classification_job_queue;  

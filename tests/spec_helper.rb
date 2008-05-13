@@ -229,7 +229,7 @@ class MemoryLeaks
   
   def matches?(target)
     @target = target
-    @result = `leaks -exclude regcomp -exclude JudySLIns #{@target}`
+    @result = `leaks -exclude regcomp -exclude JudySLIns -exclude xmlSetStructuredErrorFunc #{@target}`
     if @result =~ /(\d+) leaks?/
       @leaks = @result.scan(/Leak:/).size 
       @leaks <= @n
