@@ -265,7 +265,12 @@ static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache
       
       /* Save the results */
       job->state = CJOB_STATE_INSERTING;
-      save_taggings(job_stuff.tagger, job_stuff.taggings, &job->errmsg);
+      
+      if (job_stuff.job->item_scope == ITEM_SCOPE_NEW) {
+        update_taggings(job_stuff.tagger, job_stuff.taggings, &job->errmsg);         
+      } else {
+        replace_taggings(job_stuff.tagger, job_stuff.taggings, &job->errmsg);        
+      }
       
       /* Release the tagger  and clean up*/
       release_tagger(tagger_cache, job_stuff.tagger);
@@ -276,7 +281,11 @@ static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache
       job->state = CJOB_STATE_COMPLETE;
       break;
     case TAG_NOT_FOUND:
-      debug("TAG_NOT_FOUND: %s", job->errmsg);
+      if (job->errmsg) {
+        error("TAG_NOT_FOUND: %s, %s", job->tag_url, job->errmsg);
+      } else {
+        error("TAG_NOT_FOUND: %s", job->tag_url);
+      }
       job->state = CJOB_STATE_ERROR;
       job->error = CJOB_ERROR_NO_SUCH_TAG;      
       break;

@@ -387,7 +387,10 @@ static int xml_for_tagger(const Tagger *tagger, const Array *list, struct output
   return 0;
 }
 
-int save_taggings(const Tagger *tagger, Array *taggings, char ** errmsg) {
+#define PUT 1
+#define POST 2
+
+static int save_taggings(const Tagger *tagger, Array *taggings, int method, char ** errmsg) {
   int rc;
   
   if (tagger && tagger->classifier_taggings_url) {
@@ -404,24 +407,29 @@ int save_taggings(const Tagger *tagger, Array *taggings, char ** errmsg) {
     
     CURL *curl = curl_easy_init();
     
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, http_headers);    
+    char ua[512];
+    snprintf(ua, sizeof(ua), "\"Peerworks classifier\"/%s %s", PACKAGE_VERSION, curl_version());
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, ua);
     curl_easy_setopt(curl, CURLOPT_URL, tagger->classifier_taggings_url);
     //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
     curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);
-    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1);
-    curl_easy_setopt(curl, CURLOPT_READFUNCTION, &curl_read_function);
-    curl_easy_setopt(curl, CURLOPT_READDATA, &tagger_xml);
-    curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t) tagger_xml.size);
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, http_headers);
     
-    char ua[512];
-    snprintf(ua, sizeof(ua), "\"Peerworks classifier\"/%s %s", PACKAGE_VERSION, curl_version());
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, ua);
-    // curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-    // curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_response);
-  
-
-    if (curl_easy_perform(curl)) {
+    if (method == PUT) {
+      curl_easy_setopt(curl, CURLOPT_UPLOAD, 1);
+      curl_easy_setopt(curl, CURLOPT_READFUNCTION, &curl_read_function);
+      curl_easy_setopt(curl, CURLOPT_READDATA, &tagger_xml);
+      curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t) tagger_xml.size);
+    } else if (method == POST) {      
+      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, tagger_xml.data);
+      curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, tagger_xml.size);
+    } else {
+      fatal("Got something other than PUT or POST for method. This is a bug.");
+      rc = FAIL;
+    }
+    
+    if (rc != FAIL && curl_easy_perform(curl)) {
       error("URL %s not accessible: %s", tagger->classifier_taggings_url, curlerr);
       rc = FAIL;
     } else {
@@ -437,6 +445,14 @@ int save_taggings(const Tagger *tagger, Array *taggings, char ** errmsg) {
   }
   
   return rc;
+}
+
+int replace_taggings(const Tagger * tagger, Array *taggings, char **errmsg) {
+  return save_taggings(tagger, taggings, PUT, errmsg);
+}
+
+int update_taggings(const Tagger * tagger, Array *taggings, char **errmsg) {
+  return save_taggings(tagger, taggings, POST, errmsg);
 }
 
 /* Creates a ItemCacheEntry from an entry in this Tagger's atom document.

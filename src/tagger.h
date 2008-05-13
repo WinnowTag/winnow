@@ -160,7 +160,8 @@ extern Tagger *      build_tagger        (const char * atom);
 extern TaggerState   train_tagger        (Tagger * tagger, ItemCache * item_cache);
 extern TaggerState   precompute_tagger   (Tagger * tagger, const Pool * random_background);
 extern int           classify_item       (const Tagger * tagger, const Item * item, double * probability);
-extern int           save_taggings       (const Tagger * tagger, Array *list, char ** errmsg);
+extern int           update_taggings     (const Tagger * tagger, Array *list, char ** errmsg);
+extern int           replace_taggings    (const Tagger * tagger, Array *list, char ** errmsg);
 extern int           get_missing_entries (Tagger * tagger, ItemCacheEntry ** entries);
 
 extern TaggerCache * create_tagger_cache (ItemCache * item_cache, TaggerCacheOptions * options);

@@ -250,7 +250,7 @@ describe "Job Processing after item addition" do
   before(:each) do
     @item_count = 10    
     @http = TestHttpServer.new(:port => 8888)
-    start_classifier
+    start_classifier(:tag_index => 'http://localhost:8888/tags.atom')
     start_tokenizer
   end
 
@@ -268,23 +268,47 @@ describe "Job Processing after item addition" do
   end
 
   it "should automatically classify the new item" do
-    run_job
-    Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
+    @http.should_receive do
+      request("/tags.atom") do |req, res|
+        res.body = File.read(File.dirname(__FILE__) + "/fixtures/tag_index.atom")
+      end
+      
+      request("/quentin/tags/tag/training.atom") do |req, res|
+        res.body = File.read(File.dirname(__FILE__) + "/fixtures/complete_tag.atom")
+      end
+      
+      request("/results") do |req, res|
+        req.request_method.should == "POST"
+        req['content-type'].should == 'application/atom+xml'
+        Atom::Feed.load_feed(req.body).should have(1).entries
+      end
+    end
 
     create_entry
-    sleep(2.5) # wait for it to be classified
-    Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 1)
+    @http.should have_received_requests
   end
 
   it "should only create a single job that classifies both items for each tag" do
-    run_job
-    Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
-
+    @http.should_receive do
+      request("/tags.atom") do |req, res|
+        res.body = File.read(File.dirname(__FILE__) + "/fixtures/tag_index.atom")
+      end
+      
+      request("/quentin/tags/tag/training.atom") do |req, res|
+        res.body = File.read(File.dirname(__FILE__) + "/fixtures/complete_tag.atom")
+      end
+      
+      request("/results") do |req, res|
+        req.request_method.should == "POST"
+        req['content-type'].should == 'application/atom+xml'
+        Atom::Feed.load_feed(req.body).should have(2).entries
+      end
+    end
+    
     create_entry(:id => "1111")
     create_entry(:id => "1112")
-    sleep(2)
-    Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 2)
-    `wc -l /tmp/perf.log`.to_i.should == Tagging.count(:select => 'distinct tag_id') + 2 # +1 for header, +1 for previous job
+    @http.should have_received_requests
+    #`wc -l /tmp/perf.log`.to_i.should == Tagging.count(:select => 'distinct tag_id') + 2 # +1 for header, +1 for previous job
   end
 end
     
