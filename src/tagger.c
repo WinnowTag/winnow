@@ -338,16 +338,21 @@ static struct output {
 };
 
 static size_t curl_read_function(void *ptr, size_t size, size_t nmemb, void *stream) {
-  debug("read");
   struct output *out = (struct output*) stream;
+  unsigned int write = size * nmemb;
   
-  if (out->pos < out->size) {
-    memcpy(ptr, out->data, size * nmemb);
-    out->pos += (size * nmemb);
-    return size * nmemb;
-  } else {
-    return 0;    
+  if (write > out->size - out->pos) {
+    write = out->size - out->pos;
   }
+  
+  debug("read pos %i of %i, will write %i", out->pos, out->size, write);
+  
+  if (write > 0) {
+    memcpy(ptr, &out->data[out->pos], write);
+    out->pos += write;
+  }
+  
+  return write;
 }
 
 static int xml_for_tagger(const Tagger *tagger, const Array *list, struct output * out) {
