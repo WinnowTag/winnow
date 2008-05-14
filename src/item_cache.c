@@ -729,6 +729,7 @@ int item_cache_load(ItemCache *item_cache) {
    */
   Array *background_ids = create_array(5000);
   Pool *rndbg = new_pool();
+  int rndbg_item_count = 0;
   
   while (SQLITE_ROW == sqlite3_step(item_cache->random_background_stmt)) {
     const char *id = sqlite3_column_text(item_cache->random_background_stmt, 0);
@@ -747,6 +748,7 @@ int item_cache_load(ItemCache *item_cache) {
     int free_when_done = 0;
     Item *item = item_cache_fetch_item(item_cache, (unsigned char*) background_ids->elements[i], &free_when_done);
     if (item) {
+      rndbg_item_count++;
       pool_add_item(rndbg, item);
       if (free_when_done) {
         free_item(item);
@@ -757,6 +759,8 @@ int item_cache_load(ItemCache *item_cache) {
   }
   
   free_array(background_ids);
+  
+  info("Randombackground contains %i items", rndbg_item_count);
   
   pthread_rwlock_wrlock(&item_cache->cache_lock);
   item_cache->random_background = rndbg;
