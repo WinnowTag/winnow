@@ -59,7 +59,7 @@ AX_LIB_SQLITE3([3.5.6])
 AM_PATH_CHECK([0.9.4], [], [AC_MSG_WARN(check disabled - will not be able to run tests)])
 
 # libcurl
-AC_CHECK_LIB(curl, curl_easy_init)
+AC_CHECK_CURL([7.15.1])
 
 ### Check for headers
 AC_HEADER_STDC

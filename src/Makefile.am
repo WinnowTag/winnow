@@ -11,8 +11,8 @@ lib_LTLIBRARIES = libclassifier.la
 # This might be fixed in later versions, I guess we will
 # see as we deploy to more sites.
 #
-LDFLAGS = -rpath $(libdir) @SQLITE3_LDFLAGS@
-CFLAGS = -Wall @SQLITE3_CFLAGS@
+LDFLAGS = -rpath $(libdir) @SQLITE3_LDFLAGS@ @CURL_LIBS@
+CFLAGS = -Wall @SQLITE3_CFLAGS@ @CURL_CFLAGS@
 
 libclassifier_la_SOURCES = classifier.c classifier.h \
                            logging.h logging.c       \
