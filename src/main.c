@@ -57,7 +57,53 @@ static Httpd *httpd;
 static HttpConfig http_config = {8080, NULL};
 
 static void printHelp(void) {
+  printf("This is the Peerwork classifier.\n\n");
+  printf("Usage: classifier [OPTIONS]\n\n");
+  printf(" General Options\n");
+  printf("    -d               runs as a daemon\n");
+  printf("    -v, --version    prints version information\n");
+  printf("    -h, --help       prints this help text\n");
+  printf("    -o, --log-file FILE\n");
+  printf("                     location of the file to write log messages to\n");    
+  printf("                     Default: %s\n", DEFAULT_LOG_FILE);
+  printf("        --pid FILE   location to write the pid to when running as a daemon\n");
+  printf("                     Default: %s\n\n", DEFAULT_PID_FILE);
   
+  printf(" Classification Options:\n");
+  printf("    -n, --worker-threads N\n");
+  printf("                     number of threads for processing jobs\n");
+  printf("                     Default: 1\n");
+  printf("    -t, --positive-threshold N\n");
+  printf("                     probability threshold for considering a tag to be\n");
+  printf("                     applied to and item\n");
+  printf("                     Default: 0\n");
+  printf("        --performance-log FILE\n");
+  printf("                     location of the file in which to write job timings\n\n");
+  printf("        --tag-index URL\n");
+  printf("                     URL which provides an index of the tags to classify\n\n");
+    
+  printf(" Item Cache Options:\n");
+  printf("        --db FILE    location of the item cache database file\n");
+  printf("        --create     if provide the classifier with create the database at\n");
+  printf("                     --db and exit\n");
+  printf("        --cache-update-wait-time N\n");
+  printf("                     number of seconds to wait after a cache update\n");
+  printf("                     before spawning classification jobs\n");
+  printf("                     Default: %iseconds\n", DEFAULT_CACHE_UPDATE_WAIT_TIME);
+  printf("        --load-items-since N\n");
+  printf("                     how many days back to load items from the item cache\n");
+  printf("                     Default: %i days\n", DEFAULT_LOAD_ITEMS_SINCE);
+  printf("        --tokenizer-url URL\n");
+  printf("                     URL of the tokenization service\n");
+  printf("        --min-tokens N\n");
+  printf("                     the minimum number of tokens an item requires to be\n");
+  printf("                     classified\n\n");
+  
+  printf(" HTTP Options:\n");
+  printf("    -p, --port N     the port to run the HTTP server on\n");
+  printf("    -a, --allowed_ip IP_ADDRESS\n");
+  printf("                     An IP address to allow to make HTTP requests\n");
+  printf("                     Default: any\n\n");
 }
 
 volatile sig_atomic_t termination_in_progress = 0;
