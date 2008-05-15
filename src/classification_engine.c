@@ -133,7 +133,6 @@ static ClassificationJob * create_classification_job(const char * tag_url) {
     job->error            = CJOB_ERROR_NO_ERROR;
     job->errmsg           = NULL;
     job->item_scope       = ITEM_SCOPE_ALL;
-    job->tags_classified  = 0;
     job->items_classified = 0;
     job->auto_cleanup     = false;
     NOW(job->created_at);
@@ -215,6 +214,7 @@ static int classify_item_cb(const Item *item, void *memo) {
   if (stuff->job->item_scope == ITEM_SCOPE_NEW && item_get_time(item) < stuff->tagger->last_classified) {
     rc = CLASSIFIER_FAIL;
   } else {
+    stuff->job->items_classified++;
     double probability;
     if (TAGGER_OK == classify_item(stuff->tagger, item, &probability)) {
       if (probability >= stuff->threshold) {
@@ -619,8 +619,8 @@ static void ce_record_classification_job_timings(ClassificationEngine *ce, const
 
     if (ce->performance_log) {
       pthread_mutex_lock(ce->perf_log_mutex);    
-      fprintf(ce->performance_log, "%i,%i,%.5f,%.5f,%.5f,%.5f\n", 
-                job->tags_classified, job->items_classified,
+      fprintf(ce->performance_log, "%i,%.5f,%.5f,%.5f,%.5f\n", 
+                job->items_classified,
                 wait_time, train_time, clas_time, 
                 insert_time);
       fflush(ce->performance_log);

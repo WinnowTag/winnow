@@ -53,7 +53,6 @@ typedef struct CLASSIFICATION_JOB {
   char *errmsg;
   int auto_cleanup;
   ItemScope item_scope;
-  int tags_classified;
   int items_classified;
   /* Timestamps for process timing */
   struct timeval created_at;
