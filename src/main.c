@@ -200,7 +200,7 @@ static int start_classifier(const char * db_file, const char * tokenizer_url) {
     char *errmsg = NULL;
     int rc = fetch_tags(tagger_cache, &tags, &errmsg);
     if (TAG_INDEX_OK == rc) {
-      info("Fetched %i tags from %s", tags->size);
+      info("Fetched %i tags from %s", tags->size, tagger_cache_options.tag_index_url);
     } else {
       error("Error fetching tag index: %s", errmsg);
       free(errmsg);
