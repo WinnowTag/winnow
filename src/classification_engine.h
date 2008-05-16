@@ -17,6 +17,7 @@ typedef struct CLASSIFICATION_ENGINE ClassificationEngine;
 typedef struct CLASSIFICATION_ENGINE_OPTIONS {
   int worker_threads;
   double positive_threshold;
+  int missing_item_timeout;
   char *performance_log;
 } ClassificationEngineOptions;
 
@@ -35,6 +36,7 @@ typedef enum CLASSIFICATION_JOB_ERROR {
   CJOB_ERROR_NO_SUCH_TAG,
   CJOB_ERROR_NO_TAGS_FOR_USER,
   CJOB_ERROR_BAD_JOB_TYPE,
+  CJOB_ERROR_MISSING_ITEM_TIMEOUT,
   CJOB_ERROR_UNKNOWN_ERROR
 } ClassificationJobError;
 
@@ -60,6 +62,7 @@ typedef struct CLASSIFICATION_JOB {
   struct timeval trained_at;
   struct timeval classified_at;
   struct timeval completed_at;
+  time_t first_time_tried;
 } ClassificationJob;
 
 extern ClassificationEngine * create_classification_engine(ItemCache *item_cache, TaggerCache *tagger_cache, ClassificationEngineOptions *options);

@@ -135,6 +135,7 @@ static ClassificationJob * create_classification_job(const char * tag_url) {
     job->item_scope       = ITEM_SCOPE_ALL;
     job->items_classified = 0;
     job->auto_cleanup     = false;
+    job->first_time_tried = -1;
     NOW(job->created_at);
   }
   
@@ -164,6 +165,7 @@ static const char * error_msgs[] = {
     "Tag could not be retrieved",
     "No tags to classify for user",
     "Bad job type",
+    "The job timed out waiting for some resources",
     "Unknown error"
 };
 
@@ -232,15 +234,15 @@ static int classify_item_cb(const Item *item, void *memo) {
 }
 
 
-static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache, TaggerCache * tagger_cache, double threshold) {
+static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache, TaggerCache * tagger_cache, ClassificationEngineOptions * opts) {
   int rc = CLASSIFIER_OK;
   struct JobStuff job_stuff;  
   job_stuff.job = job;
-  job_stuff.threshold = threshold;
+  job_stuff.threshold = opts->positive_threshold;
   
   /* If the job is cancelled bail out before doing anything */
   if (job->state == CJOB_STATE_CANCELLED) return CLASSIFIER_OK;
-     
+       
   NOW(job->started_at);
   job->state = CJOB_STATE_TRAINING;
    
@@ -295,8 +297,19 @@ static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache
       break;
     case TAGGER_PENDING_ITEM_ADDITION:
       debug("TAGGER_PENDING_ITEM_ADDITION");
-      // TODO handle pending items
       rc = CLASSIFIER_REQUEUE;
+      time_t now = time(NULL);
+      
+      /* If the job has been tried before and it is still missing items,
+       * check to see if we have gone past to the missing-item-timeout.
+       */
+      if (job->first_time_tried > 0 && (now - job->first_time_tried) > opts->missing_item_timeout) {
+        job->state = CJOB_STATE_ERROR;
+        job->error = CJOB_ERROR_MISSING_ITEM_TIMEOUT;
+        rc = CLASSIFIER_FAIL;
+      } else if (job->first_time_tried < 0) {
+        job->first_time_tried = time(NULL);
+      }      
       break;
     default:
     fatal("Got unknown value from get_tagger: %i", cache_rc);    
@@ -709,7 +722,7 @@ void *classification_worker_func(void *engine_vp) {
       /* Get the reference to the item source here so we get it fresh for each job. This means that if
        * the item source is flushed we get a new copy on the next job.
        */
-      int rc = run_classifcation_job(job, ce->item_cache, ce->tagger_cache, ce->options->positive_threshold);
+      int rc = run_classifcation_job(job, ce->item_cache, ce->tagger_cache, ce->options);
       
       if (rc == CLASSIFIER_REQUEUE) {
         debug("Requeuing job");
@@ -721,11 +734,6 @@ void *classification_worker_func(void *engine_vp) {
           free_classification_job(job);
         }
       }
-/*
-      if (CJOB_STATE_ERROR != job->state) {
-        q_enqueue(ce->tagging_store_queue, job);
-      }     
-*/
     }    
   }
 

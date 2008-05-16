@@ -151,6 +151,7 @@ def start_classifier(opts = {})
                                      "--load-items-since #{options[:load_items_since]} " +
                                      "--min-tokens #{options[:min_tokens] or 0} " +
                                      "--positive-threshold #{options[:positive_threshold] or 0} " +
+                                     "--missing-item-timeout #{options[:missing_item_timeout] or 60} " +
                                      "--db #{Database} #{tag_index}" 
                                      
   

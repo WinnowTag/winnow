@@ -26,13 +26,14 @@
 #include "fetch_url.h"
 #include "xml_error_functions.h"
 
-#define DEFAULT_LOG_FILE "log/classifier.log"
-#define DEFAULT_PID_FILE "log/classifier.pid"
-#define DEFAULT_DB_FILE "log/classifier.db"
+#define DEFAULT_LOG_FILE "classifier.log"
+#define DEFAULT_PID_FILE "classifier.pid"
+#define DEFAULT_DB_FILE "classifier.db"
 #define DEFAULT_TOKENIZER_URL "http://localhost"
 #define DEFAULT_CACHE_UPDATE_WAIT_TIME 60
 #define DEFAULT_LOAD_ITEMS_SINCE 30
 #define DEFAULT_MIN_TOKENS 50
+#define DEFAULT_MISSING_ITEM_TIMEOUT 60
 
 #define PID_VAL 512
 #define DB_VAL  513
@@ -43,6 +44,7 @@
 #define TOKENIZER_URL_VAL 518
 #define PERFORMANCE_LOG_FILE_VAL 519
 #define TAG_INDEX_VAL 520
+#define MISSING_ITEM_TIMEOUT_VAL 521
 
 #define SHORT_OPTS "hvdo:t:n:p:a:"
 #define USAGE "Usage: classifier [-dvh] [-o LOGFILE] [--db DATABASE_FILE] [--pid PIDFILE] [-t tokenizer_url] [--create-db]\n"
@@ -51,7 +53,7 @@ static ItemCacheOptions item_cache_options;
 static ItemCache *item_cache;
 static TaggerCacheOptions tagger_cache_options;
 static TaggerCache *tagger_cache;
-static ClassificationEngineOptions ce_options = {1, 0.0, NULL};
+static ClassificationEngineOptions ce_options = {1, 0.0, DEFAULT_MISSING_ITEM_TIMEOUT, NULL};
 static ClassificationEngine *engine;
 static Httpd *httpd;
 static HttpConfig http_config = {8080, NULL};
@@ -81,7 +83,12 @@ static void printHelp(void) {
   printf("                     location of the file in which to write job timings\n\n");
   printf("        --tag-index URL\n");
   printf("                     URL which provides an index of the tags to classify\n\n");
-    
+  printf("        --missing-item-timeout N\n");
+  printf("                     Number of seconds to wait for missing items to be added\n");
+  printf("                     before a job depending on them is canceled and an error\n");
+  printf("                     is returned instead");
+  printf("                     Default: %i seconds", DEFAULT_MISSING_ITEM_TIMEOUT);
+  
   printf(" Item Cache Options:\n");
   printf("        --db FILE    location of the item cache database file\n");
   printf("        --create     if provide the classifier with create the database at\n");
@@ -89,7 +96,7 @@ static void printHelp(void) {
   printf("        --cache-update-wait-time N\n");
   printf("                     number of seconds to wait after a cache update\n");
   printf("                     before spawning classification jobs\n");
-  printf("                     Default: %iseconds\n", DEFAULT_CACHE_UPDATE_WAIT_TIME);
+  printf("                     Default: %i seconds\n", DEFAULT_CACHE_UPDATE_WAIT_TIME);
   printf("        --load-items-since N\n");
   printf("                     how many days back to load items from the item cache\n");
   printf("                     Default: %i days\n", DEFAULT_LOAD_ITEMS_SINCE);
@@ -234,6 +241,7 @@ int main(int argc, char **argv) {
       {"load-items-since", required_argument, 0, LOAD_ITEMS_SINCE_VAL},
       {"tokenizer-url", required_argument, 0, TOKENIZER_URL_VAL},
       {"min-tokens", required_argument, 0, MIN_TOKENS_VAL},
+      {"missing-item-timeout", required_argument, 0, MISSING_ITEM_TIMEOUT_VAL},
       
       {"worker-threads", required_argument, 0, 'n'},
       {"positive-threshold", required_argument, 0, 't'},
@@ -288,6 +296,9 @@ int main(int argc, char **argv) {
         break;
       case PERFORMANCE_LOG_FILE_VAL:
         ce_options.performance_log = optarg;
+        break;
+      case MISSING_ITEM_TIMEOUT_VAL:
+        ce_options.missing_item_timeout = strtol(optarg, NULL, 10);
         break;
         
       /* HTTP options */

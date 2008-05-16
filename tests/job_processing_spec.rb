@@ -13,7 +13,7 @@ require 'atom'
 
 describe "Classifier Job Processing" do
   before(:each) do
-    system("rm /tmp/perf.log")   
+    system("rm -f /tmp/perf.log")   
     start_classifier
     @http = TestHttpServer.new(:port => 8888)
   end
@@ -245,6 +245,35 @@ describe "Job Processing with an incomplete tag" do
     end
   end
 end
+
+
+describe "Job Processing with missing items and no tokenizer" do
+  before(:each) do
+    system("rm /tmp/perf.log")   
+    start_classifier(:missing_item_timeout => 1)
+    @http = TestHttpServer.new(:port => 8888)
+  end
+  
+  after(:each) do
+    stop_classifier
+    @http.shutdown
+  end
+  
+  it "should timeout and return an error for the job" do
+    @http.should_receive do
+      request("/mytag-training.atom") do |req, res|
+        res.body = File.read(File.dirname(__FILE__) + "/fixtures/incomplete_tag.atom")
+      end
+    end
+    
+    job = create_job('http://localhost:8888/mytag-training.atom')
+    sleep(2)
+    job.reload
+    job.status.should == "Error"
+    job.error_message.should match(/The job timed out waiting for some resources/)
+    job.destroy
+  end
+end 
 
 describe "Job Processing after item addition" do
   before(:each) do
