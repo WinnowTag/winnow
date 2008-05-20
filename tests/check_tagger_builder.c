@@ -12,10 +12,12 @@
 #include <string.h>
 #include "../src/tagger.h"
 #include "assertions.h"
+#include "fixtures.h"
 
 static char * document;
 
 static void read_document(void) {
+  setup_fixture_path();
   FILE *file;
 
   if (NULL != (file = fopen("fixtures/complete_tag.atom", "r"))) {
@@ -30,6 +32,7 @@ static void read_document(void) {
 }
 
 static void free_document(void) {
+  teardown_fixture_path();
   if (document) {
     free(document);
   }

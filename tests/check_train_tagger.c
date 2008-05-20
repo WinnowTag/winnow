@@ -12,6 +12,7 @@
 #include <string.h>
 #include "../src/tagger.h"
 #include "assertions.h"
+#include "fixtures.h"
 
 static char * document;
 static ItemCacheOptions item_cache_options = {1, 3650, 2};
@@ -32,16 +33,19 @@ static void read_document(const char * filename) {
 }
 
 static void setup_complete(void) {
+  setup_fixture_path();
   read_document("fixtures/complete_tag.atom");
   item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
 }
 
 static void setup_incomplete(void) {
+  setup_fixture_path();
   read_document("fixtures/incomplete_tag.atom");
   item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
 }
 
 static void teardown(void) {
+  teardown_fixture_path();
   if (document) {
     free(document);
   }
@@ -178,10 +182,12 @@ START_TEST (test_missing_item_cache_entries_include_the_titles) {
 static ItemCache *missing_item_cache;
   
 static void setup_item_cache_with_missing_items(void) {
+  setup_fixture_path();
   item_cache_create(&missing_item_cache, "fixtures/valid-with-missing.db", &item_cache_options);  
 }
 
 static void teardown_item_cache_with_missing_items(void) {
+  teardown_fixture_path();
   free_item_cache(missing_item_cache);
 }
 
@@ -226,10 +232,12 @@ START_TEST (test_retraining_with_item_cache_that_includes_missing_items_adds_tho
 } END_TEST
 
 static void setup_item_cache_with_some_missing_items(void) {
+  setup_fixture_path();
   item_cache_create(&missing_item_cache, "fixtures/valid-with-some-missing.db", &item_cache_options);  
 }
 
 static void teardown_item_cache_with_some_missing_items(void) {
+  teardown_fixture_path();
   free_item_cache(missing_item_cache);
 }
 

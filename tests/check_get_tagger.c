@@ -12,6 +12,7 @@
 #include <string.h>
 #include <sqlite3.h>
 #include "assertions.h"
+#include "fixtures.h"
 #include "../src/tagger.h"
 
 static ItemCacheOptions item_cache_options = {1, 3650, 2};
@@ -58,6 +59,7 @@ static int load_tag_document(const char * tag_training_url, time_t last_updated,
 }
  
 static void setup(void) {
+  setup_fixture_path();
   document = read_document("fixtures/complete_tag.atom");
   system("cp -f fixtures/valid.db /tmp/valid-copy.db");
   item_cache_create(&item_cache, "/tmp/valid-copy.db", &item_cache_options);
@@ -67,6 +69,7 @@ static void setup(void) {
 }
 
 static void setup_for_incomplete(void) {
+  setup_fixture_path();
   document = read_document("fixtures/incomplete_tag.atom");
   
   system("cp -f fixtures/valid.db /tmp/valid-copy.db");
@@ -79,6 +82,7 @@ static void setup_for_incomplete(void) {
 static void teardown(void) {
   free_tagger_cache(tagger_cache);
   free(document);
+  teardown_fixture_path();
 }
 
 START_TEST (test_get_tagger_returns_NULL_for_NULL_tag_url) {
@@ -221,6 +225,7 @@ static int updating_tag_document(const char * tag_training_url, time_t last_upda
 }
 
 static void setup_for_updated(void) {
+  setup_fixture_path();
   document = read_document("fixtures/complete_tag.atom");
   updated_document = read_document("fixtures/updated_complete_tag.atom");
   system("cp -f fixtures/valid.db /tmp/valid-copy.db");

@@ -12,8 +12,10 @@
 #include <stdio.h>
 #include "../src/fetch_url.h"
 #include "assertions.h"
+#include "fixtures.h"
 
 START_TEST (test_fetching_from_a_file) {
+  setup_fixture_path();
   char path[1024];
   getcwd(path, 1024);
   char url[1024];

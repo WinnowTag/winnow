@@ -13,10 +13,12 @@
 #include "../src/tagger.h"
 #include "../src/array.h"
 #include "assertions.h"
+#include "fixtures.h"
 
 static char * document;
 
 static void read_document(void) {
+  setup_fixture_path();
   FILE *file;
 
   if (NULL != (file = fopen("fixtures/tag_index.atom", "r"))) {
@@ -31,6 +33,7 @@ static void read_document(void) {
 }
 
 static void free_document(void) {
+  teardown_fixture_path();
   if (document) {
     free(document);
   }

@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "assertions.h"
+#include "fixtures.h"
 #include "../src/tagger.h"
 #include "../src/classifier.h"
 
@@ -43,6 +44,7 @@ static double mock_classify(const ClueList *clues, const Item *item) {
 }
 
 static void setup(void) {
+  setup_fixture_path();
   read_document("fixtures/complete_tag.atom");
   random_background = new_pool();
   item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
@@ -60,6 +62,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
+  teardown_fixture_path();
   if (document) {
    free(document);
   }

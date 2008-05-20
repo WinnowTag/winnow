@@ -14,6 +14,7 @@
 #include "../src/tagger.h"
 #include "../src/classifier.h"
 #include "assertions.h"
+#include "fixtures.h"
 
 static char * document;
 static ItemCacheOptions item_cache_options = {1, 3650, 2};
@@ -40,6 +41,7 @@ static double probability_function(const Pool *positive, const Pool *negative, c
 }
 
 static void setup(void) {
+  setup_fixture_path();
   read_document("fixtures/complete_tag.atom");
   item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
   tagger = build_tagger(document);
@@ -57,6 +59,7 @@ static void setup_with_random_background(void) {
 }
 
 static void teardown(void) {
+  teardown_fixture_path();
   if (document) {
    free(document);
   }
