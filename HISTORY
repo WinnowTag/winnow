@@ -1,3 +1,11 @@
+=== 1.2.0  (20 May 2008)
+
+ * Added Tagger Cache.
+ * Classifier definitions are fetched via HTTP.
+ * Classifier results are sent via HTTP.
+ * Removed MySQL dependency.
+ * Removed configuration file.
+
 === 1.1.10 (14 April 2008)
 
  * Fixed build errors under Leopard.
