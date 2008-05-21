@@ -129,7 +129,7 @@ describe "Classifier Job Processing" do
   
   it "should have the classifier in the user agent" do
     job_results do |req, res|
-      req['user-agent'].should match(/classifier/)
+      req['user-agent'].should match(/PeerworksClassifier/)
     end
   end
   

@@ -399,22 +399,23 @@ static int save_taggings(const Tagger *tagger, Array *taggings, int method, char
   int rc;
   
   if (tagger && tagger->classifier_taggings_url) {
-    debug("save_taggings: %s", tagger->classifier_taggings_url);
+    info("save_taggings: %s", tagger->classifier_taggings_url);
     char curlerr[CURL_ERROR_SIZE];
     struct curl_slist *http_headers = NULL;
     struct output tagger_xml;
     memset(&tagger_xml, 0, sizeof(tagger_xml));
     xml_for_tagger(tagger, taggings, &tagger_xml);
-    
+    debug("XML is %i but lixml says it is %i ", strlen(tagger_xml.data), tagger_xml.size);
+
     http_headers = curl_slist_append(http_headers, "Content-Type: application/atom+xml");
     http_headers = curl_slist_append(http_headers, "Expect:");
     http_headers = curl_slist_append(http_headers, "Connection: close");
-    
+        
     CURL *curl = curl_easy_init();
     
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, http_headers);    
     char ua[512];
-    snprintf(ua, sizeof(ua), "\"Peerworks classifier\"/%s %s", PACKAGE_VERSION, curl_version());
+    snprintf(ua, sizeof(ua), "PeerworksClassifier/%s %s", PACKAGE_VERSION, curl_version());
     curl_easy_setopt(curl, CURLOPT_USERAGENT, ua);
     curl_easy_setopt(curl, CURLOPT_URL, tagger->classifier_taggings_url);
     //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
@@ -422,10 +423,10 @@ static int save_taggings(const Tagger *tagger, Array *taggings, int method, char
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);
     
     if (method == PUT) {
+      curl_easy_setopt(curl, CURLOPT_INFILESIZE, tagger_xml.size);
       curl_easy_setopt(curl, CURLOPT_UPLOAD, 1);
       curl_easy_setopt(curl, CURLOPT_READFUNCTION, &curl_read_function);
       curl_easy_setopt(curl, CURLOPT_READDATA, &tagger_xml);
-      curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t) tagger_xml.size);
     } else if (method == POST) {      
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, tagger_xml.data);
       curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, tagger_xml.size);
@@ -446,7 +447,7 @@ static int save_taggings(const Tagger *tagger, Array *taggings, int method, char
     curl_slist_free_all(http_headers);
     free(tagger_xml.data);
     
-    debug("save_taggings complete");
+    info("save_taggings complete");
   }
   
   return rc;
