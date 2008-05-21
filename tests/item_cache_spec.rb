@@ -102,6 +102,13 @@ describe "The Classifier's Item Cache" do
       sleep(1)
       @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = (select id from entries where full_id = 'urn:peerworks.org:entries#1111')").to_i.should > 0
     end
+    
+    it "should insert tokens on the correct item when an item is added twice" do
+      create_entry
+      create_entry
+      sleep(1.5)
+      @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = (select id from entries where full_id = 'urn:peerworks.org:entries#1111')").to_i.should > 0
+    end
   end
   
   describe "entry deletion" do

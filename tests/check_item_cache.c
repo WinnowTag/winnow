@@ -516,7 +516,7 @@ static void setup_loaded_modification(void) {
   //item_cache_set_feature_extractor(item_cache, NULL);
   item_cache_load(item_cache);
   
-  item = create_item_with_tokens_and_time((unsigned char*) "urn:890807", 890807, tokens, 4, (time_t) 1178683198L);
+  item = create_item_with_tokens_and_time((unsigned char*) "id#9", tokens, 4, (time_t) 1178683198L);
 }
 
 static void teardown_loaded_modification(void) {
@@ -530,14 +530,14 @@ START_TEST (item_cache_add_item_returns_CLASSIFIER_OK_if_the_item_is_added) {
 } END_TEST
 
 START_TEST (item_cache_add_item_returns_CLASSIFIER_FAIL_if_the_item_is_not_added_because_it_doesn_have_enough_tokens) {
-  Item *small_item = create_item_with_tokens_and_time((unsigned char*) "urn:890807", 890807, tokens, 1, (time_t) 1178683198L);
+  Item *small_item = create_item_with_tokens_and_time((unsigned char*) "urn:890807", tokens, 1, (time_t) 1178683198L);
   int rc = item_cache_add_item(item_cache, small_item);
   assert_equal(CLASSIFIER_FAIL, rc);
   free_item(small_item);
 } END_TEST
 
 START_TEST (item_cache_add_item_doesnt_add_small_items) {
-  Item *small_item = create_item_with_tokens_and_time((unsigned char*) "urn:890807", 890807, tokens, 1, (time_t) 1178683198L);
+  Item *small_item = create_item_with_tokens_and_time((unsigned char*) "urn:890807", tokens, 1, (time_t) 1178683198L);
   item_cache_add_item(item_cache, small_item);
   assert_equal(10, item_cache_cached_size(item_cache));
 } END_TEST
@@ -549,7 +549,7 @@ START_TEST (test_add_item_to_in_memory_arrays_adds_an_item) {
 
 START_TEST (test_add_item_makes_it_fetchable) {
   item_cache_add_item(item_cache, item);
-  assert_equal(item, item_cache_fetch_item(item_cache, (unsigned char*) "urn:890807", &free_when_done));  
+  assert_equal(item, item_cache_fetch_item(item_cache, (unsigned char*) "id#9", &free_when_done));  
 } END_TEST
 
 static int adding_item_iterator(const Item *iter_item, void *memo) {
@@ -587,7 +587,7 @@ START_TEST (test_add_item_puts_it_in_the_right_position) {
 } END_TEST
 
 START_TEST (test_add_item_puts_it_in_the_right_position_at_beginning) {
-  item = create_item_with_tokens_and_time((unsigned char*) "urn:890807", 890807, tokens, 4, (time_t) 1179051840L);
+  item = create_item_with_tokens_and_time((unsigned char*) "urn:890807", tokens, 4, (time_t) 1179051840L);
   item_cache_add_item(item_cache, item);
   int position = 0;
   item_cache_each_item(item_cache, adding_item_position_count, &position);
@@ -595,7 +595,7 @@ START_TEST (test_add_item_puts_it_in_the_right_position_at_beginning) {
 } END_TEST
 
 START_TEST (test_add_item_puts_it_in_the_right_position_at_end) {
-  item = create_item_with_tokens_and_time((unsigned char*) "urn:890807", 890807, tokens, 4, (time_t) 1177975519L);
+  item = create_item_with_tokens_and_time((unsigned char*) "urn:890807", tokens, 4, (time_t) 1177975519L);
   item_cache_add_item(item_cache, item);
   int position = 0;
   item_cache_each_item(item_cache, adding_item_position_count, &position);
@@ -620,7 +620,7 @@ START_TEST (test_save_item_stores_it_in_the_database) {
   sqlite3 *db;
   sqlite3_stmt *stmt;
   sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
-  sqlite3_prepare_v2(db, "select count(*) from entry_tokens where entry_id = 890807", -1, &stmt, NULL);
+  sqlite3_prepare_v2(db, "select count(*) from entry_tokens where entry_id = (select id from entries where full_id = 'id#9')", -1, &stmt, NULL);
   sqlite3_bind_int(stmt, 1, item_cache_entry_id(entry));
   rc = sqlite3_step(stmt);
   assert_equal(SQLITE_ROW, rc);
@@ -662,7 +662,7 @@ static void setup_feature_extraction(void) {
   item_cache_load(item_cache);
   item_cache_start_feature_extractor(item_cache);
     
-  tokenized_item = create_item_with_tokens_and_time((unsigned char*) "id:9", 9, tokens, 4, (time_t) 1178683198L);
+  tokenized_item = create_item_with_tokens_and_time((unsigned char*) "id:9", tokens, 4, (time_t) 1178683198L);
 }
 
 static void teardown_feature_extraction(void) {
@@ -708,7 +708,7 @@ static void setup_null_feature_extraction(void) {
   item_cache_load(item_cache);
   item_cache_start_feature_extractor(item_cache);
 
-  tokenized_item = create_item_with_tokens_and_time((unsigned char*) "9", 9, tokens, 4, (time_t) 1178683198L);
+  tokenized_item = create_item_with_tokens_and_time((unsigned char*) "9", tokens, 4, (time_t) 1178683198L);
 }
 
 static void teardown_null_feature_extraction(void) {
@@ -732,7 +732,7 @@ START_TEST (test_null_feature_extraction) {
 /* Cache updating tests */
 static int item_id = 9; 
 static Item * mock_feature_extractor2(ItemCache *item_cache, const ItemCacheEntry * entry, void *ignore) {
-  return create_item_with_tokens_and_time((unsigned char *) item_cache_entry_full_id(entry), item_cache_entry_id(entry), tokens, 4, (time_t) 1178683198L);;
+  return create_item_with_tokens_and_time((unsigned char *) item_cache_entry_full_id(entry), tokens, 4, (time_t) 1178683198L);;
 }
 
 static void setup_full_update(void) {
@@ -744,7 +744,7 @@ static void setup_full_update(void) {
   item_cache_start_feature_extractor(item_cache);
   item_cache_start_cache_updater(item_cache);
     
-  tokenized_item = create_item_with_tokens_and_time((unsigned char*) "9", 9, tokens, 4, (time_t) 1178683198L);
+  tokenized_item = create_item_with_tokens_and_time((unsigned char*) "9", tokens, 4, (time_t) 1178683198L);
 }
 
 static void teardown_full_update(void) {
@@ -869,7 +869,7 @@ START_TEST (test_purging_cache_does_nothing_with_no_items) {
 } END_TEST
 
 START_TEST (test_purging_cache_of_one_old_item) {
-  Item *old_item = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#23", 23, tokens, 4, purge_time - 2);
+  Item *old_item = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#23", tokens, 4, purge_time - 2);
   mark_point();
   item_cache_add_item(item_cache, old_item);
   assert_not_null(item_cache_fetch_item(item_cache, (unsigned char*) "urn:peerworks.org:entry#23", &free_when_done));
@@ -878,7 +878,7 @@ START_TEST (test_purging_cache_of_one_old_item) {
 } END_TEST
 
 START_TEST (test_purging_cache_does_nothing_with_one_new_item) {
-  Item *non_purged_item = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#23", 23, tokens, 4, purge_time + 2);
+  Item *non_purged_item = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#23", tokens, 4, purge_time + 2);
   item_cache_add_item(item_cache, non_purged_item);
   assert_not_null(item_cache_fetch_item(item_cache, (unsigned char*) "urn:peerworks.org:entry#23", &free_when_done));
   item_cache_purge_old_items(item_cache);
@@ -886,8 +886,8 @@ START_TEST (test_purging_cache_does_nothing_with_one_new_item) {
 } END_TEST
 
 START_TEST (test_purging_half_of_the_cache) {
-  Item *non_purged_item = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#23", 23, tokens, 4, purge_time + 2);
-  Item *purged_item = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#24", 24, tokens, 4, purge_time - 2);
+  Item *non_purged_item = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#23", tokens, 4, purge_time + 2);
+  Item *purged_item = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#24", tokens, 4, purge_time - 2);
   
   item_cache_add_item(item_cache, non_purged_item);
   item_cache_add_item(item_cache, purged_item);
@@ -902,8 +902,8 @@ START_TEST (test_purging_half_of_the_cache) {
 } END_TEST
 
 START_TEST (test_purging_entire_cache_with_multiple_items) {
-  Item *purged_item1 = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#23", 23, tokens, 4, purge_time - 1);
-  Item *purged_item2 = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#24", 24, tokens, 4, purge_time - 2);
+  Item *purged_item1 = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#23", tokens, 4, purge_time - 1);
+  Item *purged_item2 = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#24", tokens, 4, purge_time - 2);
   
   item_cache_add_item(item_cache, purged_item1);
   item_cache_add_item(item_cache, purged_item2);
@@ -918,11 +918,11 @@ START_TEST (test_purging_entire_cache_with_multiple_items) {
 } END_TEST
 
 START_TEST (test_purging_half_cache_with_multiple_items_from_thread) {
-  Item *non_purged_item1 = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#21", 21, tokens, 4, purge_time + 4);
-  Item *non_purged_item2 = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#22", 2, tokens, 4, purge_time + 5);
+  Item *non_purged_item1 = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#21", tokens, 4, purge_time + 4);
+  Item *non_purged_item2 = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#22", tokens, 4, purge_time + 5);
   
-  Item *purged_item1 = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#23", 23, tokens, 4, purge_time - 4);
-  Item *purged_item2 = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#24", 24, tokens, 4, purge_time - 5);
+  Item *purged_item1 = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#23", tokens, 4, purge_time - 4);
+  Item *purged_item2 = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#24", tokens, 4, purge_time - 5);
   
   item_cache_add_item(item_cache, non_purged_item1);
   item_cache_add_item(item_cache, non_purged_item2);

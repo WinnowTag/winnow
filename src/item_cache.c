@@ -33,11 +33,11 @@
 #include "array.h"
 
 #define CURRENT_USER_VERSION 2
-#define FETCH_ITEM_SQL "select full_id, id, strftime('%s', updated) from entries where full_id = ?"
-#define FETCH_ITEM_TOKENS_SQL "select token_id, frequency from entry_tokens where entry_id = ?"
-#define FETCH_ALL_ITEMS_SQL "select full_id, id, strftime('%s', updated) from entries where updated > (julianday('now') - ?) order by updated desc"
+#define FETCH_ITEM_SQL "select full_id, strftime('%s', updated) from entries where full_id = ?"
+#define FETCH_ITEM_TOKENS_SQL "select token_id, frequency from entry_tokens where entry_id = (select id from entries where full_id = ?)"
+#define FETCH_ALL_ITEMS_SQL "select full_id, strftime('%s', updated) from entries where updated > (julianday('now') - ?) order by updated desc"
 #define FETCH_RANDOM_BACKGROUND "select full_id from entries where id in (select entry_id from random_backgrounds)"
-#define INSERT_ENTRY_SQL "insert or replace into entries (full_id, title, author, alternate, self, spider, content, updated, feed_id, created_at) \
+#define INSERT_ENTRY_SQL "insert or ignore into entries (full_id, title, author, alternate, self, spider, content, updated, feed_id, created_at) \
                           VALUES (:full_id, :title, :author, :alternate, :self, :spider, :content, julianday(:updated, 'unixepoch'), :feed_id, julianday(:created_at, 'unixepoch'))"
 #define DELETE_ENTRY_SQL "delete from entries where id = ?"
 #define INSERT_FEED_SQL "insert or replace into feeds VALUES (?, ?)"
@@ -45,7 +45,7 @@
 #define FIND_ATOM_SQL "select id from tokens where token = ?"
 #define INSERT_ATOM_SQL "insert into tokens (token) values (?)"
 #define FIND_TOKEN_SQL "select token from tokens where id = ?"
-#define INSERT_ENTRY_TOKENS "insert into entry_tokens (entry_id, token_id, frequency) values (?, ?, ?)"
+#define INSERT_ENTRY_TOKENS "insert into entry_tokens (entry_id, token_id, frequency) VALUES ((select id from entries where full_id = ?), ?, ?)"
 
 typedef struct ORDERED_ITEM_LIST OrderedItemList;
 struct ORDERED_ITEM_LIST {
@@ -61,8 +61,6 @@ struct FEED {
 struct ITEM {
   /* The ID of the item */
   unsigned char * id;
-  /* The DB id of the item */
-  int db_id;
   /* The number of tokens in the item */
   int total_tokens;
   /* The timestamp the item. This is sort of overloaded, if the item is loaded from the database it is
@@ -609,7 +607,7 @@ static int fetch_tokens_for(ItemCache * item_cache, Item * item) {
   int tokens_loaded = 0;
   
   if (item_cache && item) {
-    int sqlite3_rc = sqlite3_bind_int(item_cache->fetch_item_tokens_stmt, 1, item->db_id);
+    int sqlite3_rc = sqlite3_bind_text(item_cache->fetch_item_tokens_stmt, 1, item->id, -1, NULL);
     
     if (SQLITE_OK != sqlite3_rc) {
       fatal("fetch_item_tokens_stmt bind error = %s", item_cache_errmsg(item_cache));
@@ -656,17 +654,16 @@ int item_cache_load(ItemCache *item_cache) {
   /* Load the item ids and timestamp indexing and order them by each. */
   while (SQLITE_ROW == sqlite3_step(item_cache->fetch_all_items_stmt)) {
     const unsigned char * id = sqlite3_column_text(item_cache->fetch_all_items_stmt, 0);
-    int db_id = sqlite3_column_int(item_cache->fetch_all_items_stmt, 1);
     
     if (id) {      
       PWord_t item_pointer;
-      Item *item = create_item(id, db_id);
+      Item *item = create_item(id);
       if (NULL == item) {
         fatal("Malloc error creating item");
         rc = CLASSIFIER_FAIL;
         break;
       }
-      item->time = sqlite3_column_int64(item_cache->fetch_all_items_stmt, 2);
+      item->time = sqlite3_column_int64(item_cache->fetch_all_items_stmt, 1);
       
       JSLI(item_pointer, itemlist, item->id);
       if (item_pointer != NULL) {
@@ -732,7 +729,7 @@ int item_cache_load(ItemCache *item_cache) {
   int rndbg_item_count = 0;
   
   while (SQLITE_ROW == sqlite3_step(item_cache->random_background_stmt)) {
-    const char *id = sqlite3_column_text(item_cache->random_background_stmt, 0);
+    const char *id = (char*) sqlite3_column_text(item_cache->random_background_stmt, 0);
     if (id) {
       arr_add(background_ids, strdup(id));      
     }
@@ -847,10 +844,9 @@ Item * item_cache_fetch_item(ItemCache *item_cache, const unsigned char * id, in
       sqlite3_rc = sqlite3_step(item_cache->fetch_item_stmt);
       
       if (SQLITE_ROW == sqlite3_rc) {
-        item = create_item(sqlite3_column_text(item_cache->fetch_item_stmt, 0), 
-                           sqlite3_column_int(item_cache->fetch_item_stmt, 1));
+        item = create_item(sqlite3_column_text(item_cache->fetch_item_stmt, 0));
         if (NULL != item) {
-          item->time = (time_t) sqlite3_column_int64(item_cache->fetch_item_stmt, 2);
+          item->time = (time_t) sqlite3_column_int64(item_cache->fetch_item_stmt, 1);
         }
       } else if (SQLITE_DONE != sqlite3_rc) {
         error("Error fetching item %d: %s", id, item_cache_errmsg(item_cache));
@@ -1154,7 +1150,7 @@ int item_cache_save_item(ItemCache * item_cache, Item *item) {
       while(item_next_token(item, &token)) {
         debug("save token %i", token.id);
         int stmt_rc;
-        sqlite3_bind_int(item_cache->insert_entry_token_stmt, 1, item->db_id);
+        sqlite3_bind_text(item_cache->insert_entry_token_stmt, 1, (char *) item->id, -1, NULL);
         sqlite3_bind_int(item_cache->insert_entry_token_stmt, 2, token.id);
         sqlite3_bind_int(item_cache->insert_entry_token_stmt, 3, token.frequency);
         
@@ -1163,8 +1159,8 @@ int item_cache_save_item(ItemCache * item_cache, Item *item) {
         sqlite3_reset(item_cache->insert_entry_token_stmt);
         
         if (SQLITE_DONE != stmt_rc) {
-          error("Error inserting entry token: (%i, %i, %i), %s", 
-                item->db_id, token.id, token.frequency, item_cache_errmsg(item_cache));
+          error("Error inserting entry token: (%s, %i, %i), %s", 
+                item->id, token.id, token.frequency, item_cache_errmsg(item_cache));
           rc = CLASSIFIER_FAIL;
           break;
         }
@@ -1294,7 +1290,6 @@ static void * feature_extraction_thread_func(void *memo) {
       debug("Got entry off feature_extraction_queue");
       Item *item = item_cache->feature_extractor(item_cache, entry, item_cache->feature_extractor_memo);
       if (item) {
-        item->db_id = entry->id; // Make sure the DB id is set
         UpdateJob *job = create_add_job(item);
         q_enqueue(item_cache->update_queue, job);
         debug("Update added to update_queue");
@@ -1539,13 +1534,12 @@ char * item_cache_globalize(ItemCache * item_cache, int atom) {
 /** Create a empty item.
  *
  */
-Item * create_item(const unsigned char *id, int db_id) {
+Item * create_item(const unsigned char *id) {
   Item *item;
   
   item = malloc(sizeof(Item));
   if (NULL != item) {
     item->id = (unsigned char*) strdup((char*) id);
-    item->db_id = db_id;
     item->total_tokens = 0;
     item->time = 0;
     item->tokens = NULL;
@@ -1568,7 +1562,7 @@ Item * item_from_xml(ItemCache * item_cache, const char * xml) {
       
       if (id > 0) {
         int i;
-        item = create_item(id, 0);
+        item = create_item(id);
         xmlXPathObjectPtr xp = xmlXPathEvalExpression(BAD_CAST "/pw:item/pw:feature", context);
         
         for (i = 0; i < xp->nodesetval->nodeNr; i++) {
@@ -1644,7 +1638,7 @@ static int load_tokens_from_array(Item *item, int tokens[][2], int num_tokens) {
  *  @returns A new item initialized with the tokens.
  */
 Item * create_item_with_tokens(const unsigned char *id, int tokens[][2], int num_tokens) {
-  Item *item = create_item(id, 0);
+  Item *item = create_item(id);
   if (NULL != item) {  
     if (load_tokens_from_array(item, tokens, num_tokens)) {
       free_item(item);
@@ -1662,8 +1656,8 @@ Item * create_item_with_tokens(const unsigned char *id, int tokens[][2], int num
  *  @param num_tokens The length of the token array.
  *  @returns A new item initialized with the tokens.
  */
-Item * create_item_with_tokens_and_time(const unsigned char *id, int db_id, int tokens[][2], int num_tokens, time_t time) {
-  Item *item = create_item(id, db_id);
+Item * create_item_with_tokens_and_time(const unsigned char *id, int tokens[][2], int num_tokens, time_t time) {
+  Item *item = create_item(id);
   if (NULL != item) {  
     item->time = time;
     if (load_tokens_from_array(item, tokens, num_tokens)) {
