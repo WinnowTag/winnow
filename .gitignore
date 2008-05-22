@@ -2,7 +2,7 @@
 *.o
 *.lo
 *.log
-/config.*
+config.*
 Makefile
 Makefile.in
 .deps
@@ -25,7 +25,7 @@ install-sh
 libtool
 ltmain.sh
 missing
-src/.libs
+.libs
 src/classifier
 src/cls_bench
 *.la
@@ -41,3 +41,5 @@ check_precompute_tagger
 check_classify
 check_get_tagger
 check_tag_index
+fileserver_example
+minimal_example
