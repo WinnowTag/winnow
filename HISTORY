@@ -1,3 +1,7 @@
+=== 1.2.2  (22 May 2008)
+
+ * Fixed memory leak when updating tagger.
+
 === 1.2.1  (21 May 2008)
 
  * Fixed bug in setting content length for PUTed taggings.

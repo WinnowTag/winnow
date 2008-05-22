@@ -75,3 +75,14 @@ Clue * get_clue(const ClueList * clues, int token_id) {
   
   return clue;
 }
+
+void free_clue_list(ClueList * clues) {
+  if (clues) {
+    int size;
+    int bytes;
+    JLC(size, clues->list, 0, -1);
+    JLFA(bytes, clues->list);
+    free(clues);
+    info("Freed %i bytes from clue list of %i clues", bytes, size);
+  }  
+}

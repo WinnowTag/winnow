@@ -67,6 +67,20 @@ describe "Classifier Job Processing" do
     @http.should have_received_requests
   end
     
+  it "should update the tagger on the second request" do
+    @http.should_receive do
+      request("/mytag-training.atom", 2) do |req, res|
+        res.body = File.read(File.join(File.dirname(__FILE__), 'fixtures', 'complete_tag.atom'))        
+      end
+    end
+    
+    job = create_job('http://localhost:8888/mytag-training.atom')
+    sleep(2)
+    create_job('http://localhost:8888/mytag-training.atom')    
+    
+    @http.should have_received_requests
+  end
+  
   it "should accept application/atom+xml" do
     @http.should_receive do
       request("/mytag-training.atom") do |req, res|

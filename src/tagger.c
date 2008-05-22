@@ -539,3 +539,42 @@ int get_missing_entries(Tagger * tagger, ItemCacheEntry ** entries) {
   
   return rc;
 }
+
+void free_tagger(Tagger * tagger) {
+  if (tagger) {
+    if (tagger->tag_id)                  free(tagger->tag_id);
+    if (tagger->training_url)            free(tagger->training_url);
+    if (tagger->classifier_taggings_url) free(tagger->classifier_taggings_url);
+    if (tagger->term)                    free(tagger->term);
+    if (tagger->scheme)                  free(tagger->scheme);
+     
+    if (tagger->positive_examples) {
+      int i;
+      for (i = 0; i < tagger->positive_example_count; i++) {
+        free(tagger->positive_examples[i]);
+      }
+      
+      free(tagger->positive_examples);
+    }
+    
+    if (tagger->negative_examples) {
+      int i;
+      for (i = 0; i < tagger->negative_example_count; i++) {
+        free(tagger->negative_examples[i]);
+      }
+      
+      free(tagger->negative_examples);
+    }
+    
+    if (tagger->missing_positive_examples) free(tagger->missing_positive_examples);
+    if (tagger->missing_negative_examples) free(tagger->missing_negative_examples);
+    
+    if (tagger->positive_pool) free_pool(tagger->positive_pool);
+    if (tagger->negative_pool) free_pool(tagger->negative_pool);
+    
+    if (tagger->clues) free_clue_list(tagger->clues);
+    if (tagger->atom) free(tagger->atom);
+    
+    free(tagger);
+  }
+}

@@ -163,6 +163,7 @@ extern int           classify_item       (const Tagger * tagger, const Item * it
 extern int           update_taggings     (const Tagger * tagger, Array *list, char ** errmsg);
 extern int           replace_taggings    (const Tagger * tagger, Array *list, char ** errmsg);
 extern int           get_missing_entries (Tagger * tagger, ItemCacheEntry ** entries);
+extern void          free_tagger         (Tagger * tagger);
 
 extern TaggerCache * create_tagger_cache (ItemCache * item_cache, TaggerCacheOptions * options);
 extern void          free_tagger_cache   (TaggerCache * tagger_cache);
