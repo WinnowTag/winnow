@@ -26,7 +26,6 @@
 #define BAD_XML "<?xml version='1.0' ?>\n<error><error>Badly formatted XML.</error></errors>\n"
 #define MISSING_TAG_ID "<?xml version='1.0' ?>\n<errors><error>Missing tag or user id in job description</error></errors>\n"
 
-#ifdef HAVE_LIBMICROHTTPD
 #include <microhttpd.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
@@ -691,15 +690,3 @@ void httpd_stop(Httpd *httpd) {
   MHD_stop_daemon(httpd->mhd);
   httpd->mhd = NULL;
 }
-
-#else
-Httpd * httpd_start(Config *config, ClassificationEngine *ce) {
-  fatal("Missing libmicrohttpd. Can't start embedded httpd server.");
-}
-
-void httpd_stop(Httpd *httpd) {
-  
-}
-
-#endif
-

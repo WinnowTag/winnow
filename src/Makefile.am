@@ -12,7 +12,8 @@ lib_LTLIBRARIES = libclassifier.la
 # see as we deploy to more sites.
 #
 LDFLAGS = -rpath $(libdir) @SQLITE3_LDFLAGS@ @CURL_LIBS@
-CFLAGS = -Wall @SQLITE3_CFLAGS@ @CURL_CFLAGS@
+AM_CPPFLAGS = -I$(srcdir)/../microhttpd/src/include
+CFLAGS = -Wall @SQLITE3_CFLAGS@ @CURL_CFLAGS@ 
 
 libclassifier_la_SOURCES = classifier.c classifier.h \
                            logging.h logging.c       \
@@ -44,7 +45,7 @@ BUILT_SOURCES=git_revision.h
 CLEANFILES=git_revision.h
 bin_PROGRAMS = classifier
 classifier_SOURCES = git_revision.h main.c 
-classifier_LDADD = libclassifier.la
+classifier_LDADD = libclassifier.la ../microhttpd/src/daemon/libmicrohttpd.la
 
 #cls_bench_SOURCES = bench.c
 #cls_bench_LDADD = libclassifier.la

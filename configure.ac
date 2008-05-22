@@ -3,7 +3,7 @@ AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_CONFIG_LIBOBJ_DIR(src)
 AC_GNU_SOURCE
 AC_DEFINE_DIR([DATADIR], [datadir], [The place where data is installed])
-
+AC_CONFIG_SUBDIRS([microhttpd])
 ### Check for programs.
 AC_PROG_CC
 AC_PROG_LIBTOOL
@@ -43,7 +43,7 @@ AC_REPLACE_FUNCS(uuid_unparse)
 AC_CHECK_LIB([m], [fabs])
 AC_CHECK_LIB(Judy, JudyLIns, [], [AC_MSG_ERROR(Judy is missing)])
 AC_CHECK_LIB(pthread, pthread_create, [], [AC_MSG_ERROR(pthread is missing)])
-AC_CHECK_LIB(microhttpd, MHD_start_daemon, [], [AC_MSG_WARN(libmicrohttpd is missing. REST support will be disabled.)])
+#AC_CHECK_LIB(microhttpd, MHD_start_daemon, [], [AC_MSG_WARN(libmicrohttpd is missing. REST support will be disabled.)])
 
 ### Setup libxml2 libs
 XML2_LIBS=$($XML2_CONFIG --libs)
@@ -80,6 +80,7 @@ AC_CHECK_TYPES(uuid_t, [], [],
 ])
 
 # Output Files
+
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile bin/Makefile src/Makefile tests/Makefile schema/Makefile])
 AC_OUTPUT
