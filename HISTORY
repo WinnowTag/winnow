@@ -1,3 +1,7 @@
+=== 1.2.3  (23 May 2008)
+ 
+ * Fixed various memory leaks
+
 === 1.2.2  (22 May 2008)
 
  * Fixed memory leak when updating tagger.
