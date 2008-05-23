@@ -36,12 +36,16 @@ int parse_tag_index(const char * document, Array * a, time_t * updated) {
         int i;    
         for (i = 0; i < xp->nodesetval->nodeNr; i++) {
           xmlNodePtr node = xp->nodesetval->nodeTab[i];
-          char *url = strdup(xmlGetProp(node, BAD_CAST "href"));
+          char *url = xmlGetProp(node, BAD_CAST "href");
           arr_add(a, url);
         }
+        
+        xmlXPathFreeObject(xp);
+        xmlXPathFreeContext(ctx);
+        xmlFreeDoc(doc);        
       } else {
         info("No tags in tag index");
-      }   
+      }      
     } else {
       error("Could not parse tag index: %s", document);
       rc = TAG_INDEX_FAIL;
