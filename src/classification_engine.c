@@ -144,6 +144,7 @@ static ClassificationJob * create_classification_job(const char * tag_url) {
 
 void free_classification_job(ClassificationJob * job) {
   if (job) {
+    if (job->errmsg) free(job->errmsg);
     free((char *) job->id);
     free((char *) job->tag_url);
     free(job);
@@ -484,9 +485,9 @@ ClassificationJob * ce_fetch_classification_job(const ClassificationEngine * eng
   return job;
 }
 
-int ce_remove_classification_job(ClassificationEngine * engine, const ClassificationJob *job) {
+int ce_remove_classification_job(ClassificationEngine * engine, const ClassificationJob *job, int force) {
   int removed = false;
-  if (engine && job && job->state == CJOB_STATE_COMPLETE) {
+  if (engine && job && (job->state == CJOB_STATE_COMPLETE || job->state == CJOB_STATE_ERROR || force)) {
     pthread_mutex_lock(engine->classification_jobs_mutex);
     JSLD(removed, engine->classification_jobs, (uint8_t*) job->id);
     pthread_mutex_unlock(engine->classification_jobs_mutex);
@@ -673,7 +674,7 @@ static void ce_record_classification_job_timings(ClassificationEngine *ce, const
     /* If it is cancelled we remove              \
      * and free the job ourselves */             \
     job->state = CJOB_STATE_COMPLETE;            \
-    ce_remove_classification_job(ce, job);       \
+    ce_remove_classification_job(ce, job, true);       \
     free_classification_job(job);                \
     continue;                                    \
   }
@@ -726,9 +727,7 @@ void *classification_worker_func(void *engine_vp) {
       
       /* Only proceed if the job is not cancelled */
       NEXT_IF_CANCELLED(ce, job);
-      /* Get the reference to the item source here so we get it fresh for each job. This means that if
-       * the item source is flushed we get a new copy on the next job.
-       */
+      
       int rc = run_classifcation_job(job, ce->item_cache, ce->tagger_cache, ce->options);
       
       if (rc == CLASSIFIER_REQUEUE) {
@@ -737,7 +736,7 @@ void *classification_worker_func(void *engine_vp) {
       } else {
         ce_record_classification_job_timings(ce, job);
         if (job->auto_cleanup) {
-          ce_remove_classification_job(ce, job);
+          ce_remove_classification_job(ce, job, true);
           free_classification_job(job);
         }
       }

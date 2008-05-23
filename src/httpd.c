@@ -474,8 +474,8 @@ static int job_handler(const HTTPRequest * request, HTTPResponse * response) {
     response->content = (char*) xml;
     response->free_content = MHD_YES;    
   } else if (DELETE == request->method) {
-    if (CJOB_STATE_COMPLETE == job->state) {
-      ce_remove_classification_job(request->ce, job);
+    if (CJOB_STATE_COMPLETE == job->state || CJOB_STATE_ERROR == job->state) {
+      ce_remove_classification_job(request->ce, job, true);
       free_classification_job(job);
     } else {
       cjob_cancel(job);

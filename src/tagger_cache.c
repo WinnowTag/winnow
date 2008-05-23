@@ -338,6 +338,10 @@ int fetch_tags(TaggerCache * tagger_cache, Array ** a, char ** errmsg) {
         *errmsg = strdup("Could not find tag index");
       }
     }
+    
+    if (tag_document) {
+      free(tag_document);
+    }
   } else {
     rc = TAG_INDEX_FAIL;
     if (errmsg) {

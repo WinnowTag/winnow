@@ -39,8 +39,7 @@ static int load_negative_examples(Tagger * tagger, xmlXPathContextPtr ctx) {
     int i;
     tagger->negative_example_count = xp->nodesetval->nodeNr;
     tagger->negative_examples = calloc(tagger->negative_example_count, sizeof(char*));
-    // Allocate enough space to store all the negative examples in the missing_positive_examples array
-    tagger->missing_negative_examples = calloc(tagger->negative_example_count, sizeof(char*));
+    
     
     if (NULL == tagger->negative_examples) {
       rc = FAIL;
@@ -65,8 +64,6 @@ static int load_positive_examples(Tagger *tagger, xmlXPathContextPtr ctx) {
     int i;
     tagger->positive_example_count = xp->nodesetval->nodeNr;
     tagger->positive_examples = calloc(tagger->positive_example_count, sizeof(char*));
-    // Allocate enough space to store all the positive examples in the missing_positive_examples array
-    tagger->missing_positive_examples = calloc(tagger->positive_example_count, sizeof(char*));
     
     if (NULL == tagger->positive_examples) {
       rc = FAIL;
@@ -154,6 +151,10 @@ static int train(Tagger * tagger, ItemCache * item_cache) {
   tagger->state = TAGGER_TRAINED;    
   tagger->positive_pool = new_pool();
   tagger->negative_pool = new_pool();
+  // Allocate enough space to store all the negative examples in the missing_positive_examples array
+  tagger->missing_negative_examples = calloc(tagger->negative_example_count, sizeof(char*));
+  // Allocate enough space to store all the positive examples in the missing_positive_examples array
+  tagger->missing_positive_examples = calloc(tagger->positive_example_count, sizeof(char*));
 
   train_pool(tagger->positive_pool, item_cache, 
              tagger->positive_examples, 
@@ -168,6 +169,11 @@ static int train(Tagger * tagger, ItemCache * item_cache) {
            
   if (tagger->missing_positive_example_count > 0 || tagger->missing_negative_example_count > 0) {
     tagger->state = TAGGER_PARTIALLY_TRAINED;
+  } else {
+    free(tagger->missing_positive_examples);
+    free(tagger->missing_negative_examples);
+    tagger->missing_positive_examples = NULL;
+    tagger->missing_negative_examples = NULL;
   }
   
   return tagger->state;

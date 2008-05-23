@@ -475,9 +475,10 @@ double naive_bayes_classify(const ClueList *clues, const Item * item) {
   const Clue **selected_clues = select_clues(clues, item, &num_clues);
     
   if (num_clues > 0) {
-    prob = chi2_combine(selected_clues, num_clues);
-    free(selected_clues);
+    prob = chi2_combine(selected_clues, num_clues);    
   }
+  
+  free(selected_clues);
     
   return prob;
 }

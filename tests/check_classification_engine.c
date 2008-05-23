@@ -115,7 +115,7 @@ START_TEST(resuming_suspended_engine_processes_jobs) {
 START_TEST (remove_classification_job_removes_the_job_from_the_engines_job_index_if_job_is_complete) {
   ClassificationJob *job = ce_add_classification_job(ce, TAG_ID);
   job->state = CJOB_STATE_COMPLETE;
-  int res = ce_remove_classification_job(ce, job);
+  int res = ce_remove_classification_job(ce, job, 0);
   assert_true(res);
   ClassificationJob *j2 = ce_fetch_classification_job(ce, job->id);
   assert_null(j2);
@@ -124,7 +124,7 @@ START_TEST (remove_classification_job_removes_the_job_from_the_engines_job_index
 START_TEST (remove_classification_job_wont_removes_the_job_from_the_engines_job_index_if_job_is_not_complete) {
   ClassificationJob *job = ce_add_classification_job(ce, TAG_ID);
   
-  int res = ce_remove_classification_job(ce, job);
+  int res = ce_remove_classification_job(ce, job, 0);
   assert_false(res);
   ClassificationJob *j2 = ce_fetch_classification_job(ce, job->id);
   assert_not_null(j2);

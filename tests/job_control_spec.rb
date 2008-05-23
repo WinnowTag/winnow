@@ -58,7 +58,7 @@ describe "Classifier Job Control" do
         http.send_request('DELETE', "/classifier/jobs/#{id}").code.should == "200"
       end
       classifier_http do |http|
-        http.send_request('DELETE', "/classifier/jobs/#{id}").code.should == "404"
+        http.send_request('GET', "/classifier/jobs/#{id}").code.should == "404"
       end
     end
   end
