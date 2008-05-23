@@ -147,6 +147,7 @@ static int add_missing_entries(ItemCache * item_cache, Tagger * tagger) {
     
     for (i = 0; i < number_of_missing_entries; i++) {
       item_cache_add_entry(item_cache, entries[i]);
+      free_entry(entries[i]);
     }
   }
   
