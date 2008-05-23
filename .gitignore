@@ -43,3 +43,5 @@ check_get_tagger
 check_tag_index
 fileserver_example
 minimal_example
+daemontest*
+postprocessor_test
