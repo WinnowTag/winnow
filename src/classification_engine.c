@@ -246,6 +246,13 @@ static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache
   NOW(job->started_at);
   job->state = CJOB_STATE_TRAINING;
    
+  /* Clear the error message if it exists */
+  if (job->errmsg) {
+    char *errmsg = job->errmsg;
+    job->errmsg = NULL;
+    free(errmsg);
+  }  
+  
   /* Try and get the tagger from the tagger_cache */
   job_stuff.tagger = NULL;
   int cache_rc = get_tagger(tagger_cache, job->tag_url, &(job_stuff.tagger), &job->errmsg);  

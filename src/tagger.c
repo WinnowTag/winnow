@@ -209,12 +209,14 @@ static int partially_train(Tagger * tagger, ItemCache * item_cache) {
       tagger->missing_positive_examples = missing_positive_examples;
     } else {
       tagger->missing_positive_examples = NULL;
+      free(missing_positive_examples);
     }
     
     if (tagger->missing_negative_example_count > 0) {
       tagger->missing_negative_examples = missing_negative_examples;      
     } else {
       tagger->missing_negative_examples = NULL;
+      free(missing_negative_examples);
     }
   }
   

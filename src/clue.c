@@ -80,9 +80,18 @@ void free_clue_list(ClueList * clues) {
   if (clues) {
     int size;
     int bytes;
+    PWord_t clue_pointer;
+    Word_t index = 0;
+    
+    JLF(clue_pointer, clues->list, index);
+    while (clue_pointer) {
+      free((Clue*)(*clue_pointer));
+      JLN(clue_pointer, clues->list, index);
+    }
+    
     JLC(size, clues->list, 0, -1);
     JLFA(bytes, clues->list);
     free(clues);
-    info("Freed %i bytes from clue list of %i clues", bytes, size);
+    info("Freed %i bytes from clue list of %i clues", bytes + (size * sizeof(struct CLUE)) + sizeof(ClueList), size);
   }  
 }
