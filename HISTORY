@@ -1,3 +1,7 @@
+=== 1.2.4 (24 May 2008)
+
+ * Make sure to tokenize items that already exist but have no tokens.
+
 === 1.2.3  (23 May 2008)
  
  * Fixed various memory leaks
