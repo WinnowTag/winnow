@@ -1,0 +1,304 @@
+.\" Auto-translated to nroff -man from ext/Judy1_3.htm by ../tool/jhton at Mon May 26 13:02:32 2008
+.\" @(#) $Revision: 4.48 $ $Source: /cvsroot/judy/judy/doc/ext/Judy1_3.htm,v $ ---
+.TA j
+.TH Judy1 3
+.ds )H Hewlett-Packard Company
+.ds ]W      
+.PP
+.SH NAME
+Judy1 macros -
+C library for creating and accessing a dynamic array of bits, using
+any value of a word as an index.
+.PP
+.SH SYNOPSIS
+.PP
+.nf
+.ps +1
+.ft B
+cc [flags] \fIsourcefiles\fP -lJudy
+.ft P
+.ps
+.fi
+.PP
+.PP
+.nf
+.ps +1
+.ft B
+#include <Judy.h>
+.PP
+.ft B
+int     Rc_int;                          // return code - integer
+Word_t  Rc_word;                         // return code - unsigned word
+Word_t  Index, Index1, Index2, Nth;
+.PP
+.ft B
+Pvoid_t PJ1Array = (Pvoid_t) NULL;       // initialize Judy1 array
+.PP
+.ft B
+J1S( Rc_int,  PJ1Array, Index);          // Judy1Set()
+J1U( Rc_int,  PJ1Array, Index);          // Judy1Unset()
+J1T( Rc_int,  PJ1Array, Index);          // Judy1Test()
+J1C( Rc_word, PJ1Array, Index1, Index2); // Judy1Count()
+J1BC(Rc_int,  PJ1Array, Nth, Index);     // Judy1ByCount()
+J1FA(Rc_word, PJ1Array);                 // Judy1FreeArray()
+J1MU(Rc_word, PJ1Array);                 // Judy1MemUsed()
+J1F( Rc_int,  PJ1Array, Index);          // Judy1First()
+J1N( Rc_int,  PJ1Array, Index);          // Judy1Next()
+J1L( Rc_int,  PJ1Array, Index);          // Judy1Last()
+J1P( Rc_int,  PJ1Array, Index);          // Judy1Prev()
+J1FE(Rc_int,  PJ1Array, Index);          // Judy1FirstEmpty()
+J1NE(Rc_int,  PJ1Array, Index);          // Judy1NextEmpty()
+J1LE(Rc_int,  PJ1Array, Index);          // Judy1LastEmpty()
+J1PE(Rc_int,  PJ1Array, Index);          // Judy1PrevEmpty()
+.ft P
+.ps
+.fi
+.PP
+.SH DESCRIPTION
+A Judy1 array is the equivalent of a bit array or bit map.
+A bit is addressed by an \fBIndex\fP (key).
+The array may be sparse, and the \fBIndex\fP may be any word-sized \fBValue\fP.
+If an index is present, it represents a set bit
+(a bit set represents an index present).
+If an index is absent, it represents an unset bit
+(a bit unset represents an absent index).
+.PP
+A Judy1 array is allocated with a \fBNULL\fP pointer
+.PP
+.nf
+.ps +1
+Pvoid_t PJ1Array = (Pvoid_t) NULL;
+.ps
+.fi
+Memory to support the array is allocated as bits are set,
+and released as bits are unset.
+If the Judy1 pointer (\fBPJ1Array\fP) is NULL, all bits are unset (and
+the Judy1 array requires no memory).
+.PP
+As with an ordinary array, a Judy1 array contains no duplicate indexes.
+.PP
+Using the macros described here, rather than the
+\fBJudy1 function calls\fP,
+the default error handling sends a
+message to the standard error and terminates the program with
+\fBexit(1)\fP.
+For other error handling methods, see the
+\fIERRORS\fP section.
+.PP
+Because the macro forms are sometimes faster and have a simpler error
+handling interface than the equivalent
+\fIfunctions\fP,
+they are the preferred way of calling the Judy1 functions.
+.PP
+.TP 15
+ \fBJ1S(Rc_int, PJ1Array, Index);\fP // \fBJudy1Set()\fP
+Set \fBIndex\fP's bit in the Judy1 array \fBPJ1Array\fP.
+.IP
+Return \fBRc_int\fP set to 1 if \fBIndex\fP's bit was previously unset
+(successful), otherwise 0
+if the bit was already set (unsuccessful).
+.IP
+.TP 15
+ \fBJ1U(Rc_int, PJ1Array, Index);\fP // \fBJudy1Unset()\fP
+Unset \fBIndex\fP's bit in the Judy1 array \fBPJ1Array\fP;
+that is, remove \fBIndex\fP from the Judy1 array.
+.IP
+Return \fBRc_int\fP set to 1 if \fBIndex\fP's bit was
+previously set (successful), otherwise 0
+if the bit was already unset (unsuccessful).
+.IP
+.TP 15
+ \fBJ1T(Rc_int, PJ1Array, Index);\fP // \fBJudy1Test()\fP
+Test if \fBIndex\fP's bit is set in the
+Judy1 array \fBPJ1Array\fP.
+.IP
+Return \fBRc_int\fP set to 1 if \fBIndex\fP's bit is set
+(\fBIndex\fP is present),
+0 if it is unset (\fBIndex\fP is absent).
+.IP
+.TP 15
+ \fBJ1C(Rc_word, PJ1Array, Index1, Index2);\fP // \fBJudy1Count()\fP
+Count the number of indexes present in the Judy1 array
+\fBPJ1Array\fP between
+\fBIndex1\fP and \fBIndex2\fP (inclusive).
+.IP
+Return \fBRc_word\fP set to the count.
+A return \fBValue\fP of 0 can be valid as a count,
+or it can indicate a special case for fully
+populated array (32-bit machines only).  See
+\fBJudy1Count()\fP
+for ways to resolve this.
+.IP
+To count all indexes present (population) in a Judy1 bit array, use:
+.IP
+.nf
+.ps +1
+J1C(Rc_word, PJ1Array, 0, -1);
+.ps
+.fi
+\fBNote:\fP The -1 promotes to the maximum index, that is, all ones.
+.IP
+.TP 15
+ \fBJ1BC(Rc_int, PJ1Array, Nth, Index);\fP // \fBJudy1ByCount()\fP
+Locate the \fBNth\fP index that is present in the Judy1 array
+\fBPJ1Array\fP (\fBNth\fP = 1 returns the first index present).
+To refer to the last index in a fully populated array (all indexes
+present, which is rare), use \fBNth\fP = 0.
+.IP
+Return \fBRc_int\fP set to 1 and \fBIndex\fP set to the
+\fBNth\fP index if found, otherwise return \fBRc_int\fP
+set to 0 (the \fBValue\fP of \fBIndex\fP contains no
+useful information).
+.IP
+.TP 15
+ \fBJ1FA(Rc_word, PJ1Array);\fP // \fBJudy1FreeArray()\fP
+Free the entire Judy1 array \fBPJ1Array\fP (much faster than using a
+\fBJ1N()\fP, \fBJ1U()\fP loop).
+.IP
+Return \fBRc_word\fP set to the number of bytes freed,
+and \fBPJ1Array\fP set to \fBNULL\fP.
+.IP
+.TP 15
+ \fBJ1MU(Rc_word, PJ1Array);\fP // \fBJudy1MemUsed()\fP
+Return \fBRc_word\fP set to the number of bytes of memory currently in use by
+Judy1 array \fBPJ1Array\fP. This is a very fast routine, and may be used after
+a \fBJ1S()\fP or \fBJ1U()\fP call with little performance impact.
+.IP
+.TP 15
+ \fBJudy1 Search Functions\fP
+The Judy1 search functions allow you to search for set or unset bits in the array.
+You may search inclusively or exclusively,
+in either forward or reverse directions.
+All of the search functions use a similar calling sequence.
+\fBRc_int\fP is returned set to 1 for a successful search and the found \fBIndex\fP is returned.
+\fBRc_int\fP is returned set to 0 for an unsuccessful search,
+and \fBIndex\fP contains no useful information.
+The return code \fBRc_int\fP must be checked prior to using the returned \fBIndex\fP,
+since a search failure is possible.
+.IP
+.TP 15
+ \fBJ1F(Rc_int, PJ1Array, Index);\fP // \fBJudy1First()\fP
+Search (inclusive) for the first index present that is equal
+to or greater than the passed \fBIndex\fP.
+(Start with \fBIndex\fP = 0 to find the first index in the
+array.)  \fBJ1F()\fP is typically used to \fIbegin\fP a
+sorted-order scan of the indexes present in a Judy1 array.
+.IP
+.TP 15
+ \fBJ1N(Rc_int, PJ1Array, Index);\fP // \fBJudy1Next()\fP
+Search (exclusive) for the next index present that is
+greater than the passed \fBIndex\fP.
+\fBJ1N()\fP is typically used to \fIcontinue\fP a
+sorted-order scan of the indexes present
+in a Judy1 array, or to locate a "neighbor" of a given index.
+.IP
+.TP 15
+ \fBJ1L(Rc_int, PJ1Array, Index);\fP // \fBJudy1Last()\fP
+Search (inclusive) for the last index present that is equal
+to or less than the passed \fBIndex\fP.  (Start with
+\fBIndex\fP = -1, that is, all ones, to find the last index
+in the array.)  \fBJ1L()\fP is typically used to \fIbegin\fP
+a reverse-sorted-order scan
+of the indexes present in a Judy1 array.
+.IP
+.TP 15
+ \fBJ1P(Rc_int, PJ1Array, Index);\fP // \fBJudy1Prev()\fP
+Search (exclusive) for the previous index present that is
+less than the passed \fBIndex\fP.  \fBJ1P()\fP is typically
+used to \fIcontinue\fP a reverse-sorted-order scan of the indexes
+present in a Judy1 array, or to locate a "neighbor" of a given index.
+.IP
+.TP 15
+ \fBJ1FE(Rc_int, PJ1Array, Index);\fP // \fBJudy1FirstEmpty()\fP
+Search (inclusive) for the first absent index that is equal to
+or greater than the passed \fBIndex\fP.  (Start with
+\fBIndex\fP = 0 to find the first index absent in the array.)
+.IP
+.TP 15
+ \fBJ1NE(Rc_int, PJ1Array, Index);\fP // \fBJudy1NextEmpty()\fP
+Search (exclusive) for the next absent index that is
+greater than the passed \fBIndex\fP.
+.IP
+.TP 15
+ \fBJ1LE(Rc_int, PJ1Array, Index);\fP // \fBJudy1LastEmpty()\fP
+Search (inclusive) for the last absent index that is
+equal to or less than the passed \fBIndex\fP.
+(Start with \fBIndex\fP = -1 to find the last index
+absent in the array.)
+.IP
+.TP 15
+ \fBJ1PE(Rc_int, PJ1Array, Index);\fP // \fBJudy1PrevEmpty()\fP
+Search (exclusive) for the previous absent index that is
+less than the passed \fBIndex\fP.
+.PP
+.SH \fBERRORS:\fP See: \fIJudy_3.htm#ERRORS\fP
+.PP
+.SH \fBEXAMPLE\fP
+In the following example, errors in the \fBJ1S()\fP or \fBJ1U()\fP calls
+go to a user-defined procedure, process_malloc_failure.  This is not needed
+when you use the default \fBJUDYERROR()\fP macro, since the default causes
+your program to exit on all failures,
+including \fImalloc()\fP failure.
+.PP
+.PP
+.nf
+.ps +1
+#include <stdio.h>
+#include <Judy.h>
+.PP
+int main()                       // Example program of Judy1 macro APIs
+{
+   Word_t Index;                 // index (or key)
+   Word_t Rcount;                // count of indexes (or bits set)
+   Word_t Rc_word;               // full word return value
+   int    Rc_int;                // boolean values returned (0 or 1)
+.PP
+   Pvoid_t PJ1Array = (Pvoid_t) NULL; // initialize Judy1 array
+.PP
+   Index = 123456;
+   J1S(Rc_int, J1Array, Index);  // set bit at 123456
+   if (Rc_int == JERR) goto process_malloc_failure;
+   if (Rc_int == 1) printf("OK - bit successfully set at %lu\\n", Index);
+   if (Rc_int == 0) printf("BUG - bit already set at %lu\\n", Index);
+.PP
+   Index = 654321;
+   J1T(Rc_int, J1Array, Index);  // test if bit set at 654321
+   if (Rc_int == 1) printf("BUG - set bit at %lu\\n", Index);
+   if (Rc_int == 0) printf("OK - bit not set at %lu\\n", Index);
+.PP
+   J1C(Rcount, J1Array, 0, -1);  // count all bits set in array
+   printf("%lu bits set in Judy1 array\\n", Rcount);
+.PP
+   Index = 0;
+   J1F(Rc_int, J1Array, Index);  // find first bit set in array
+   if (Rc_int == 1) printf("OK - first bit set is at %lu\\n", Index);
+   if (Rc_int == 0) printf("BUG - no bits set in array\\n");
+.PP
+   J1MU(Rc_word, J1Array);       // how much memory was used?
+   printf("%lu Indexes used %lu bytes of memory\\n", Rcount, Rc_word);
+.PP
+   Index = 123456;
+   J1U(Rc_int, J1Array, Index);  // unset bit at 123456
+   if (Rc_int == JERR) goto process_malloc_failure;
+   if (Rc_int == 1) printf("OK - bit successfully unset at %lu\\n", Index);
+   if (Rc_int == 0) printf("BUG - bit was not set at %lu\\n", Index);
+.PP
+   return(0);
+}
+.ps
+.fi
+.PP
+.SH AUTHOR
+Judy was invented by Doug Baskins and implemented by Hewlett-Packard.
+.PP
+.SH SEE ALSO
+\fIJudy\fP(3),
+\fIJudyL\fP(3),
+\fIJudySL\fP(3),
+\fIJudyHS\fP(3),
+.br
+\fImalloc()\fP,
+.br
+the Judy website,
+\fIhttp://judy.sourceforge.net\fP,
+for more information and Application Notes.

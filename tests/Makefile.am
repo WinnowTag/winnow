@@ -5,7 +5,7 @@ CLEANFILES = http_test.log http_test_data.log test.log
 
 LDFLAGS = -static @SQLITE3_LDFLAGS@ @CHECK_LIBS@
 CFLAGS = -g -DDEBUG @SQLITE3_CFLAGS@ @CHECK_CFLAGS@
-LDADD =  $(top_builddir)/src/libclassifier.la 
+LDADD =  $(top_builddir)/src/libclassifier.la $(top_builddir)/judy/src/obj/libJudy.la
 check_PROGRAMS = check_classifier check_pool check_queue check_item_cache \
                  check_classification_engine check_clue check_url_fetching  \
                  check_tagger_builder check_train_tagger check_precompute_tagger \

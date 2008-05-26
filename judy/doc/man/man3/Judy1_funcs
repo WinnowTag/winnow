@@ -1,0 +1,291 @@
+.\" Auto-translated to nroff -man from ext/Judy1_funcs_3.htm by ../tool/jhton at Mon May 26 13:02:32 2008
+.\" @(#) $Revision: 4.8 $ $Source: /cvsroot/judy/doc/ext/Judy1_funcs_3.htm,v $ ---
+.TA j
+.TH Judy1_funcs 3
+.ds )H Hewlett-Packard Company
+.ds ]W      
+.PP
+.SH NAME
+Judy1 functions -
+C library for creating and accessing a dynamic array of bits, using
+any value of a word as an index
+.PP
+.SH SYNOPSIS
+.PP
+.nf
+.ps +1
+.ft B
+int    Judy1Set(       PPvoid_t PPJ1Array, Word_t   Index,  PJError_t PJError);
+int    Judy1Unset(     PPvoid_t PPJ1Array, Word_t   Index,  PJError_t PJError);
+int    Judy1Test(      Pcvoid_t  PJ1Array, Word_t   Index,  PJError_t PJError);
+Word_t Judy1Count(     Pcvoid_t  PJ1Array, Word_t   Index1, Word_t    Index2, PJError_t PJError);
+int    Judy1ByCount(   Pcvoid_t  PJ1Array, Word_t   Nth,    Word_t * PIndex,  PJError_t PJError);
+Word_t Judy1FreeArray( PPvoid_t PPJ1Array, PJError_t PJError);
+Word_t Judy1MemUsed(   Pcvoid_t  PJ1Array);
+int    Judy1First(     Pcvoid_t  PJ1Array, Word_t * PIndex, PJError_t PJError);
+int    Judy1Next(      Pcvoid_t  PJ1Array, Word_t * PIndex, PJError_t PJError);
+int    Judy1Last(      Pcvoid_t  PJ1Array, Word_t * PIndex, PJError_t PJError);
+int    Judy1Prev(      Pcvoid_t  PJ1Array, Word_t * PIndex, PJError_t PJError);
+int    Judy1FirstEmpty(Pcvoid_t  PJ1Array, Word_t * PIndex, PJError_t PJError);
+int    Judy1NextEmpty( Pcvoid_t  PJ1Array, Word_t * PIndex, PJError_t PJError);
+int    Judy1LastEmpty( Pcvoid_t  PJ1Array, Word_t * PIndex, PJError_t PJError);
+int    Judy1PrevEmpty( Pcvoid_t  PJ1Array, Word_t * PIndex, PJError_t PJError);
+.ft P
+.ps
+.fi
+.PP
+.SH DESCRIPTION
+A macro equivalent exists for each function call.
+Because the macro forms are sometimes faster and have a simpler error
+handling interface than the equivalent functions,
+they are the preferred way of calling the Judy1 functions.
+See \fIJudy1\fP(3)
+for more information.
+The function call definitions are included here for completeness.
+.PP
+One of the difficulties in using the Judy1 function calls lies in
+determining whether to pass a pointer or the address of a pointer.
+Since the functions that modify the Judy1 array must also modify the
+pointer to the Judy1 array, you must pass the address of the pointer
+rather than the pointer itself.
+This often leads to hard-to-debug programmatic errors.
+In practice, the macros allow the compiler to catch programming
+errors when pointers instead of addresses of pointers are passed.
+.PP
+The Judy1 function calls have an additional parameter beyond
+those specified in the macro calls.  This parameter is either a
+pointer to an error structure, or \fBNULL\fP (in which case the
+detailed error information is not returned).
+.PP
+In the following descriptions, the functions are described in
+terms of how the macros use them (only in the case of
+\fB#define JUDYERROR_NOTEST 1\fP).  This is the suggested use
+of the macros after your program has been fully debugged.
+When the \fBJUDYERROR_NOTEST\fP macro is not specified,
+an error structure is declared to store error information
+returned from the Judy1 functions when an error occurs.
+.PP
+Notice the placement of the \fB&\fP in the different functions.
+.PP
+.TP 15
+ \fBJudy1Set(&PJ1Array, Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define J1S(Rc_int, PJ1Array, Index) \\
+   Rc_int = Judy1Set(&PJ1Array, Index, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudy1Unset(&PJ1Array, Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define J1U(Rc_int, PJ1Array, Index) \\
+   Rc_int = Judy1Unset(&PJ1Array, Index, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudy1Test(PJ1Array, Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define J1T(Rc_int, PJ1Array, Index) \\
+   Rc_int = Judy1Test(PJ1Array, Index, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudy1Count(PJ1Array, Index1, Index2, &JError)\fP
+.IP
+.nf
+.ps +1
+#define J1C(Rc_word, PJ1Array, Index1, Index2) \\
+   Rc_word = Judy1Count(PJ1Array, Index1, Index2, PJE0)
+.IP
+.ps
+.fi
+A return value of 0 can be an error, valid as a count, or it can indicate a special case
+for a fully-populated array (32-bit machines only).  If necessary, the following
+code can be used to disambiguate this return:
+.IP
+.nf
+.ps +1
+JError_t JError;
+.IP
+Rc_word = Judy1Count(PJ1Array, Index1, Index2, &JError);
+if (Rc_word == 0)
+{
+    if (JU_ERRNO(&JError) == JU_ERRNO_NONE)
+        printf("Judy1 array population == 0\\n");
+    if (JU_ERRNO(&JError) == JU_ERRNO_FULL)
+        printf("Judy1 array population == 2^32\\n");
+    if (JU_ERRNO(&JError) == JU_ERRNO_NULLPPARRAY)
+        goto NullArray;
+    if (JU_ERRNO(&JError) >  JU_ERRNO_NFMAX)
+        goto Null_or_CorruptArray;
+}
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudy1ByCount(PJ1Array, Nth, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define J1BC(Rc_int, PJ1Array, Nth, Index) \\
+   Rc_int = Judy1ByCount(PJ1Array, Nth, &Index, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudy1FreeArray(&PJ1Array, &JError)\fP
+.IP
+.nf
+.ps +1
+#define J1FA(Rc_word, PJ1Array) \\
+   Rc_word = Judy1FreeArray(&PJ1Array, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudy1MemUsed(PJ1Array)\fP
+.IP
+.nf
+.ps +1
+#define J1MU(Rc_word, PJ1Array) \\
+   Rc_word = Judy1MemUsed(PJ1Array)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudy1First(PJ1Array, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define J1F(Rc_int, PJ1Array, Index) \\
+   Rc_int = Judy1First(PJ1Array, &Index, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudy1Next(PJ1Array, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define J1N(Rc_int, PJ1Array, Index) \\
+   Rc_int = Judy1Next(PJ1Array, &Index, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudy1Last(PJ1Array, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define J1L(Rc_int, PJ1Array, Index) \\
+   Rc_int = Judy1Last(PJ1Array, &Index, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudy1Prev(PJ1Array, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define J1P(Rc_int, PJ1Array, Index) \\
+   Rc_int = Judy1Prev(PJ1Array, &Index, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudy1FirstEmpty(PJ1Array, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define J1FE(Rc_int, PJ1Array, Index) \\
+   Rc_int = Judy1FirstEmpty(PJ1Array, &Index, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudy1NextEmpty(PJ1Array, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define J1NE(Rc_int, PJ1Array, Index) \\
+   Rc_int = Judy1NextEmpty(PJ1Array, &Index, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudy1LastEmpty(PJ1Array, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define J1LE(Rc_int, PJ1Array, Index) \\
+   Rc_int = Judy1LastEmpty(PJ1Array, &Index, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudy1PrevEmpty(PJ1Array, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define J1PE(Rc_int, PJ1Array, Index) \\
+   Rc_int = Judy1PrevEmpty(PJ1Array, &Index, PJE0)
+.IP
+.ps
+.fi
+.PP
+Definitions for all of the Judy functions, the types
+\fBPvoid_t\fP,
+\fBPcvoid_t\fP,
+\fBPPvoid_t\fP,
+\fBWord_t\fP,
+\fBJError_t\fP,
+and
+\fBPJError_t\fP,
+the constants
+\fBNULL\fP,
+\fBJU_ERRNO_*\fP,
+\fBJERR\fP,
+and
+\fBPJE0\fP,
+are provided in the \fBJudy.h\fP header file
+(/usr/include/Judy.h).
+\fBNote\fP:  Callers should define Judy1 arrays as type \fBPvoid_t\fP,
+which can be passed by value to functions that take
+\fBPcvoid_t\fP (constant \fBPvoid_t\fP),
+and also by address to functions that take \fBPPvoid_t\fP.
+.PP
+.SH AUTHOR
+Judy was invented by Doug Baskins and implemented by Hewlett-Packard.
+.PP
+.SH SEE ALSO
+\fIJudy\fP(3),
+\fIJudyL\fP(3),
+\fIJudySL\fP(3),
+\fIJudyHS\fP(3),
+.br
+\fImalloc()\fP,
+.br
+the Judy website,
+\fIhttp://judy.sourceforge.net\fP,
+for more information and Application Notes.

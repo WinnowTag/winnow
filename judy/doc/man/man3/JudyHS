@@ -1,0 +1,189 @@
+.\" Auto-translated to nroff -man from ext/JudyHS_3.htm by ../tool/jhton at Mon May 26 13:02:32 2008
+.\" @(#) $Revision: 4.43 $ $Source: /cvsroot/judy/doc/ext/JudyHS_3.htm,v $ ---
+.TA j
+.TH JudyHS 3
+.ds )H Hewlett-Packard Company
+.ds ]W      
+.PP
+.SH NAME
+JudyHS macros - C library for creating and accessing a dynamic array,
+using an array-of-bytes of \fBLength\fP as an \fBIndex\fP and a word
+as a \fBValue\fP.
+.PP
+.SH SYNOPSIS
+.PP
+.nf
+.ps +1
+.ft B
+cc [flags] \fIsourcefiles\fP -lJudy
+.PP
+.ft B
+#include <Judy.h>
+.PP
+.ft B
+Word_t  * PValue;                           // JudyHS array element
+int       Rc_int;                           // return flag
+Word_t    Rc_word;                          // full word return value
+Pvoid_t   PJHSArray = (Pvoid_t) NULL;       // initialize JudyHS array
+uint8_t * Index;                            // array-of-bytes pointer
+Word_t    Length;                           // number of bytes in Index
+.PP
+.ft B
+JHSI( PValue,  PJHSArray, Index, Length);   // JudyHSIns()
+JHSD( Rc_int,  PJHSArray, Index, Length);   // JudyHSDel()
+JHSG( PValue,  PJHSArray, Index, Length);   // JudyHSGet()
+JHSFA(Rc_word, PJHSArray);                  // JudyHSFreeArray()
+.ft P
+.ps
+.fi
+.SH DESCRIPTION
+A JudyHS array is the equivalent of an array of word-sized
+value/pointers.  An \fBIndex\fP is a pointer to an array-of-bytes of
+specified length:  \fBLength\fP.  Rather than using a null terminated
+string, this difference from \fIJudySL\fP(3)
+allows strings to contain all bits (specifically the null character).
+This new addition (May 2004) to Judy arrays is a hybird using the best
+capabilities of hashing and Judy methods.  \fBJudyHS\fP does not have a
+poor performance case where knowledge of the hash algorithm can be used
+to degrade the performance.
+.PP
+Since JudyHS is based on a hash method, \fBIndexes\fP are not stored in
+any particular order.  Therefore the JudyHSFirst(), JudyHSNext(),
+JudyHSPrev() and JudyHSLast() neighbor search functions are not
+practical.  The \fBLength\fP of each array-of-bytes can be from 0 to
+the limits of \fImalloc()\fP (about 2GB).  
+.PP
+The hallmark of \fBJudyHS\fP is speed with scalability, but memory
+efficiency is excellent.  The speed is very competitive with the best
+hashing methods.  The memory efficiency is similar to a linked list of
+the same \fBIndexes\fP and \fBValues\fP.  \fBJudyHS\fP is designed to
+scale from 0 to billions of \fBIndexes\fP.
+.PP
+A JudyHS array is allocated with a \fBNULL\fP pointer
+.PP
+.nf
+.ps +1
+Pvoid_t PJHSArray = (Pvoid_t) NULL;
+.ps
+.fi
+.PP
+Because the macro forms of the API have a simpler error handling
+interface than the equivalent
+\fIfunctions\fP,
+they are the preferred way to use JudyHS.
+.PP
+.SH \fBJHSI(PValue, PJHSArray, Index, Length)\fP // \fBJudyHSIns()\fP
+Given a pointer to a JudyHS array (\fBPJHSArray\fP), insert an
+\fBIndex\fP string of length: \fBLength\fP and a \fBValue\fP into the
+JudyHS array:  \fBPJHSArray\fP.  If the \fBIndex\fP is successfully
+inserted, the \fBValue\fP is initialized to 0.  If the \fBIndex\fP was
+already present, the \fBValue\fP is not modified.
+.PP
+Return \fBPValue\fP pointing to \fBValue\fP.  Your program should use
+this pointer to read or modify the \fBValue\fP, for example:
+.PP
+.nf
+.ps +1
+Value = *PValue;
+*PValue = 1234;
+.ps
+.fi
+.PP
+\fBNote\fP:
+\fBJHSI()\fP and \fBJHSD\fP can reorganize the JudyHS array.
+Therefore, pointers returned from previous \fBJudyHS\fP calls become
+invalid and must be re-acquired (using \fBJHSG()\fP).
+.PP
+.SH \fBJHSD(Rc_int, PJHSArray, Index, Length)\fP // \fBJudyHSDel()\fP
+Given a pointer to a JudyHS array (\fBPJHSArray\fP), delete the
+specified \fBIndex\fP along with the \fBValue\fP from the JudyHS
+array.
+.PP
+Return \fBRc_int\fP set to 1 if successfully removed from the array.
+Return \fBRc_int\fP set to 0 if \fBIndex\fP was not present.
+.PP
+.SH \fBJHSG(PValue, PJHSArray, Index, Length)\fP // \fBJudyHSGet()\fP
+Given a pointer to a JudyHS array (\fBPJHSArray\fP),
+find \fBValue\fP associated with \fBIndex\fP.
+.PP
+Return \fBPValue\fP pointing to \fBIndex\fP's \fBValue\fP.
+Return \fBPValue\fP set to \fBNULL\fP if the \fBIndex\fP was not present.
+.PP
+.SH \fBJHSFA(Rc_word, PJHSArray)\fP // \fBJudyHSFreeArray()\fP
+Given a pointer to a JudyHS array (\fBPJHSArray\fP), free the entire array.
+.PP
+Return \fBRc_word\fP set to the number of bytes freed and \fBPJHSArray\fP set to NULL.
+.PP
+.SH \fBERRORS:\fP See: \fIJudy_3.htm#ERRORS\fP
+.PP
+.SH EXAMPLES
+Show how to program with the JudyHS macros.  This program will print
+duplicate lines and their line number from \fIstdin\fP.
+.PP
+.PP
+.nf
+.ps +1
+#include <unistd.h>
+#include <stdio.h>
+#include <string.h>
+#include <Judy.h>
+.PP
+//  Compiled:
+//  cc -O PrintDupLines.c -lJudy -o PrintDupLines
+.PP
+#define MAXLINE 1000000                 /* max fgets length of line */
+uint8_t   Index[MAXLINE];               // string to check
+.PP
+int     // Usage:  PrintDupLines < file
+main()
+{
+    Pvoid_t   PJArray = (PWord_t)NULL;  // Judy array.
+    PWord_t   PValue;                   // Judy array element pointer.
+    Word_t    Bytes;                    // size of JudyHS array.
+    Word_t    LineNumb = 0;             // current line number
+    Word_t    Dups = 0;                 // number of duplicate lines
+.PP
+    while (fgets(Index, MAXLINE, stdin) != (char *)NULL)
+    {
+        LineNumb++;                     // line number
+.PP
+        // store string into array
+        JHSI(PValue, PJArray, Index, strlen(Index)); 
+        if (PValue == PJERR)            // See ERRORS section
+        {
+            fprintf(stderr, "Out of memory -- exit\\n");
+            exit(1);
+        }
+        if (*PValue == 0)               // check if duplicate
+        {
+            Dups++;
+            printf("Duplicate lines %lu:%lu:%s", *PValue, LineNumb, Index);
+        }
+        else
+        {
+            *PValue = LineNumb;         // store Line number
+        }
+    }
+    printf("%lu Duplicates, free JudyHS array of %lu Lines\\n", 
+                    Dups, LineNumb - Dups);
+    JHSFA(Bytes, PJArray);              // free JudyHS array
+    printf("JudyHSFreeArray() free'ed %lu bytes of memory\\n", Bytes);
+    return (0);
+}
+.ps
+.fi
+.PP
+.SH AUTHOR
+JudyHS was invented and implemented by Doug Baskins after retiring from Hewlett-Packard.
+.PP
+.SH SEE ALSO
+\fIJudy\fP(3),
+\fIJudy1\fP(3),
+\fIJudyL\fP(3),
+\fIJudySL\fP(3),
+.br
+\fImalloc()\fP,
+.br
+the Judy website,
+\fIhttp://judy.sourceforge.net\fP,
+for further information and Application Notes.

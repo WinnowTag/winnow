@@ -1,0 +1,240 @@
+.\" Auto-translated to nroff -man from ext/JudySL_3.htm by ../tool/jhton at Mon May 26 13:02:32 2008
+.\" @(#) $Revision: 4.43 $ $Source: /cvsroot/judy/doc/ext/JudySL_3.htm,v $ ---
+.TA j
+.TH JudySL 3
+.ds )H Hewlett-Packard Company
+.ds ]W      
+.PP
+.SH NAME
+JudySL macros -
+C library for creating and accessing a dynamic array, using
+a null-terminated string as an \fBIndex\fP (associative array)
+.PP
+.SH SYNOPSIS
+.PP
+.nf
+.ps +1
+.ft B
+cc [flags] \fIsourcefiles\fP -lJudy
+.PP
+.ft B
+#include <Judy.h>
+.PP
+.ft B
+#define MAXLINELEN 1000000           // define maximum string length
+.PP
+.ft B
+Word_t * PValue;                     // JudySL array element
+uint8_t  Index[MAXLINELEN];          // string
+int      Rc_int;                     // return value
+Word_t   Rc_word;                    // full word return value
+.PP
+.ft B
+Pvoid_t PJSLArray = (Pvoid_t) NULL;  // initialize JudySL array
+.PP
+.ft B
+JSLI( PValue,  PJSLArray, Index);   // JudySLIns()
+JSLD( Rc_int,  PJSLArray, Index);   // JudySLDel()
+JSLG( PValue,  PJSLArray, Index);   // JudySLGet()
+JSLFA(Rc_word, PJSLArray);          // JudySLFreeArray()
+JSLF( PValue,  PJSLArray, Index);   // JudySLFirst()
+JSLN( PValue,  PJSLArray, Index);   // JudySLNext()
+JSLL( PValue,  PJSLArray, Index);   // JudySLLast()
+JSLP( PValue,  PJSLArray, Index);   // JudySLPrev()
+.ft P
+.ps
+.fi
+.PP
+.SH DESCRIPTION
+A JudySL array is the equivalent of a sorted set of strings, each associated
+with a \fBValue\fP (word).
+A \fBValue\fP is addressed by an \fBIndex\fP (key), which is a null-terminated
+character string of any length.
+Memory to support the array is allocated as index/value pairs are inserted,
+and released as index/value pairs are deleted.
+This is a form of associative array, where array elements are also sorted
+lexicographically (case-sensitive) by indexes.
+This could be thought of as
+.PP
+.PP
+.nf
+.ps +1
+void * JudySLArray["Toto, I don't think we're in Kansas any more"];
+.ps
+.fi
+.PP
+A JudySL array is allocated with a \fBNULL\fP pointer
+.PP
+.nf
+.ps +1
+Pvoid_t PJSLArray = (Pvoid_t) NULL;
+.ps
+.fi
+As with an ordinary array, there are no duplicate indexes (strings)
+in a JudySL array.
+.PP
+Using the macros described here, rather than the
+\fBJudySL function calls\fP,
+the default error handling sends a
+message to the standard error and terminates the program with
+\fBexit(1)\fP.
+.PP
+.SH \fBJSLI(PValue, PJSLArray, Index)\fP // \fBJudySLIns()\fP
+Insert an \fBIndex\fP string and \fBValue\fP in the JudySL array \fBPJSLArray\fP.
+If the \fBIndex\fP is successfully inserted,
+the \fBValue\fP is initialized to 0. If the \fBIndex\fP was already present,
+the \fBValue\fP is not modified.
+.PP
+Return \fBPValue\fP pointing to \fBIndex\fP's \fBValue\fP.
+Your program must use this pointer to modify the \fBValue\fP,
+for example:
+.PP
+.nf
+.ps +1
+*PValue = 1234;
+.ps
+.fi
+.PP
+\fBNote\fP:
+\fBJSLI()\fP and \fBJSLD\fP reorganize the JudySL array.
+Therefore, pointers returned from previous \fBJudySL\fP calls become
+invalid and must be reacquired.
+.PP
+.SH \fBJSLD(Rc_int, PJSLArray, Index)\fP // \fBJudySLDel()\fP
+Delete the specified \fBIndex\fP/\fBValue\fP pair (array element) from the
+JudySL array.
+.PP
+Return \fBRc_int\fP set to 1 if successful.
+array and it was previously inserted.
+Return \fBRc_int\fP set to 0 if \fBIndex\fP was not present.
+.PP
+.SH \fBJSLG(PValue, PJSLArray, Index)\fP // \fBJudySLGet()\fP
+Get the pointer to \fBIndex\fP's \fBValue\fP.
+.PP
+Return \fBPValue\fP pointing to \fBIndex\fP's \fBValue\fP.
+Return \fBPValue\fP set to \fBNULL\fP if the \fBIndex\fP was not present.
+.PP
+.SH \fBJSLFA(Rc_word, PJSLArray)\fP // \fBJudySLFreeArray()\fP
+Given a pointer to a JudySL array (\fBPJSLArray\fP), free the entire array (much faster
+than using a \fBJSLN()\fP, \fBJSLD()\fP loop.)
+.PP
+Return \fBRc_word\fP set to the number of bytes freed and \fBPJSLArray\fP set to NULL.
+.PP
+.SH JudySL Search Functions
+The JudySL search functions allow you to search for indexes in the array.
+You may search inclusively or exclusively,
+in either forward or reverse directions.
+.PP
+If successful,
+\fBIndex\fP is returned set to the found index, and
+\fBPValue\fP is returned set to a pointer to \fBIndex\fP's \fBValue\fP.
+If unsuccessful,
+\fBPValue\fP is returned set to \fBNULL\fP,
+and \fBIndex\fP contains no useful information.
+\fBPValue\fP must be tested for non-\fBNULL\fP prior
+to using \fBIndex\fP,
+since a search failure is possible.
+.PP
+\fBNote\fP:
+To accomodate all possible returns, the \fBIndex\fP buffer must be
+at least as large
+as the largest string stored in the array.
+.PP
+.SH \fBJSLF(PValue, PJSLArray, Index)\fP // \fBJudySLFirst()\fP
+Search (inclusive) for the first index present that is equal to or greater than the
+passed \fBIndex\fP string.
+(Start with a null string to find the first index in the array.)
+\fBJSLF()\fP is typically used to \fIbegin\fP a sorted-order scan of
+the valid indexes in a JudySL array.
+.PP
+.nf
+.ps +1
+uint8_t Index[MAXLINELEN];
+strcpy (Index, "");
+JSLF(PValue, PJSLArray, Index);
+.ps
+.fi
+.PP
+.SH \fBJSLN(PValue, PJSLArray, Index)\fP // \fBJudySLNext()\fP
+Search (exclusive) for the next index present that is greater than the passed
+\fBIndex\fP string.
+\fBJSLN()\fP is typically used to \fIcontinue\fP a sorted-order scan of
+the valid indexes in a JudySL array, or to locate a "neighbor" of a given
+index.
+.PP
+.SH \fBJSLL(PValue, PJSLArray, Index)\fP // \fBJudySLLast()\fP
+Search (inclusive) for the last index present that is equal to or less
+than the passed \fBIndex\fP string.
+(Start with a maximum-valued string to look up the last index in the array,
+such as a max-length string of 0xff bytes.)
+\fBJSLL()\fP is typically used to \fIbegin\fP a reverse-sorted-order
+scan of the valid indexes in a JudySL array.
+.PP
+.SH \fBJSLP(PValue, PJSLArray, Index)\fP // \fBJudySLPrev()\fP
+Search (exclusive) for the previous index present that is less than the
+passed \fBIndex\fP string.
+\fBJSLP()\fP is typically used to \fIcontinue\fP a reverse-sorted-order
+scan of the valid indexes in a JudySL array, or to locate a "neighbor" of
+a given index.
+.PP
+.SH \fBERRORS:\fP See: \fIJudy_3.htm#ERRORS\fP
+.PP
+.SH EXAMPLE of a string sort routine
+.PP
+.PP
+.nf
+.ps +1
+#include <stdio.h>
+#include <Judy.h>
+.PP
+#define MAXLINE 1000000                 // max string (line) length
+.PP
+uint8_t   Index[MAXLINE];               // string to insert
+.PP
+int     // Usage:  JudySort < file_to_sort
+main()
+{
+    Pvoid_t   PJArray = (PWord_t)NULL;  // Judy array.
+    PWord_t   PValue;                   // Judy array element.
+    Word_t    Bytes;                    // size of JudySL array.
+.PP
+    while (fgets(Index, MAXLINE, stdin) != (char *)NULL)
+    {
+        JSLI(PValue, PJArray, Index);   // store string into array
+        if (PValue == PJERR)            // if out of memory?
+        {                               // so do something
+            printf("Malloc failed -- get more ram\\n");
+            exit(1);
+        }
+        ++(*PValue);                    // count instances of string
+    }
+    Index[0] = '\\0';                    // start with smallest string.
+    JSLF(PValue, PJArray, Index);       // get first string
+    while (PValue != NULL)
+    {
+        while ((*PValue)--)             // print duplicates
+            printf("%s", Index);
+        JSLN(PValue, PJArray, Index);   // get next string
+    }
+    JSLFA(Bytes, PJArray);              // free array
+.PP
+    fprintf(stderr, "The JudySL array used %lu bytes of memory\\n", Bytes);
+    return (0);
+}
+.ps
+.fi
+.PP
+.SH AUTHOR
+Judy was invented by Doug Baskins and implemented by Hewlett-Packard.
+.PP
+.SH SEE ALSO
+\fIJudy\fP(3),
+\fIJudy1\fP(3),
+\fIJudyL\fP(3),
+\fIJudyHS\fP(3),
+.br
+\fImalloc()\fP,
+.br
+the Judy website,
+\fIhttp://judy.sourceforge.net\fP,
+for further information and Application Notes.

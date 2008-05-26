@@ -4,6 +4,11 @@ AC_CONFIG_LIBOBJ_DIR(src)
 AC_GNU_SOURCE
 AC_DEFINE_DIR([DATADIR], [datadir], [The place where data is installed])
 AC_CONFIG_SUBDIRS([microhttpd])
+
+
+AC_CONFIG_SUBDIRS([judy])
+AC_DEFINE([HAVE_JUDY_H], 1, [Have the Judy.h header])
+
 ### Check for programs.
 AC_PROG_CC
 AC_PROG_LIBTOOL
@@ -41,9 +46,7 @@ AC_REPLACE_FUNCS(uuid_unparse)
 ### Check libraries
 
 AC_CHECK_LIB([m], [fabs])
-AC_CHECK_LIB(Judy, JudyLIns, [], [AC_MSG_ERROR(Judy is missing)])
 AC_CHECK_LIB(pthread, pthread_create, [], [AC_MSG_ERROR(pthread is missing)])
-#AC_CHECK_LIB(microhttpd, MHD_start_daemon, [], [AC_MSG_WARN(libmicrohttpd is missing. REST support will be disabled.)])
 
 ### Setup libxml2 libs
 XML2_LIBS=$($XML2_CONFIG --libs)
@@ -63,7 +66,6 @@ AC_CHECK_CURL([7.15.1])
 
 ### Check for headers
 AC_HEADER_STDC
-AC_CHECK_HEADERS([Judy.h], [], [AC_MSG_ERROR(Judy.h is missing)])
 AC_CHECK_HEADERS([sys/param.h errno.h stdarg.h stdbool.h uuid/uuid.h])
 
 ###### Setup libxml2 headers

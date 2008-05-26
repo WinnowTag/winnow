@@ -1,0 +1,276 @@
+.\" Auto-translated to nroff -man from ext/JudyL_funcs_3.htm by ../tool/jhton at Mon May 26 13:02:32 2008
+.\" @(#) $Revision: 4.5 $ $Source: /cvsroot/judy/doc/ext/JudyL_funcs_3.htm,v $ ---
+.TA j
+.TH JudyL_funcs 3
+.ds )H Hewlett-Packard Company
+.ds ]W      
+.PP
+.SH NAME
+JudyL functions -
+C library for creating and accessing a dynamic array of words, using
+any value of a word as an index
+.PP
+.SH SYNOPSIS
+.PP
+.nf
+.ps +1
+.ft B
+PPvoid_t JudyLIns(       PPvoid_t PPJLArray, Word_t    Index, PJError_t PJError);
+int      JudyLDel(       PPvoid_t PPJLArray, Word_t    Index, PJError_t PJError);
+PPvoid_t JudyLGet(       Pcvoid_t  PJLArray, Word_t    Index, PJError_t PJError);
+Word_t   JudyLCount(     Pcvoid_t  PJLArray, Word_t    Index1, Word_t    Index2, PJError_t PJError);
+PPvoid_t JudyLByCount(   Pcvoid_t  PJLArray, Word_t    Nth,  Word_t * PIndex,  PJError_t PJError);
+Word_t   JudyLFreeArray( PPvoid_t PPJLArray, PJError_t PJError);
+Word_t   JudyLMemUsed(   Pcvoid_t  PJLArray);
+PPvoid_t JudyLFirst(     Pcvoid_t  PJLArray, Word_t * PIndex, PJError_t PJError);
+PPvoid_t JudyLNext(      Pcvoid_t  PJLArray, Word_t * PIndex, PJError_t PJError);
+PPvoid_t JudyLLast(      Pcvoid_t  PJLArray, Word_t * PIndex, PJError_t PJError);
+PPvoid_t JudyLPrev(      Pcvoid_t  PJLArray, Word_t * PIndex, PJError_t PJError);
+int      JudyLFirstEmpty(Pcvoid_t  PJLArray, Word_t * PIndex, PJError_t PJError);
+int      JudyLNextEmpty( Pcvoid_t  PJLArray, Word_t * PIndex, PJError_t PJError);
+int      JudyLLastEmpty( Pcvoid_t  PJLArray, Word_t * PIndex, PJError_t PJError);
+int      JudyLPrevEmpty( Pcvoid_t  PJLArray, Word_t * PIndex, PJError_t PJError);
+.ft P
+.ps
+.fi
+.PP
+.SH DESCRIPTION
+A macro equivalent exists for each function call.
+Because the macro forms are sometimes faster and have a simpler error
+handling interface than the equivalent functions,
+they are the preferred way of calling the JudyL functions.
+See \fIJudyL\fP(3)
+for more information.
+The function call definitions are included here for completeness.
+.PP
+One of the difficulties in using the JudyL function calls lies in
+determining whether to pass a pointer or the address of a pointer.
+Since the functions that modify the JudyL array must also modify the
+pointer to the JudyL array, you must pass the address of the pointer
+rather than the pointer itself.
+This often leads to hard-to-debug programmatic errors.
+In practice, the macros allow the compiler to catch programming
+errors when pointers instead of addresses of pointers are passed.
+.PP
+The JudyL function calls have an additional parameter beyond
+those specified in the macro calls.  This parameter is either a
+pointer to an error structure, or \fBNULL\fP (in which case the
+detailed error information is not returned).
+.PP
+In the following descriptions, the functions are described in
+terms of how the macros use them (only in the case of
+\fB#define JUDYERROR_NOTEST 1\fP).  This is the suggested use
+of the macros after your program has been fully debugged.
+When the \fBJUDYERROR_NOTEST\fP macro is not specified,
+an error structure is declared to store error information
+returned from the JudyL functions when an error occurs.
+.PP
+Notice the placement of the \fB&\fP in the different functions.
+.PP
+.TP 15
+ \fBJudyLIns(&PJLArray, Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define JLI(PValue, PJLArray, Index)  \\
+   PValue = JudyLIns(&PJLArray, Index, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudyLDel(&PJLArray, Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define JLD(Rc_int, PJLArray, Index)  \\
+   Rc_int = JudyLDel(&PJLArray, Index, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudyLGet(PJLArray, Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define JLG(PValue, PJLArray, Index)  \\
+   PValue = JudyLGet(PJLArray, Index, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudyLCount(PJLArray, Index1, Index2, &JError)\fP
+.IP
+.nf
+.ps +1
+#define JLC(Rc_word, PJLArray, Index1, Index2)  \\
+   Rc_word = JudyLCount(PJLArray, Index1, Index2, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudyLByCount(PJLArray, Nth, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define JLBC(PValue, PJLArray, Nth, Index) \\
+   PValue = JudyLByCount(PJLArray, Nth, &Index, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudyLFreeArray(&PJLArray, &JError)\fP
+.IP
+.nf
+.ps +1
+#define JLFA(Rc_word, PJLArray) \\
+   Rc_word = JudyLFreeArray(&PJLArray, PJE0)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudyLMemUsed(PJLArray)\fP
+.IP
+.nf
+.ps +1
+#define JLMU(Rc_word, PJLArray) \\
+   Rc_word = JudyLMemUsed(PJLArray)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudyLFirst(PJLArray, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define JLF(PValue, PJLArray, Index) \\
+   PValue = JudyLFirst(PJLArray, &Index, PJEO)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudyLNext(PJLArray, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define JLN(PValue, PJLArray, Index) \\
+   PValue = JudyLNext(PJLArray, &Index, PJEO)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudyLLast(PJLArray, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define JLL(PValue, PJLArray, Index) \\
+   PValue = JudyLLast(PJLArray, &Index, PJEO)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudyLPrev(PJLArray, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define JLP(PValue, PJLArray, Index) \\
+   PValue = JudyLPrev(PJLArray, &Index, PJEO)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudyLFirstEmpty(PJLArray, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define JLFE(Rc_int, PJLArray, Index) \\
+   Rc_int = JudyLFirstEmpty(PJLArray, &Index, PJEO)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudyLNextEmpty(PJLArray, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define JLNE(Rc_int, PJLArray, Index) \\
+   Rc_int = JudyLNextEmpty(PJLArray, &Index, PJEO)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudyLLastEmpty(PJLArray, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define JLLE(Rc_int, PJLArray, Index) \\
+   Rc_int = JudyLLastEmpty(PJLArray, &Index, PJEO)
+.IP
+.ps
+.fi
+.IP
+.TP 15
+ \fBJudyLPrevEmpty(PJLArray, &Index, &JError)\fP
+.IP
+.nf
+.ps +1
+#define JLPE(Rc_int, PJLArray, Index) \\
+   Rc_int = JudyLPrevEmpty(PJLArray, &Index, PJEO)
+.IP
+.ps
+.fi
+.PP
+Definitions for all the Judy functions, the types
+\fBPvoid_t\fP,
+\fBPcvoid_t\fP,
+\fBPPvoid_t\fP,
+\fBWord_t\fP,
+\fBJError_t\fP,
+and
+\fBPJError_t\fP,
+the constants
+\fBNULL\fP,
+\fBJU_ERRNO_*\fP,
+\fBJERR\fP,
+\fBPPJERR\fP,
+and
+\fBPJE0\fP,
+are provided in the \fBJudy.h\fP header file
+(/usr/include/Judy.h).
+\fBNote\fP:  Callers should define JudyL arrays as type \fBPvoid_t\fP,
+which can be passed by value to functions that take
+\fBPcvoid_t\fP (constant \fBPvoid_t\fP),
+and also by address to functions that take \fBPPvoid_t\fP.
+.PP
+The return type from most \fBJudyL\fP functions is \fBPPvoid_t\fP so
+that the values stored in the array can be pointers to other objects,
+which is a typical usage, or cast to a \fBWord_t *\fP when a pointer
+to a \fBValue\fP is required instead of a pointer to a pointer.
+.PP
+.SH AUTHOR
+Judy was invented by Doug Baskins and implemented by Hewlett-Packard.
+.PP
+.SH SEE ALSO
+\fIJudy\fP(3),
+\fIJudy1\fP(3),
+\fIJudyL\fP(3),
+\fIJudySL\fP(3),
+\fIJudyHS\fP(3),
+.br
+\fImalloc()\fP,
+.br
+the Judy website,
+\fIhttp://judy.sourceforge.net\fP,
+for more information and Application Notes.

@@ -1,0 +1,269 @@
+.\" Auto-translated to nroff -man from ext/Judy_3.htm by ../tool/jhton at Mon May 26 13:02:32 2008
+.\" @(#) $Revision: 4.36 $ $Source: /cvsroot/judy/doc/ext/Judy_3.htm,v $ ---
+.TA j
+.TH Judy 3
+.ds )H Hewlett-Packard Company
+.ds ]W      
+.PP
+.SH NAME
+Judy arrays -
+C library functions for creating and accessing dynamic arrays
+.PP
+.SH SYNOPSIS
+.PP
+.nf
+.ps +1
+\fBJudy1\fP  - maps an \fBIndex\fP (word) to a \fBbit\fP
+\fBJudyL\fP  - maps an \fBIndex\fP (word) to a \fBValue\fP (word/pointer)
+\fBJudySL\fP - maps an \fBIndex\fP (null terminated string) to a \fBValue\fP
+\fBJudyHS\fP - maps an \fBIndex\fP (array-of-bytes) of \fBLength\fP to a \fBValue\fP
+.ps
+.fi
+.PP
+.SH DESCRIPTION
+The Judy family of functions supports fully dynamic arrays.  These
+arrays may be indexed by a 32- or 64-bit word (depending on processor
+word size), a null terminated string or an array-of-bytes plus length.
+A dynamic array (sparsely populated) can also be thought of as a
+\fImapping function\fP or \fIassociative memory\fP.
+.PP
+A \fBWord_t\fP is a \fItypedef unsigned long int \fP in \fBJudy.h\fP 
+and must be the same size as \fIsizeof(void *)\fP I.E. a pointer.
+.PP
+\fBJudy1\fP functions: \fBIndex\fP is a
+\fBWord_t\fP and \fBValue\fP is just a \fBbit\fP or simply
+a flag that \fBIndex\fP is present or missing from the array.
+This can be thought of as a huge bitmap.
+.PP
+\fBJudyL\fP functions: \fBIndex\fP is a
+\fBWord_t\fP and \fBValue\fP is a \fBWord_t\fP.  This makes
+\fBJudyL\fP a pure word-to-word/pointer mapper.  \fBJudySL\fP and
+\fBJudyHL\fP are based on this property of \fBJudyL\fP.
+.PP
+\fBJudySL\fP functions: \fBIndex\fP is a
+null-terminated string and \fBValue\fP is a \fBWord_t\fP.
+.PP
+\fBJudyHS\fP functions:  \fBIndex\fP is an
+array-of-bytes of length:  \fBLength\fP.  \fBValue\fP is a
+\fBWord_t\fP.  This new addition (May 2004) to Judy is a hybird using
+the best features of hashing and Judy methods.  The author believes
+\fBJudyHS\fP is a good replacement for a hashing method when resizing
+the hash table is done during population growth.  A correctly tuned hash
+method with a \fBstatic\fP hash table size and population is unbeatable
+for speed.  However, \fBJudyHS\fP will perform better than a hashing
+method with smaller and larger populations than the optimum hash table
+size.  \fBJudyHS\fP does not have a degenerate performance case where
+knowledge of the hash algorithm can be exploited.  (I.E.  JudyHS does
+not use a linked list to handle hash collisions, it uses a tree of
+\fBJudyL\fP arrays and a virtual hash table size of 4 billion).
+.PP
+Judy arrays are both \fBspeed-\fP and \fBmemory-efficient\fP, with no
+tuning or configuration required, across a wide range of index set types
+(sequential, periodic, clustered, random).  Judy's speed and memory
+usage are typically better than other data storage models such as
+skiplists, linked lists, binary, ternary, b-trees, or even hashing, and
+improves with very large data sets.
+.PP
+A Judy array is created merely by defining a null pointer and then
+storing (inserting) the first element into the array under that pointer.
+The memory used by a Judy array is nearly proportional to the population
+(number of elements).
+.PP
+Judy has two Application Program Interfaces (APIs):  a C macro
+interface, and a function call interface.  Because the macro forms are
+sometimes faster and have a simpler error handling interface than the
+equivalent functions, they are the preferred way of using the Judy
+functions.  
+.PP
+Since an initial (empty) Judy array is represented by a null pointer, it
+is possible to construct an array of Judy arrays.  In other words, a
+Judy array's \fBValues\fP (except Judy1) can be pointers to other Judy
+arrays.  This makes it very simple to construct an array with an
+arbitrary number of dimensions or \fBIndex\fP sizes.  (JudySL and
+JudyHS are implemented using JudyL this way).
+.PP
+.SH A 10 MINUTE TECHNICAL DESCRIPTION
+may be found at 
+\fIhttp://judy.sourceforge.net/downloads/10minutes.htm\fP
+.PP
+.SH A 3 HOUR TECHNICAL DESCRIPTION (out of date and a bit corny)
+may be found at 
+\fIhttp://judy.sourceforge.net/application/shop_interm.pdf\fP
+.PP
+.SH  \fBDOWNLOADS\fP
+Judy source downloads are available at
+\fIhttp://sourceforge.net/projects/judy\fP
+.br
+Binarys may be built and installed in a minute or two 
+after downloading
+.PP
+For versions including more platforms and/or new features see:
+\fIhttp://judy.sourceforge.net/downloads/\fP
+.PP
+.SH AUTHOR
+Judy was invented by Doug Baskins (dougbaskins .AT, yahoo.com) and
+implemented by Hewlett-Packard.  (Note:  Judy is named for the
+inventor's sister, after discarding many proposed names.)
+.PP
+.SH \fBFILES\fP
+Locations of interest include:
+.br
+\fIhttp://sourceforge.net/projects/judy\fP
+-- project downloads
+.br
+\fIfile:/usr/share/doc/Judy/\fP
+-- for HTML version of man pages.
+.br
+/usr/share/doc/Judy/demo/ -- demonstration program source files.
+.br
+.br
+The author attempted to write interesting application notes using
+advanced features of Judy.  They may be found at 
+\fI"http://judy.sourceforge.net/application/\fP
+(Some may be out of date).
+.PP
+.SH \fBERRORS\fP
+A lot of thought (and time) went into making error handling in Judy
+simple, while maintaining flexibility and capability.  Error handling is
+a very boring subject even to write about.  So read this short section
+and use the recommended second method.  It generates the fastest code,
+uses the least amount of memory and requires you to write extra code
+only for insert/deletes functions.  Also it is compatible with the other
+two methods.  This method is for production code that may want to handle
+\fImalloc()\fP fails differently than the Judy default.  If the Judy
+default method of handling \fImalloc()\fP fails are OK, then use the
+first method.
+.PP
+There are \fItwo (2)\fP categories of Judy error returns, (or for any dynamic ADT):
+.PP
+1) User programming errors (bugs) such as memory corruption or
+invalid pointers.
+.br
+2) Out-of-memory (\fImalloc()\fP failure) with \fBI\fPnsert
+(\fBS\fPet) or \fBD\fPelete (\fBU\fPnset) when modifying a Judy
+array.  Not all calls to insert and delete call \fImalloc()\fP, so they
+may succeed even when a call to \fImalloc()\fP would fail.
+.br
+.PP
+There are roughly \fIthree (3)\fP methods of handling errors when using
+the macros:
+.PP
+.SH 1) Default Error Handling Method
+The default is to print error messages to \fBstderr\fP, for example:
+.PP
+.PP
+.nf
+.ps +1
+File 'YourCfile.c', line 1234: JudyLIns(), JU_ERRNO_* == 2, ID == 321
+.ps
+.fi
+This indicates that an error occurred in the \fBJudyLIns()\fP function
+at line 321.  Line 1234 is the line in 'YourCfile.c' where the
+\fBJLI()\fP call failed.  JU_ERRNO_* == 2 is equal to JU_ERRNO_NOMEM
+(as defined in the \fBJudy.h\fP file).  The ID number indicates the
+source line number in the function where the error originated.  Your
+program then terminates with an \fIexit(1);\fP.  By default, both
+categories of Judy error returns are printed this way.  (The 'ID == 321'
+is for die hards that want more detail or for debugging Judy itself.)
+.br
+.PP
+.SH 2) Disable Macro Error Handling 
+When your program is "bug free", the only errors returned should be
+\fImalloc()\fP failures.  Therefore all error returns can be treated as
+a \fImalloc()\fP failure.  By using the below \fB#define\fP, all
+error testing and printing is turned off.  Additional code needs to be
+added to the code that can have \fImalloc()\fP failures.  Judy was
+designed to leave the same data in the array before the call if a
+\fImalloc()\fP fail occurs.  (During testing of Judy, we found very few
+\fImalloc()\fP/OS's that were bug free after a \fImalloc()\fP failure.
+Sometimes it took weeks to discover because most systems go into a
+paging frenzy before running out of memory).
+.PP
+.nf
+.ps +1
+#define JUDYERROR_NOTEST 1
+.ps
+.fi
+(in your program code), or
+.PP
+.nf
+.ps +1
+cc -DJUDYERROR_NOTEST \fIsourcefile\fP -lJudy
+.ps
+.fi
+(on your command line).
+.PP
+.nf
+.ps +1
+// This is an example of how to program using method two (2).
+.PP
+JLI(PValue, PLArray, Index);
+if (PValue == PJERR) goto out_of_memory_handling;
+...
+.PP
+JLD(RC_int, PLArray, Index);
+if (RC_int == JERR) goto out_of_memory_handling;
+...
+.PP
+J1S(RC_int, P1Array, Index);
+if (RC_int == JERR) goto out_of_memory_handling;
+...
+.PP
+J1U(RC_int, P1Array, Index);
+if (RC_int == JERR) goto out_of_memory_handling;
+...
+.PP
+.ps
+.fi
+Note:  Without 'JUDYERROR_NOTEST' defined, the 'goto
+out_of_memory_handling' will never be executed and will be optimized out
+by the compiler.  The default method will be used -- Macro will print
+error information if an error occurs as explained above.
+.PP
+With 'JUDYERROR_NOTEST' defined, the 'goto out_of_memory_handling' will
+be executed when an error occurs -- which should only happen when
+\fImalloc()\fP fails.
+.SH 3) User-Specified JUDYERROR() Macro Method 
+The \fBJUDYERROR()\fP macro (in \fBJudy.h\fP) provides flexibility for
+handling error returns as needed to suit your program while still using
+the Judy array macros instead of function calls.  You can use a
+different \fBJUDYERROR()\fP macro to suit your needs.  The following
+example is a possible alternative to the default. It is used to
+distinguish between the two types of errors (described above), and
+explicitly test for the remaining JU_ERRNO_NOMEM errors possible in your
+program.
+.PP
+.PP
+.nf
+.ps +1
+// This is an example of Judy macro API to continue when out of memory 
+// and print and exit(1) when any other error occurs.
+.PP
+#ifndef JUDYERROR_NOTEST
+#include <stdio.h>  // needed for fprintf()
+.PP
+// This is the macro that the Judy macro APIs use for return codes of -1:
+.PP
+#define JUDYERROR(CallerFile, CallerLine, JudyFunc, JudyErrno, JudyErrID) \\
+{                                                                         \\
+    if ((JudyErrno) != JU_ERRNO_NOMEM) /* ! a malloc() failure */         \\
+    {                                                                     \\
+        (void) fprintf(stderr, "File '%s', line %d: %s(), "               \\
+            "JU_ERRNO_* == %d, ID == %d\\n",                               \\
+            CallerFile, CallerLine,                                       \\
+            JudyFunc, JudyErrno, JudyErrID);                              \\
+        exit(1);                                                          \\
+    }                                                                     \\
+}
+#endif // JUDYERROR_NOTEST not defined
+.br
+.ps
+.fi
+This error handling macro must be included before the \fB#include <Judy.h>\fP
+statement in your program.
+.PP
+.SH SEE ALSO
+\fBJudy1(3)\fP,
+\fBJudyL(3)\fP,
+\fBJudySL(3)\fP,
+\fBJudyHS(3)\fP
