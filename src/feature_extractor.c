@@ -28,8 +28,8 @@ Item * tokenize_entry(ItemCache * item_cache, const ItemCacheEntry * entry, void
     if (!data) {
       error("TODO encode into atom?");
     } else {
-      int entry_id = item_cache_entry_id(entry);
-      info("tokenizing entry %i using %s", entry_id, tokenizer_url);
+      const char * entry_id = item_cache_entry_full_id(entry);
+      info("tokenizing entry %s using %s", entry_id, tokenizer_url);
     
       CURL *curl = curl_easy_init();
       curl_easy_setopt(curl, CURLOPT_URL, tokenizer_url);

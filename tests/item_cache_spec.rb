@@ -75,6 +75,12 @@ describe "The Classifier's Item Cache" do
       create_entry
       @sqlite.get_first_value("select count(*) from entries where full_id = 'urn:peerworks.org:entries#1111'").should == "1"
     end
+    
+    it "should update an existing item in the database" do
+      @sqlite.execute("insert into entries (full_id) values ('urn:peerworks.org:entries#1111')")
+      create_entry
+      @sqlite.get_first_value("select title from entries where full_id = 'urn:peerworks.org:entries#1111'").should_not be_nil
+    end
   
     it "should properly parse the updated date" do
       create_entry(:updated => Time.now.yesterday.yesterday)
@@ -106,7 +112,14 @@ describe "The Classifier's Item Cache" do
     it "should insert tokens on the correct item when an item is added twice" do
       create_entry
       create_entry
-      sleep(1.5)
+      sleep(1)
+      @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = (select id from entries where full_id = 'urn:peerworks.org:entries#1111')").to_i.should > 0
+    end
+    
+    it "should tokenize an existing item if it doesn't have tokens" do
+      @sqlite.execute("insert into entries (full_id) values ('urn:peerworks.org:entries#1111')")
+      create_entry
+      sleep(1)
       @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = (select id from entries where full_id = 'urn:peerworks.org:entries#1111')").to_i.should > 0
     end
   end

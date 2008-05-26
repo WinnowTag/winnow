@@ -35,10 +35,12 @@
 #define CURRENT_USER_VERSION 2
 #define FETCH_ITEM_SQL "select full_id, strftime('%s', updated) from entries where full_id = ?"
 #define FETCH_ITEM_TOKENS_SQL "select token_id, frequency from entry_tokens where entry_id = (select id from entries where full_id = ?)"
+#define TOKENS_EXIST_SQL "select 1 from entry_tokens where entry_id = (select id from entries where full_id = ?) limit 1"
 #define FETCH_ALL_ITEMS_SQL "select full_id, strftime('%s', updated) from entries where updated > (julianday('now') - ?) order by updated desc"
 #define FETCH_RANDOM_BACKGROUND "select full_id from entries where id in (select entry_id from random_backgrounds)"
-#define INSERT_ENTRY_SQL "insert or ignore into entries (full_id, title, author, alternate, self, spider, content, updated, feed_id, created_at) \
+#define INSERT_ENTRY_SQL "insert into entries (full_id, title, author, alternate, self, spider, content, updated, feed_id, created_at) \
                           VALUES (:full_id, :title, :author, :alternate, :self, :spider, :content, julianday(:updated, 'unixepoch'), :feed_id, julianday(:created_at, 'unixepoch'))"
+#define UPDATE_ENTRY_SQL "update entries set title = ?, author = ?, alternate = ?, self = ?, spider = ?, content = ?, updated = julianday(:updated, 'unixepoch') where full_id = ?"
 #define DELETE_ENTRY_SQL "delete from entries where id = ?"
 #define INSERT_FEED_SQL "insert or replace into feeds VALUES (?, ?)"
 #define DELETE_FEED_SQL "delete from feeds where id = ?"
@@ -112,6 +114,7 @@ struct ITEM_CACHE {
   sqlite3_stmt *fetch_all_items_stmt;
   sqlite3_stmt *random_background_stmt;
   sqlite3_stmt *insert_entry_stmt;
+  sqlite3_stmt *update_entry_stmt;
   sqlite3_stmt *delete_entry_stmt;
   sqlite3_stmt *insert_feed_stmt;
   sqlite3_stmt *delete_feed_stmt;
@@ -119,6 +122,7 @@ struct ITEM_CACHE {
   sqlite3_stmt *find_atom_stmt;
   sqlite3_stmt *insert_atom_stmt;
   sqlite3_stmt *insert_entry_token_stmt;
+  sqlite3_stmt *tokens_exist_stmt;
   
   pthread_mutex_t db_access_mutex; 
   
@@ -390,12 +394,14 @@ static int create_prepared_statements(ItemCache *item_cache) {
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_ALL_ITEMS_SQL,        -1, &item_cache->fetch_all_items_stmt,       NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_RANDOM_BACKGROUND,    -1, &item_cache->random_background_stmt,     NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ENTRY_SQL,           -1, &item_cache->insert_entry_stmt,          NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, UPDATE_ENTRY_SQL,           -1, &item_cache->update_entry_stmt,          NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_ENTRY_SQL,           -1, &item_cache->delete_entry_stmt,          NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_FEED_SQL,            -1, &item_cache->insert_feed_stmt,           NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_FEED_SQL,            -1, &item_cache->delete_feed_stmt,           NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FIND_TOKEN_SQL,             -1, &item_cache->find_token_stmt,            NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FIND_ATOM_SQL,              -1, &item_cache->find_atom_stmt,             NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ATOM_SQL,            -1, &item_cache->insert_atom_stmt,           NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, TOKENS_EXIST_SQL,           -1, &item_cache->tokens_exist_stmt,          NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ENTRY_TOKENS,        -1, &item_cache->insert_entry_token_stmt,    NULL)) {
     fatal("Unable to prepare statment: %s", item_cache_errmsg(item_cache));
     rc = CLASSIFIER_FAIL;
@@ -536,6 +542,7 @@ void free_item_cache(ItemCache *item_cache) {
       sqlite3_finalize(item_cache->fetch_all_items_stmt);
       sqlite3_finalize(item_cache->random_background_stmt);
       sqlite3_finalize(item_cache->insert_entry_stmt);
+      sqlite3_finalize(item_cache->update_entry_stmt);
       sqlite3_finalize(item_cache->delete_entry_stmt);
       sqlite3_finalize(item_cache->insert_feed_stmt);
       sqlite3_finalize(item_cache->delete_feed_stmt);
@@ -543,6 +550,7 @@ void free_item_cache(ItemCache *item_cache) {
       sqlite3_finalize(item_cache->find_atom_stmt);
       sqlite3_finalize(item_cache->insert_atom_stmt);
       sqlite3_finalize(item_cache->insert_entry_token_stmt);
+      sqlite3_finalize(item_cache->tokens_exist_stmt);
       sqlite3_close(item_cache->db);
     }
     
@@ -914,6 +922,8 @@ const Pool * item_cache_random_background(const ItemCache * item_cache)  {
   if (SQLITE_OK != sqlite3_bind_text(stmt, pos, txt, -1, NULL)) {     \
     error("Error binding %s to parameter %i", txt, pos);              \
     rc = CLASSIFIER_FAIL;                                             \
+    sqlite3_clear_bindings(stmt);                                     \
+    sqlite3_reset(stmt);                                              \
     goto end;                                                         \
   }                                                                   \
 }
@@ -941,38 +951,70 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
     sqlite3_clear_bindings(item_cache->fetch_item_stmt);
     sqlite3_reset(item_cache->fetch_item_stmt);
     
-    // Do the insert or replace if it already exists
-    BIND_TEXT( item_cache->insert_entry_stmt, entry->full_id,   1);
-    BIND_TEXT( item_cache->insert_entry_stmt, entry->title,     2);
-    BIND_TEXT( item_cache->insert_entry_stmt, entry->author,    3);
-    BIND_TEXT( item_cache->insert_entry_stmt, entry->alternate, 4);
-    BIND_TEXT( item_cache->insert_entry_stmt, entry->self,      5);
-    BIND_TEXT( item_cache->insert_entry_stmt, entry->spider,    6);
-    BIND_TEXT( item_cache->insert_entry_stmt, entry->content,   7);
-    sqlite3_bind_double(item_cache->insert_entry_stmt, 8, entry->updated);
-    if (entry->feed_id > 0) {
-      sqlite3_bind_int(item_cache->insert_entry_stmt, 9, entry->feed_id);      
-    }
-    sqlite3_bind_double(item_cache->insert_entry_stmt, 10, entry->created_at);
-    
-    if (SQLITE_DONE != sqlite3_step(item_cache->insert_entry_stmt)) {
-      error("Error inserting item %i: %s", entry->id, item_cache_errmsg(item_cache));
-      rc = CLASSIFIER_FAIL;
+    if (is_new_entry) {
+      // Do the insert
+      BIND_TEXT( item_cache->insert_entry_stmt, entry->full_id,   1);
+      BIND_TEXT( item_cache->insert_entry_stmt, entry->title,     2);
+      BIND_TEXT( item_cache->insert_entry_stmt, entry->author,    3);
+      BIND_TEXT( item_cache->insert_entry_stmt, entry->alternate, 4);
+      BIND_TEXT( item_cache->insert_entry_stmt, entry->self,      5);
+      BIND_TEXT( item_cache->insert_entry_stmt, entry->spider,    6);
+      BIND_TEXT( item_cache->insert_entry_stmt, entry->content,   7);
+      sqlite3_bind_double(item_cache->insert_entry_stmt, 8, entry->updated);
+      if (entry->feed_id > 0) {
+        sqlite3_bind_int(item_cache->insert_entry_stmt, 9, entry->feed_id);      
+      }
+      sqlite3_bind_double(item_cache->insert_entry_stmt, 10, entry->created_at);
+
+      if (SQLITE_DONE != sqlite3_step(item_cache->insert_entry_stmt)) {
+        error("Error inserting item %s: %s", entry->full_id, item_cache_errmsg(item_cache));
+        rc = CLASSIFIER_FAIL;
+      } else {
+        entry->id = sqlite3_last_insert_rowid(item_cache->db);
+      }
+      
+      sqlite3_clear_bindings(item_cache->insert_entry_stmt);
+      sqlite3_reset(item_cache->insert_entry_stmt);
     } else {
-      entry->id = sqlite3_last_insert_rowid(item_cache->db);
+      // Do an update
+      BIND_TEXT( item_cache->update_entry_stmt, entry->title,     1);
+      BIND_TEXT( item_cache->update_entry_stmt, entry->author,    2);
+      BIND_TEXT( item_cache->update_entry_stmt, entry->alternate, 3);
+      BIND_TEXT( item_cache->update_entry_stmt, entry->self,      4);
+      BIND_TEXT( item_cache->update_entry_stmt, entry->spider,    5);
+      BIND_TEXT( item_cache->update_entry_stmt, entry->content,   6);
+      sqlite3_bind_double(item_cache->update_entry_stmt, 7, entry->updated);
+      BIND_TEXT( item_cache->update_entry_stmt, entry->full_id,   8);
+      
+      if (SQLITE_DONE != sqlite3_step(item_cache->update_entry_stmt)) {
+        error("Error update item %s: %s", entry->full_id, item_cache_errmsg(item_cache));
+        rc = CLASSIFIER_FAIL;
+      }
+      
+      sqlite3_clear_bindings(item_cache->update_entry_stmt);
+      sqlite3_reset(item_cache->update_entry_stmt);
     }
 
-end:
-    sqlite3_clear_bindings(item_cache->insert_entry_stmt);
-    sqlite3_reset(item_cache->insert_entry_stmt);    
-    pthread_mutex_unlock(&item_cache->db_access_mutex);
-    
     // We don't want to extract features for items we already have.
     // TODO Handle updates to features for items somehow?
     if (is_new_entry && rc != CLASSIFIER_FAIL) {
-      debug("Adding %i to feature_extraction queue", entry->id);
+      debug("Adding %s to feature_extraction queue", entry->full_id);
       q_enqueue(item_cache->feature_extraction_queue, copy_entry(entry));
+    } else if (rc != CLASSIFIER_FAIL) {
+      // Check if there are tokens for the item
+      BIND_TEXT( item_cache->tokens_exist_stmt, entry->full_id, 1);
+      
+      if (SQLITE_DONE == sqlite3_step(item_cache->tokens_exist_stmt)) {
+        debug("Adding %s to feature_extraction queue", entry->full_id);
+        q_enqueue(item_cache->feature_extraction_queue, copy_entry(entry));
+      }
+      
+      sqlite3_clear_bindings(item_cache->tokens_exist_stmt);
+      sqlite3_reset(item_cache->tokens_exist_stmt);
     }
+    
+  end:
+    pthread_mutex_unlock(&item_cache->db_access_mutex);
   }
   
   return rc;
@@ -1029,9 +1071,10 @@ int item_cache_add_feed(ItemCache *item_cache, Feed * feed) {
       info("Inserted feed '%s' into item cache", feed->title);
     }
 
-  end:
     sqlite3_clear_bindings(item_cache->insert_feed_stmt);
     sqlite3_reset(item_cache->insert_feed_stmt);
+    
+  end:
     pthread_mutex_unlock(&item_cache->db_access_mutex);
   }
   
