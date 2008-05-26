@@ -278,15 +278,15 @@ ItemCacheEntry * create_entry_from_atom_xml_document(int feed_id, xmlDocPtr doc,
   char *self = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'self']", "href");
   char *spider = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'http://peerworks.org/rel/spider']", "href");
   
-  // Must have all of these to create the item
-  if (id && title && updated) {
+  // Must have an id to be able to create an item, everything else is optional.
+  if (id) {
     struct tm updated_tm;
     memset(&updated_tm, 0, sizeof(updated_tm));
     time_t updated_time = time(NULL);
     
-    if (NULL != strptime(updated, "%Y-%m-%dT%H:%M:%S%Z", &updated_tm)) {
+    if (updated && NULL != strptime(updated, "%Y-%m-%dT%H:%M:%S%Z", &updated_tm)) {
       updated_time = timegm(&updated_tm);
-    } else if (NULL != strptime(updated, "%Y-%m-%dT%H:%M:%S", &updated_tm)) {
+    } else if (updated && NULL != strptime(updated, "%Y-%m-%dT%H:%M:%S", &updated_tm)) {
       updated_time = timegm(&updated_tm);
     } else {
       error("Couldn't parse datetime: %s", updated);
@@ -294,7 +294,7 @@ ItemCacheEntry * create_entry_from_atom_xml_document(int feed_id, xmlDocPtr doc,
    
     entry = create_item_cache_entry(id, title, author, alternate, self, spider, content, updated_time, feed_id, time(NULL), xml_source);
   } else {
-    debug("Missing id title or updated from atom (%s, %s, %s)", id, title, updated);
+    error("Missing id title or updated from atom (%s, %s, %s)", id, title, updated);
   }
    
   if (alternate) xmlFree(alternate);
