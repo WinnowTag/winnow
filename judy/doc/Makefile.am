@@ -95,8 +95,7 @@ man3_MANS = man/man3 \
 	    man/man3/JudyHSFreeArray
 
 EXTRA_DIST = ext
-CLEANFILES = man/man3/Judy man/man3/Judy1 man/man3/Judy1_funcs man/man3/JudyHS man/man3/JudyHS_funcs \
-							man/man3/JudyL man/man3/JudyL_funcs man/man3/JudySL man/man3/JudySL_funcs
+CLEANFILES = man/man3/*
 
 man/man3:
 	mkdir -p man/man3
