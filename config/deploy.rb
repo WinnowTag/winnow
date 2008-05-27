@@ -41,10 +41,15 @@ namespace :deploy do
     end
   end
   
-  desc "Push up the latest version"
-  task :update do
+  desc "Package the latest version"
+  task :package do
     system("rm -f src/git_revision.h")
     system("make dist")
+  end
+  
+  desc "Push up the latest version"
+  task :update do
+    package
     md5 = `md5 #{tarball_name}`
     put(File.read(tarball_name), "#{deploy_to}/#{tarball_name}")
     put(md5, "#{deploy_to}/#{tarball_name}.md5")
@@ -64,6 +69,22 @@ namespace :deploy do
   desc "Restart the classifier"
   task :restart do
     sudo("god restart classifier")
+  end
+  
+  desc "Upload to S3"
+  task :s3 do
+    package
+    require 'aws/s3'
+    require 'pp'
+    AWS::S3::Base.establish_connection!(
+     :access_key_id     => ENV['AMAZON_ACCESS_KEY_ID'],
+     :secret_access_key => ENV['AMAZON_SECRET_ACCESS_KEY']
+    )
+    AWS::S3::Bucket.find('classifier') rescue AWS::S3::Bucket.create('classifier')
+    AWS::S3::S3Object.store('classifier.tar.gz', open(tarball_name), 'classifier')
+    obj = AWS::S3::S3Object.find('classifier.tar.gz', 'classifier')
+    puts "Classifer uploaded to S3"
+    pp obj.about
   end
   
   task :setup do

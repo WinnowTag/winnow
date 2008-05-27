@@ -38,6 +38,9 @@ describe "The Classifier's Item Cache" do
       create_feed(:title => 'My new feed', :id => 'urn:peerworks.org:feeds#1337')
       @sqlite.get_first_value("select title from feeds where id = 1337").should == 'My new feed'
     end
+    
+    it "should return 400 when there is no content"
+    it "should return 202 when updating a feed"
   end
   
   describe "feed deletion" do
@@ -75,14 +78,25 @@ describe "The Classifier's Item Cache" do
     
     it "should store entry in the database" do
       create_entry
-      @sqlite.get_first_value("select count(*) from entries where id = 1111").should == "1"
+      @sqlite.get_first_value("select count(*) from entries where full_id = 'urn:peerworks.org:entries#1111'").should == "1"
+    end
+    
+    it "should update an existing item in the database" do
+      @sqlite.execute("insert into entries (full_id) values ('urn:peerworks.org:entries#1111')")
+      create_entry
+      @sqlite.get_first_value("select title from entries where full_id = 'urn:peerworks.org:entries#1111'").should_not be_nil
     end
   
     it "should properly parse the updated date" do
       create_entry(:updated => Time.now.yesterday.yesterday)
-      r = @sqlite.get_first_row("select updated, created_at from entries where id = 1111")
+      r = @sqlite.get_first_row("select updated, created_at from entries where full_id = 'urn:peerworks.org:entries#1111'")
       r[0].to_f.should < r[1].to_f
     end
+    
+    it "should return 400 for an empty entry"
+    it "should return 422 when adding an entry to an non-existent feed"
+    it "should return 405 when trying to GET the feed_items"
+    
   end
   
   describe "entry tokenization" do
@@ -97,7 +111,21 @@ describe "The Classifier's Item Cache" do
     it "should tokenize the item" do
       create_entry
       sleep(1)
-      @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = 1111").to_i.should > 0
+      @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = (select id from entries where full_id = 'urn:peerworks.org:entries#1111')").to_i.should > 0
+    end
+    
+    it "should insert tokens on the correct item when an item is added twice" do
+      create_entry
+      create_entry
+      sleep(1)
+      @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = (select id from entries where full_id = 'urn:peerworks.org:entries#1111')").to_i.should > 0
+    end
+    
+    it "should tokenize an existing item if it doesn't have tokens" do
+      @sqlite.execute("insert into entries (full_id) values ('urn:peerworks.org:entries#1111')")
+      create_entry
+      sleep(1)
+      @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = (select id from entries where full_id = 'urn:peerworks.org:entries#1111')").to_i.should > 0
     end
   end
   
@@ -116,69 +144,5 @@ describe "The Classifier's Item Cache" do
       destroy_entry(888769)
       @sqlite.get_first_value("select count(*) from entry_tokens where entry_id = 888769").to_i.should == 0
     end
-  end
-  
-  describe "number of items classified" do
-    before(:each) do
-      @item_count = @sqlite.get_first_value("select count(*) from entries;").to_i
-    end
-    
-    it "should be equal to the number of items in the cache" do
-      job = Job.create(:tag_id => 48)
-      while job.progress < 100
-        job.reload
-      end
-      
-      Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
-    end
-    
-    describe "after item addition" do
-      before(:each) do
-        start_tokenizer
-      end
-      
-      after(:each) do
-        system("tokenizer_control stop")
-      end
-      
-      it "should include the added item" do
-        create_entry
-        sleep(1) # let the item get into the cache
-        job = Job.create(:tag_id => 48)
-        while job.progress < 100
-          job.reload
-        end
-
-        Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 1)        
-      end
-      
-      it "should automatically classify the new item" do
-        job = Job.create(:tag_id => 48)
-        while job.progress < 100
-          job.reload
-        end
-        
-        Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
-        
-        create_entry
-        sleep(2.5) # wait for it to be classified
-        Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 1)
-      end
-      
-      it "should only create a single job that classifies both items for each tag" do
-        job = Job.create(:tag_id => 48)
-        while job.progress < 100
-          job.reload
-        end
-        
-        Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == @item_count
-        
-        create_entry(:id => "1111")
-        create_entry(:id => "1112")
-        sleep(2.5)
-        Tagging.count(:conditions => "classifier_tagging = 1 and tag_id = 48").should == (@item_count + 2)
-        `wc -l /tmp/perf.log`.to_i.should == Tagging.count(:select => 'distinct tag_id') + 2 # +1 for header, +1 for previous job
-      end
-    end
-  end
+  end  
 end

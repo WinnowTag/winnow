@@ -1,0 +1,122 @@
+Wed Jan 30 23:15:44 MST 2008
+	 Added support for nested multiparts to post processor. 
+	 Made sure that MHD does not allow pipelining for methods
+	 other than HEAD and GET (and of course still also only 
+	 allows it for http 1.1).  Releasing libmicrohttpd 0.2.1.  -CG
+
+Mon Jan 21 11:59:46 MST 2008
+	 Added option to limit number of concurrent connections 
+	 accepted from the same IP address. -CG
+
+Fri Jan  4 16:02:08 MST 2008
+	 Fix to properly close connection if application signals
+	 problem handling the request. - AS
+
+Wed Jan  2 16:41:05 MST 2008
+	 Improvements and bugfixes to post processor implementation. - AS
+
+Wed Dec 19 21:12:04 MST 2007
+	 Implemented chunked (HTTP 1.1) downloads (including
+	 sending of HTTP footers).  Also allowed queuing of
+	 a response early to suppress the otherwise automatic
+	 "100 CONTINUE" response.  Removed the mostly useless
+	 "(un)register handler" methods from the API.  Changed
+	 the internal implementation to use a finite state
+	 machine (cleaner code, slightly less memory consumption). 
+	 Releasing libmicrohttpd 0.2.0. - CG
+	
+Sun Dec 16 03:24:13 MST 2007
+	 Implemented handling of chunked (HTTP 1.1) uploads.
+	 Note that the upload callback must be able to 
+	 process chunks in the size uploaded by the client,
+	 MHD will not "join" small chunks into a big 
+	 contiguous block of memory (even if buffer space
+	 would be available).  - CG
+
+Wed Dec  5 21:39:35 MST 2007
+	 Fixed race in multi-threaded server mode.
+	 Fixed handling of POST data when receiving a
+	 "Connection: close" header (#1296).
+	 Releasing libmicrohttpd 0.1.2. - CG
+
+Sat Nov 17 00:55:24 MST 2007
+	 Fixed off-by-one in error message string matching.
+	 Added code to avoid generating SIGPIPE on platforms
+	 where this is possible (everywhere else, the main
+	 application should install a handler for SIGPIPE).
+
+Thu Oct 11 11:02:06 MDT 2007
+	 Releasing libmicrohttpd 0.1.1. - CG
+
+Thu Oct 11 10:09:12 MDT 2007
+	 Fixing response to include HTTP status message. - EG 
+
+Thu Sep 27 10:19:46 MDT 2007
+	 Fixing parsing of "%xx" in URLs with GET arguments. - eglaysher
+
+Sun Sep  9 14:32:23 MDT 2007
+	 Added option to compile debug/warning messages;
+	 error messages are now disabled by default.  
+	 Modified linker option for GNU LD to not export
+	 non-public symbols (further reduces binary size).
+	 Releasing libmicrohttpd 0.1.0. - CG
+
+Sat Sep  8 21:54:04 MDT 2007
+	 Extended API to allow for incremental POST 
+	 processing.  The new API is binary-compatible
+	 as long as the app does not handle POSTs, but
+	 since that maybe the case, we're strictly speaking
+	 breaking backwards compatibility (since url-encoded
+	 POST data is no longer obtained the same way). - CG
+
+Thu Aug 30 00:59:24 MDT 2007
+	 Improving API to allow clients to associate state 
+         with a connection and to be notified about request
+         termination (this is a binary-compatible change). - CG
+	 Fixed compile errors under OS X. - HL
+
+Sun Aug 26 03:11:46 MDT 2007
+	 Added MHD_USE_PEDANTIC_CHECKS option which enforces
+	 receiving a "Host:" header in HTTP 1.1 (and sends a
+	 HTTP 400 status back if this is violated). - CG
+
+Tue Aug 21 01:01:46 MDT 2007
+	 Fixing assertion failure that occured when a client
+	 closed the connection after sending some data but
+	 not the full headers. - CG
+
+Sat Aug 18 03:06:09 MDT 2007
+	 Check for out of memory when adding headers to
+	 responses.  Check for NULL key when looking
+	 for headers.   If a content reader callback
+	 for a response returns zero (has no data yet),
+	 do not possibly fall into busy waiting when
+	 using external select (with internal selects
+	 we have no choice).  - CG
+
+Wed Aug 15 01:46:44 MDT 2007
+	 Extending API to allow timeout of connections.
+	 Changed API (MHD_create_response_from_callback) to
+	 allow user to specify IO buffer size.	 
+	 Improved error handling.  
+         Released libmicrohttpd 0.0.3. - CG
+
+Tue Aug 14 19:45:49 MDT 2007
+	 Changed license to LGPL (with consent from all contributors).
+         Released libmicrohttpd 0.0.2. - CG
+
+Sun Aug 12 00:09:26 MDT 2007
+	 Released libmicrohttpd 0.0.1. - CG
+
+Fri Aug 10 17:31:23 MDT 2007
+	 Fixed problems with handling of responses created from
+	 callbacks.  Allowing accept policy callback to be NULL
+	 (to accept from all).  Added minimal fileserver example.
+	 Only send 100 continue header when specifically requested. - CG
+
+Wed Aug  8 01:46:06 MDT 2007
+	 Added pool allocation and connection limitations (total
+	 number and memory size).  Released libmicrohttpd 0.0.0. - CG
+
+Tue Jan  9 20:52:48 MST 2007
+	 Created project build files and updated API. - CG

@@ -11,28 +11,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <curl/curl.h>
+#include "curl_response.h"
 
-struct RESPONSE {
-  int size;
-  char *data;
-};
-
-static size_t write_response(void *ptr, size_t size, size_t nmemb, void *stream) {
-  struct RESPONSE *response = (struct RESPONSE*) stream;
-  
-  if (response->size == 0) {
-    response->size = size * nmemb;
-    response->data = calloc(size + 1, nmemb);
-    memcpy(response->data, ptr, size * nmemb);    
-  } else {
-    response->data = realloc(response->data, response->size + (size * nmemb) + 1);
-    memcpy(&response->data[response->size], ptr, size * nmemb);
-    response->size += (size * nmemb);
-    response->data[response->size] = '\0';
-  }
-  
-  return size * nmemb;
-}
 
 Item * tokenize_entry(ItemCache * item_cache, const ItemCacheEntry * entry, void *memo) {
   Item *item = NULL;
@@ -48,8 +28,8 @@ Item * tokenize_entry(ItemCache * item_cache, const ItemCacheEntry * entry, void
     if (!data) {
       error("TODO encode into atom?");
     } else {
-      int entry_id = item_cache_entry_id(entry);
-      info("tokenizing entry %i using %s", entry_id, tokenizer_url);
+      const char * entry_id = item_cache_entry_full_id(entry);
+      info("tokenizing entry %s using %s", entry_id, tokenizer_url);
     
       CURL *curl = curl_easy_init();
       curl_easy_setopt(curl, CURLOPT_URL, tokenizer_url);

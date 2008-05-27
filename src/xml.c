@@ -6,21 +6,58 @@
  * Please contact info@peerworks.org for further information.
  */
 
+#include <string.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
 #include <libxml/uri.h>
+#include "xml.h"
+#include "logging.h"
 
 char * get_element_value(xmlXPathContextPtr context, const char * path) {
   char *value = NULL;
   
   xmlXPathObjectPtr xp = xmlXPathEvalExpression(BAD_CAST path, context);
   if (!xmlXPathNodeSetIsEmpty(xp->nodesetval)) {
-    value = strdup((char*) xp->nodesetval->nodeTab[0]->content);
+    if (xp->nodesetval->nodeTab[0]->content) {
+      value = strdup((char*) xp->nodesetval->nodeTab[0]->content);
+    }
   }
   
   xmlXPathFreeObject(xp);
   return value;
+}
+
+time_t get_element_value_time(xmlXPathContextPtr context, const char * path) {
+  struct tm _tm;
+  time_t _time = time(NULL);
+  char * value = get_element_value(context, path);
+  
+  if (value) {
+    if (NULL != strptime(value, "%Y-%m-%dT%H:%M:%S%Z", &_tm)) {
+      _time = timegm(&_tm);
+    } else if (NULL != strptime(value, "%Y-%m-%dT%H:%M:%S", &_tm)) {
+      _time = timegm(&_tm);
+    } else {
+      error("Couldn't parse datetime: %s", value);
+    }
+    
+    free(value);
+  }
+  
+  return _time;
+}
+
+double get_element_value_double(xmlXPathContextPtr context, const char * path) {
+  double result = 0;
+  char * value = get_element_value(context, path);
+  
+  if (value) {
+    result = strtod(value, NULL);
+    free(value);
+  }
+  
+  return result;
 }
 
 char * get_attribute_value(xmlXPathContextPtr context, const char * path, const char * attr) {
@@ -28,7 +65,7 @@ char * get_attribute_value(xmlXPathContextPtr context, const char * path, const 
   
   xmlXPathObjectPtr xp = xmlXPathEvalExpression(BAD_CAST path, context);
   if (!xmlXPathNodeSetIsEmpty(xp->nodesetval)) {
-    value = (char*) xmlGetProp(xp->nodesetval->nodeTab[0], BAD_CAST "href");;
+    value = (char*) xmlGetProp(xp->nodesetval->nodeTab[0], BAD_CAST attr);;
   }
   
   xmlXPathFreeObject(xp);

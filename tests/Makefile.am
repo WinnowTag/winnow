@@ -1,44 +1,37 @@
-TESTS = check_all check_db check_http specs
+TESTS =  check_tagger_builder check_pool check_train_tagger check_precompute_tagger  check_tag_index \
+          check_classifier check_pool check_queue check_url_fetching check_clue \
+          check_classify check_get_tagger check_item_cache check_classification_engine specs
 CLEANFILES = http_test.log http_test_data.log test.log
 
-LDFLAGS = -static @SQLITE3_LDFLAGS@
-CFLAGS = -g -DDEBUG @SQLITE3_CFLAGS@
-check_PROGRAMS = check_all check_db check_http 
+LDFLAGS = -static @SQLITE3_LDFLAGS@ @CHECK_LIBS@
+CFLAGS = -g -DDEBUG @SQLITE3_CFLAGS@ @CHECK_CFLAGS@
+LDADD =  $(top_builddir)/src/libclassifier.la $(top_builddir)/judy/src/obj/libJudy.la
+check_PROGRAMS = check_classifier check_pool check_queue check_item_cache \
+                 check_classification_engine check_clue check_url_fetching  \
+                 check_tagger_builder check_train_tagger check_precompute_tagger \
+                 check_classify check_get_tagger check_tag_index
 
-check_http_SOURCE = check_http.c
-check_http_LDADD  = @CHECK_LIBS@ $(top_builddir)/src/libclassifier.la
-
-check_all_SOURCES = check_all.c \
-                check_classifier.c $(top_builddir)/src/classifier.h \
-                check_pool.c \
-                check_tag.c $(top_builddir)/src/tag.h \
-                check_clue.c $(top_builddir)/src/clue.h \
-                check_queue.c $(top_builddir)/src/job_queue.h \
-                check_config.c $(top_builddir)/src/cls_config.h \
-                check_item_cache.c $(top_builddir)/src/item_cache.h \
-                $(top_builddir)/src/tagging.h \
-                assertions.h  \
-                tagging_store_fixtures.h \
-                fixtures.h \
-                mock_items.h
-                
-                
-check_all_CFLAGS = @CHECK_CFLAGS@
-check_all_LDADD = @CHECK_LIBS@  \
-              $(top_builddir)/src/libclassifier.la
-              
-check_db_SOURCES = check_db.c                    \
-            check_tag_db.c                       \
-            check_tagging_store.c                \
-            check_classification_engine.c        \
-            $(top_builddir)/src/classification_engine.h \
-            $(top_builddir)/src/tag.h            \
-            $(top_builddir)/src/tagging.h
-              
-check_db_CFLAGS = @CHECK_CFLAGS@
-check_db_LDADD = @CHECK_LIBS@  \
-            $(top_builddir)/src/libclassifier.la 
-
+shared_SOURCES = assertions.h mock_items.h fixtures.h
+check_classifier_SOURCES = check_classifier.c $(top_builddir)/src/classifier.h $(shared_SOURCES)
+check_pool_SOURCES       = check_pool.c $(shared_SOURCES)
+check_queue_SOURCES      = check_queue.c $(shared_SOURCES)
+check_clue_SOURCES       = check_clue.c $(top_builddir)/src/clue.h $(shared_SOURCES)
+check_item_cache_SOURCES = check_item_cache.c $(top_builddir)/src/item_cache.h $(shared_SOURCES)
+check_classification_engine_SOURCES = check_classification_engine.c $(top_builddir)/src/classification_engine.h $(shared_SOURCES)
+check_url_fetching_SOURCES = check_url_fetching.c $(top_builddir)/src/fetch_url.h $(shared_SOURCES)
+check_tagger_builder_SOURCES = check_tagger_builder.c $(top_builddir)/src/tagger.h $(shared_SOURCES)
+check_train_tagger_SOURCES = check_train_tagger.c $(top_builddir)/src/tagger.h $(shared_SOURCES)
+check_precompute_tagger_SOURCE = check_precompute_tagger.c $(top_builddir)/src/tagger.h $(top_builddir)/src/classifier.h $(shared_SOURCES)
+check_classify_SOURCE = check_classify.c $(top_builddir)/src/tagger.h $(top_builddir)/src/classifier.h $(shared_SOURCES)
+check_get_tagger_SOURCE = check_get_tagger.c $(top_builddir)/src/tagger.h $(top_builddir)/src/classifier.h $(shared_SOURCES)
+check_tag_index_SOURCE = check_tag_index.c $(top_builddir)/src/tagger.h $(shared_SOURCES)
 
 dist_check_DATA = fixtures conf spec.opts
-dist_check_SCRIPTS = specs item_cache_spec.rb memory_spec.rb spec_helper.rb
+dist_check_SCRIPTS = specs about_spec.rb  \
+                      job_control_spec.rb \
+                      memory_spec.rb      \
+                      tag_index_spec.rb   \
+                      item_cache_spec.rb  \
+                      job_processing_spec.rb \
+                      spec_helper.rb      \
+                      test_http_server.rb

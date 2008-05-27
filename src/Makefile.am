@@ -11,23 +11,19 @@ lib_LTLIBRARIES = libclassifier.la
 # This might be fixed in later versions, I guess we will
 # see as we deploy to more sites.
 #
-LDFLAGS = -rpath $(libdir) @SQLITE3_LDFLAGS@
-CFLAGS = -Wall @SQLITE3_CFLAGS@
+LDFLAGS = -rpath $(libdir) @SQLITE3_LDFLAGS@ @CURL_LIBS@
+AM_CPPFLAGS = -I$(srcdir)/../microhttpd/src/include -I$(srcdir)/../judy/src
+CFLAGS = -Wall @SQLITE3_CFLAGS@ @CURL_CFLAGS@ 
 
 libclassifier_la_SOURCES = classifier.c classifier.h \
                            logging.h logging.c       \
                            pool.c                    \
-                           tag.c tag.h               \
                            clue.h clue.c             \
                            job_queue.c job_queue.h   \
-                           cls_config.c cls_config.h \
-                           tagging.h tagging.c       \
                            classification_engine.h   \
                            classification_engine.c   \
                            httpd.h httpd.c           \
                            misc.h                    \
-                           time_helper.h             \
-                           time_helper.c						 \
                            create_file.c             \
                            item_cache.c      				 \
                            item_cache.h				       \
@@ -35,7 +31,13 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            git_revision.h            \
                            feature_extractor.c       \
                            feature_extractor.h       \
-                           xml.c xml.h
+                           xml.c xml.h \
+                           uri.h                     \
+                           tagger.c tagger.h tagger_cache.c tagging.c tag_index.c \
+                           array.h array.c \
+                           fetch_url.h \
+                           xml_error_functions.h \
+                           curl_response.h
 
 libclassifier_la_LIBADD = @LTLIBOBJS@
        
@@ -43,15 +45,15 @@ BUILT_SOURCES=git_revision.h
 CLEANFILES=git_revision.h
 bin_PROGRAMS = classifier
 classifier_SOURCES = git_revision.h main.c 
-classifier_LDADD = libclassifier.la
+classifier_LDADD = libclassifier.la ../microhttpd/src/daemon/libmicrohttpd.la ../judy/src/obj/libJudy.la
 
 #cls_bench_SOURCES = bench.c
 #cls_bench_LDADD = libclassifier.la
 
 if DEBUG
-classifier_CFLAGS = -g -D_DEBUG
+classifier_CFLAGS = -g3 -D_DEBUG -gdwarf-2
 classifier_LDFLAGS = -static
-libclassifier_la_CFLAGS = -g -D_DEBUG
+libclassifier_la_CFLAGS = -g3 -D_DEBUG -gdwarf-2
 endif
 
 # noinst_PROGRAMS = cls_bench

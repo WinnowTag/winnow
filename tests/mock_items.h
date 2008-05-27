@@ -26,10 +26,10 @@ static void setup_mock_items(void) {
   int tokens_3[][2] = {1, 6, 2, 4};
   int tokens_4[][2] = {1, 1, 2, 2, 3, 3};
   
-  item_1 = create_item_with_tokens(1, tokens_1, 2);
-  item_2 = create_item_with_tokens(2, tokens_2, 2);
-  item_3 = create_item_with_tokens(3, tokens_3, 2);
-  item_4 = create_item_with_tokens(4, tokens_4, 3);  
+  item_1 = create_item_with_tokens((unsigned char*) "1", tokens_1, 2);
+  item_2 = create_item_with_tokens((unsigned char*) "2", tokens_2, 2);
+  item_3 = create_item_with_tokens((unsigned char*) "3", tokens_3, 2);
+  item_4 = create_item_with_tokens((unsigned char*) "4", tokens_4, 3);  
 }
 
 static void teardown_mock_items(void) {

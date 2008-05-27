@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+<!-- This is an example tag definition document where all the items exist in the item cache -->
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:ns1="http://peerworks.org/classifier" xmlns:atom="http://www.w3.org/2005/Atom">
+  <title>atag</title>
+  <id>http://trunk.mindloom.org:80/seangeo/tags/a-religion</id>
+  <updated>2008-03-30T01:24:18Z</updated>
+  <ns1:bias>1.2</ns1:bias>
+  <ns1:classified>2008-04-15T01:16:23Z</ns1:classified>
+  <link href="http://trunk.mindloom.org:80/seangeo/tags/a-religion.atom" rel="alternate"/>
+  <link href="http://localhost:8888/results" rel="http://peerworks.org/classifier/edit"/>
+  <link href="http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom" rel="self"/>
+  <category term="a-religion" scheme="http://trunk.mindloom.org:80/seangeo/tags/" />
+  <entry>
+    <title>a more secularized religion</title>
+    <id>urn:peerworks.org:entry#2</id>
+    <atom:content type="html"></atom:content>
+    <updated>2007-11-26T19:14:09Z</updated>
+    <category scheme="http://trunk.mindloom.org:80/seangeo/tags/" term="a-religion"/>
+    <category scheme="http://trunk.mindloom.org:80/seangeo/tags/" term="a-religion"/>
+    <link rel="self"/>
+    <link href="http://getnewhope.blogs.com/personal_trainer/2007/11/a-more-seculari.html" rel="alternate"/>
+    <link href="urn:peerworks.org:feed#1500841" rel="http://peerworks.org/feed"/>
+  </entry>
+  <entry>
+    <title>Sensible Priors for Sparse Bayesian Learning</title>
+    <id>urn:peerworks.org:entry#1</id>
+    <atom:content type="html"></atom:content>
+    <updated>2007-11-26T19:14:09Z</updated>
+    <link rel="self"/>
+    <link href="http://research.microsoft.com/research/pubs/view.aspx?0rc=p&amp;type=technical%20report&amp;id=1364" rel="alternate"/>
+    <link href="urn:peerworks.org:feed#1161453" rel="http://peerworks.org/feed"/>
+    <link href="http://trunk.mindloom.org:80/seangeo/tags/a-religion" rel="http://peerworks.org/classifier/negative-example"/>
+  </entry>
+  <entry>
+    <title>Secular Faith</title>
+    <id>urn:peerworks.org:entry#3</id>
+    <atom:content type="html"></atom:content>
+    <updated>2007-08-28T11:30:13Z</updated>
+    <category scheme="http://trunk.mindloom.org:80/seangeo/tags/" term="a-religion"/>
+    <link rel="self"/>
+    <link href="http://dododreams.blogspot.com/2007/08/secular-faith.html" rel="alternate"/>
+    <link href="urn:peerworks.org:feed#1148647" rel="http://peerworks.org/feed"/>
+  </entry>
+  <entry>
+    <title>The Greatness of God</title>
+    <id>urn:peerworks.org:entry#888769</id>
+    <atom:content type="html"></atom:content>
+    <updated>2007-06-14T12:13:00Z</updated>
+    <category scheme="http://trunk.mindloom.org:80/seangeo/tags/" term="a-religion"/>
+    <link rel="self"/>
+    <link href="http://andrewsullivan.theatlantic.com/the_daily_dish/2007/06/the_greatness_o.html" rel="alternate"/>
+    <link href="urn:peerworks.org:feed#1037551" rel="http://peerworks.org/feed"/>
+  </entry>
+  <entry>
+    <title>Agnosticism or Atheism?</title>
+    <id>urn:peerworks.org:entry#884409</id>
+    <atom:content type="html"></atom:content>
+    <updated>2007-06-10T21:17:59Z</updated>
+    <category scheme="http://trunk.mindloom.org:80/seangeo/tags/" term="a-religion"/>
+    <link rel="self"/>
+    <link href="http://feeds.feedburner.com/%7Er/scienceblogs/strangerfruit/%7E3/123737456/agnosticism_or_atheism.php" rel="alternate"/>
+    <link href="urn:peerworks.org:feed#1030303" rel="http://peerworks.org/feed"/>
+  </entry>
+</feed>

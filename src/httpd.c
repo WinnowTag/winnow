@@ -15,7 +15,6 @@
 #include <sys/time.h>
 #include <regex.h>
 #include "httpd.h"
-#include "cls_config.h"
 #include "item_cache.h"
 #include "logging.h"
 #include "misc.h"
@@ -27,14 +26,15 @@
 #define BAD_XML "<?xml version='1.0' ?>\n<error><error>Badly formatted XML.</error></errors>\n"
 #define MISSING_TAG_ID "<?xml version='1.0' ?>\n<errors><error>Missing tag or user id in job description</error></errors>\n"
 
-#ifdef HAVE_LIBMICROHTTPD
 #include <microhttpd.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
 #include <libxml/uri.h>
+#include "xml_error_functions.h"
 
 #include "xml.h"
+#include "uri.h"
 
 #define HTTP_NOT_FOUND(response)         \
   response->code = 404;                  \
@@ -76,7 +76,7 @@ typedef enum HTTP_METHOD {
 
 struct HTTPD {
   struct MHD_Daemon *mhd;
-  Config *config;
+  HttpConfig *config;
   ClassificationEngine *ce;
   ItemCache *item_cache;
   regex_t start_job_regex;
@@ -129,25 +129,15 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
   xmlNodePtr root = xmlNewNode(NULL, BAD_CAST "job");
   xmlDocSetRootElement(doc, root);
   
-  xmlNewChild(root, NULL, BAD_CAST "id", BAD_CAST cjob_id(job));
+  xmlNewChild(root, NULL, BAD_CAST "id", BAD_CAST job->id);
   
-  switch (cjob_type(job)) {
-    case CJOB_TYPE_TAG_JOB:
-      add_element(root, "tag-id", "integer", "%d", cjob_tag_id(job));    
-      break;
-    case CJOB_TYPE_USER_JOB:
-      add_element(root, "user-id", "integer", "%d", cjob_user_id(job));
-      break;
-    default:
-      break;
-  }
-  
-  if (CJOB_STATE_ERROR == cjob_state(job)) {
-    xmlNewChild(root, NULL, BAD_CAST "error-message", BAD_CAST cjob_error_msg(job));
+  if (CJOB_STATE_ERROR == job->state) {
+    char buffer[256];
+    xmlNewChild(root, NULL, BAD_CAST "error-message", BAD_CAST cjob_error_msg(job, buffer, sizeof(buffer)));
   }
   
   add_element(root, "duration", "float", "%.2f", cjob_duration(job));
-  add_element(root, "progress", "float", "%.1f", cjob_progress(job));  
+  add_element(root, "progress", "float", "%.1f", job->progress);  
   xmlNewChild(root, NULL, BAD_CAST "status", BAD_CAST cjob_state_msg(job));
   
   xmlDocDumpFormatMemory(doc, &buffer, &buffersize, 1);
@@ -158,7 +148,7 @@ static xmlChar * xml_for_job(const ClassificationJob *job) {
 
 static char * url_for_job(const ClassificationJob *job) {
   char *url = calloc(128, sizeof(char));
-  snprintf(url, 128, "/classifier/jobs/%s", cjob_id(job));
+  snprintf(url, 128, "/classifier/jobs/%s", job->id);
   return url;
 }
 
@@ -197,64 +187,6 @@ static xmlChar * xml_for_about(const ClassificationEngine *ce) {
   xmlFreeDoc(doc);
   
   return buffer;
-}
-
-static int get_atom_id(const char *uri) {
-  int id = 0;
-  xmlURIPtr id_uri = xmlParseURI(uri);
-          
-  if (id_uri && id_uri->fragment) {
-    id = strtol(id_uri->fragment, NULL, 10);
-  }
-  
-  xmlFreeURI(id_uri);
-  return id;
-}
-
-static ItemCacheEntry * entry_from_xml(int feed_id, xmlDocPtr doc, const char * xml_source) {  
-  ItemCacheEntry *entry = NULL;
-  xmlXPathContextPtr context = xmlXPathNewContext(doc);    
-  xmlXPathRegisterNs(context, BAD_CAST "atom", BAD_CAST "http://www.w3.org/2005/Atom");
-  
-  char *id = get_element_value(context, "/atom:entry/atom:id/text()");
-  char *title = get_element_value(context, "/atom:entry/atom:title/text()");
-  char *updated = get_element_value(context, "/atom:entry/atom:updated/text()");
-  char *content = get_element_value(context, "/atom:entry/atom:content/text()");
-  char *author = get_element_value(context, "/atom:entry/atom:author/atom:name/text()");
-  char *alternate = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'alternate']", "href");;
-  char *self = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'self']", "href");
-  char *spider = get_attribute_value(context, "/atom:entry/atom:link[@rel = 'http://peerworks.org/rel/spider']", "href");
-  
-  // Must have all of these to create the item
-  if (id && title && updated) {
-    int id_i = get_atom_id(id);
-    struct tm updated_tm;
-    memset(&updated_tm, 0, sizeof(updated_tm));
-    time_t updated_time = time(NULL);
-    
-    if (NULL != strptime(updated, "%Y-%m-%dT%H:%M:%S%Z", &updated_tm)) {
-      updated_time = timegm(&updated_tm);
-    } else if (NULL != strptime(updated, "%Y-%m-%dT%H:%M:%S", &updated_tm)) {
-      updated_time = timegm(&updated_tm);
-    } else {
-      error("Couldn't parse datetime: %s", updated);
-    }
-   
-    if (id_i > 0) {      
-      entry = create_item_cache_entry(id_i, id, title, author, alternate, self, spider, content, updated_time, feed_id, time(NULL), xml_source);
-    }
-  }
-   
-  if (alternate) xmlFree(alternate);
-  if (self) xmlFree(self);
-  if (author) free(author);
-  if (content) free(content);
-  if (id) free(id);
-  if (title) free(title);
-  if (updated) free(updated);
-  xmlXPathFreeContext(context);
-  
-  return entry;
 }
 
 /********************************************************************************
@@ -322,7 +254,7 @@ static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
     if (feed_id <= 0) {
       HTTP_BAD_ENTRY(response);
     } else {
-      ItemCacheEntry *entry = entry_from_xml(feed_id, doc, request->data->buffer);
+      ItemCacheEntry *entry = create_entry_from_atom_xml_document(feed_id, doc, request->data->buffer);
         
       if (!entry) {
         HTTP_BAD_ENTRY(response);
@@ -372,8 +304,7 @@ static int entry_handler(const HTTPRequest * request, HTTPResponse * response) {
 }
 
 static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
-  regex_t regex;
-  
+  regex_t regex;  
 
   if (regcomp(&regex, "^/feeds/?$", REG_EXTENDED | REG_NOSUB)) {
     fatal("Error compiling regex");
@@ -398,7 +329,7 @@ static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
         error("Missing id for feed: %s", request->data->buffer);
         HTTP_BAD_FEED(response);
       } else {
-        int feed_id = get_atom_id(id);
+        int feed_id = uri_fragment_id(id);
         
         if (feed_id <= 0) {
           HTTP_BAD_FEED(response);
@@ -495,25 +426,16 @@ static int start_job(const HTTPRequest * request, HTTPResponse * response) {
     } else {
       ClassificationJob *job = NULL;
       xmlXPathContextPtr context = xmlXPathNewContext(doc);    
-      xmlXPathObjectPtr result = xmlXPathEvalExpression(BAD_CAST "/job/tag-id/text()", context);
+      xmlXPathObjectPtr result = xmlXPathEvalExpression(BAD_CAST "/job/tag-url/text()", context);
       
       if (!xmlXPathNodeSetIsEmpty(result->nodesetval)) {
-        int tag_id = (int) strtol((char *) result->nodesetval->nodeTab[0]->content, NULL, 10);
-        info("Starting classification job for tag %i", tag_id);
-        job = ce_add_classification_job_for_tag(request->ce, tag_id);
+        char * tag_url = (char*) result->nodesetval->nodeTab[0]->content;
+        info("Starting classification job for tag %s", tag_url);
+        job = ce_add_classification_job(request->ce, tag_url);
       } else {
-        xmlXPathFreeObject(result);
-        result = xmlXPathEvalExpression(BAD_CAST "/job/user-id/text()", context);
-        
-        if (!xmlXPathNodeSetIsEmpty(result->nodesetval)) {
-          int user_id = (int) strtol((char *) result->nodesetval->nodeTab[0]->content, NULL, 10);
-          info("Starting classification job for user %i", user_id);
-          job = ce_add_classification_job_for_user(request->ce, user_id);
-        } else {
-          response->code = MHD_HTTP_UNPROCESSABLE_ENTITY;
-          response->content = MISSING_TAG_ID;
-          response->content_type = CONTENT_TYPE;
-        }     
+        response->code = MHD_HTTP_UNPROCESSABLE_ENTITY;
+        response->content = MISSING_TAG_ID;
+        response->content_type = CONTENT_TYPE;             
       }
               
       xmlXPathFreeObject(result);
@@ -542,7 +464,7 @@ static int job_handler(const HTTPRequest * request, HTTPResponse * response) {
     HTTP_NOT_FOUND(response)
   } else if (NULL == (job = ce_fetch_classification_job(request->ce, job_id))) {
     HTTP_NOT_FOUND(response);
-  } else if (CJOB_STATE_CANCELLED == cjob_state(job)) {
+  } else if (CJOB_STATE_CANCELLED == job->state) {
     // Cancelled jobs are considered deleted to the outside world.
     HTTP_NOT_FOUND(response);
   } else if (GET == request->method) {
@@ -552,8 +474,8 @@ static int job_handler(const HTTPRequest * request, HTTPResponse * response) {
     response->content = (char*) xml;
     response->free_content = MHD_YES;    
   } else if (DELETE == request->method) {
-    if (CJOB_STATE_COMPLETE == cjob_state(job)) {
-      ce_remove_classification_job(request->ce, job);
+    if (CJOB_STATE_COMPLETE == job->state || CJOB_STATE_ERROR == job->state) {
+      ce_remove_classification_job(request->ce, job, true);
       free_classification_job(job);
     } else {
       cjob_cancel(job);
@@ -605,6 +527,7 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
                            const char * raw_url, const char * method, 
                            const char * version, const char * upload_data,
                            unsigned int * upload_data_size, void **memo) {
+  SET_XML_ERROR_HANDLERS;
   int new_request = false;
   int ret = MHD_YES;
   Httpd * httpd = (Httpd*) httpd_vp;
@@ -709,7 +632,7 @@ static int access_policy(void *ip_vp, const struct sockaddr * addr, socklen_t ad
   return allow;
 }
 
-Httpd * httpd_start(Config *config, ClassificationEngine *ce, ItemCache *item_cache) {
+Httpd * httpd_start(HttpConfig *config, ClassificationEngine *ce, ItemCache *item_cache) {
   Httpd *httpd = malloc(sizeof(Httpd));
   if (httpd) {
     int regex_error;
@@ -752,14 +675,11 @@ Httpd * httpd_start(Config *config, ClassificationEngine *ce, ItemCache *item_ca
       regerror(regex_error, &httpd->item_cache_feed_items_regex, buffer, sizeof(buffer));
       fatal("Error compiling REGEX: %s", buffer);
     }
-    
-    HttpdConfig httpd_config;
-    cfg_httpd_config(config, &httpd_config);
-    
+        
     httpd->mhd = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG,
-                                  httpd_config.port,
+                                  httpd->config->port,
                                   access_policy,
-                                  (void*) httpd_config.allowed_ip,
+                                  (void*) httpd->config->allowed_ip,
                                   process_request,
                                   httpd,
                                   MHD_OPTION_END);
@@ -775,15 +695,3 @@ void httpd_stop(Httpd *httpd) {
   MHD_stop_daemon(httpd->mhd);
   httpd->mhd = NULL;
 }
-
-#else
-Httpd * httpd_start(Config *config, ClassificationEngine *ce) {
-  fatal("Missing libmicrohttpd. Can't start embedded httpd server.");
-}
-
-void httpd_stop(Httpd *httpd) {
-  
-}
-
-#endif
-

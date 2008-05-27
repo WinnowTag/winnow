@@ -16,25 +16,16 @@
 #include "uuid.h"
 #include "classifier.h"
 #include "item_cache.h"
-#include "tagging.h"
-#include "tag.h"
+#include "tagger.h"
 #include "job_queue.h"
 #include "misc.h"
 #include "logging.h"
+#include "array.h"
+#include "xml_error_functions.h"
 
-#ifdef HAVE_DATABASE_ACCESS
-#include <mysql.h>
-#define DB_SYSTEM_INIT  mysql_library_init(-1, NULL, NULL)
-#define DB_THREAD_INIT  mysql_thread_init()
-#define DB_THREAD_END   mysql_thread_end()
-#define DB_SYSTEM_END   mysql_library_end()
-#else
-#define DB_SYSTEM_INIT
-#define DB_THREAD_INIT
-#define DB_THREAD_END
-#define DB_SYSTEM_END
-#endif
+#include <libxml/xmlerror.h>
 
+#define CLASSIFIER_REQUEUE 4
 #define INIT_MUTEX(mutex) \
   mutex = calloc(1, sizeof(pthread_mutex_t)); \
   if (!mutex) MALLOC_ERR();              \
@@ -51,10 +42,8 @@
 
 struct CLASSIFICATION_ENGINE {
   /* Pointer to classification engine configuration */
-  const Config *config;
+  ClassificationEngineOptions *options;
   
-  EngineConfig engine_config;
-    
   /* Performance log file */
   FILE *performance_log;
   
@@ -64,6 +53,9 @@ struct CLASSIFICATION_ENGINE {
    *  
    */
   ItemCache *item_cache;
+  
+  /* Pointer to the TaggerCache. */
+  TaggerCache *tagger_cache;
     
   /* The Queue on which classification jobs are stored.
    *
@@ -72,12 +64,6 @@ struct CLASSIFICATION_ENGINE {
    */   
   Queue *classification_job_queue;
   
-  /* Queue for tagging store jobs.
-   * 
-   * This is only used by the tagging store insertion worker.
-   */ 
-  Queue *tagging_store_queue;
-  
   /* Store of all the current classification jobs in the system, keyed by job id.
    */
   Pvoid_t classification_jobs;
@@ -85,9 +71,6 @@ struct CLASSIFICATION_ENGINE {
   
   /* Flag for whether the engine is running */
   int is_running;
-  
-  /* Flag for whether insertion is running */
-  int is_inserting;
   
   /* Flag for whether classification is suspended */
   int is_classification_suspended;
@@ -103,78 +86,266 @@ struct CLASSIFICATION_ENGINE {
   int num_threads_suspended;
     
   /* Thread ids for classification workers */
-  pthread_t *classification_worker_threads;
-  
-  /* Thread id for tagging store worker */
-  pthread_t insertion_worker_thread;
+  pthread_t *classification_worker_threads;  
   
   /* ItemSource flushing thread */
   pthread_t flusher;
 };
 
-typedef enum ITEM_SCOPE {
-  ITEM_SCOPE_ALL,
-  ITEM_SCOPE_NEW
-} ItemScope;
+static void ce_record_classification_job_timings(ClassificationEngine *ce, const ClassificationJob *job);
+static void *classification_worker_func(void *engine_vp);
+static void item_cache_updated_hook(ItemCache * item_cache, void * memo);
 
-struct CLASSIFICATION_JOB {
-  const char * job_id;  
-  int tag_id;
-  int user_id;
-  float progress;
-  float progress_increment;
-  ClassificationJobType type;
-  ClassificationJobState state;
-  ClassificationJobError error;
-  int auto_cleanup;
-  ItemScope item_scope;
-  TagList *taglist;
-  int tags_classified;
-  int items_classified;
-  Classifier **classifiers;
-  Tagging **taggings;
-  int num_taggings;
-  /* Timestamps for process timing */
-  struct timeval created_at;
-  struct timeval started_at;
-  struct timeval trained_at;
-  struct timeval computed_at;
-  struct timeval classified_at;
-  struct timeval completed_at;
+/********************************************************************************
+ * Classification Job functions
+ ********************************************************************************/
+#define SET_JOB_ERROR(job, err, msg, ...) \
+  job->state = CJOB_STATE_ERROR; \
+  job->error = err;              \
+  error(msg, __VA_ARGS__);
+  
+static float tdiff(struct timeval from, struct timeval to) {
+  double from_d = from.tv_sec + (from.tv_usec / 1000000.0);
+  double to_d = to.tv_sec + (to.tv_usec / 1000000.0);
+  return to_d - from_d;  
+}
+
+static const char * generate_job_id() {
+  char *job_id = calloc(JOB_ID_SIZE, sizeof(char));
+  if (NULL == job_id) {
+    fatal("Error malloc'ing job id");
+  } else {
+    uuid_t uuid;
+    uuid_generate(uuid);
+    uuid_unparse(uuid, job_id);
+  }
+  
+  return job_id;
+}
+
+static ClassificationJob * create_classification_job(const char * tag_url) {
+  ClassificationJob *job = malloc(sizeof(ClassificationJob));
+  if (job) {
+    job->tag_url          = strdup(tag_url);
+    job->progress         = 0;
+    job->id           = generate_job_id();
+    job->state            = CJOB_STATE_WAITING;
+    job->error            = CJOB_ERROR_NO_ERROR;
+    job->errmsg           = NULL;
+    job->item_scope       = ITEM_SCOPE_ALL;
+    job->items_classified = 0;
+    job->auto_cleanup     = false;
+    job->first_time_tried = -1;
+    NOW(job->created_at);
+  }
+  
+  return job;
+}
+
+void free_classification_job(ClassificationJob * job) {
+  if (job) {
+    if (job->errmsg) free(job->errmsg);
+    free((char *) job->id);
+    free((char *) job->tag_url);
+    free(job);
+  }
+}
+
+static const char * state_msgs[] = {
+    "Waiting",
+    "Training",
+    "Classifying",
+    "Inserting",
+    "Complete",
+    "Cancelled",
+    "Error"
 };
 
-static void ce_record_classification_job_timings(ClassificationEngine *ce, const ClassificationJob *job);
-static ClassificationJob * create_tag_classification_job(int tag_id);
-static ClassificationJob * create_user_classification_job(int tag_id);
-static void *classification_worker_func(void *engine_vp);
-static void *insertion_worker_func(void *engine_vp);
-//static void *flusher_func(void *engine_vp);
-static void cjob_process(ClassificationJob *job, ItemCache *is, TagDB *tagdb);
-static void cjob_free_taggings(ClassificationJob *job);
-static float tdiff(struct timeval from, struct timeval to);
-static void item_cache_updated_hook(ItemCache * item_cache, void * memo);
+static const char * error_msgs[] = {
+    "No error",
+    "Tag could not be retrieved",
+    "No tags to classify for user",
+    "Bad job type",
+    "The job timed out waiting for some resources",
+    "Unknown error"
+};
+
+const char * cjob_state_msg(const ClassificationJob * job) {
+  debug("state = %i", job->state);
+  return state_msgs[job->state];
+}
+
+const char * cjob_error_msg(const ClassificationJob *job, char * buffer, size_t size) {
+  if (job->errmsg) {
+    snprintf(buffer, size, "%s: %s", error_msgs[job->error], job->errmsg);
+  } else {
+    snprintf(buffer, size, error_msgs[job->error]);
+  }
+  
+  return buffer;
+}
+
+void cjob_cancel(ClassificationJob *job) {
+  job->state = CJOB_STATE_CANCELLED;
+}
+
+float cjob_duration(const ClassificationJob *job) {
+  float duration;
+  
+  if (CJOB_STATE_COMPLETE == job->state) {
+    duration =  tdiff(job->created_at, job->completed_at);
+  } else {
+    struct timeval now;
+    NOW(now);
+    duration = tdiff(job->created_at, now);
+  }
+  
+  return duration;
+}
+
+struct JobStuff {
+  ClassificationJob *job;
+  Tagger *tagger;
+  Array *taggings;
+  double threshold;
+};
+
+static int classify_item_cb(const Item *item, void *memo) {
+  struct JobStuff *stuff = (struct JobStuff*) memo;
+  int rc = CLASSIFIER_OK;
+
+  if (stuff->job->item_scope == ITEM_SCOPE_NEW && item_get_time(item) < stuff->tagger->last_classified) {
+    rc = CLASSIFIER_FAIL;
+  } else {
+    stuff->job->items_classified++;
+    double probability;
+    if (TAGGER_OK == classify_item(stuff->tagger, item, &probability)) {
+      if (probability >= stuff->threshold) {
+        arr_add(stuff->taggings, create_tagging(item_get_id(item), probability));
+      }
+    } else {
+      error("Error classifying item");
+      rc = CLASSIFIER_FAIL;
+    }
+  }
+
+  stuff->job->progress += stuff->job->progress_increment;
+  
+  return rc;
+}
+
+
+static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache, TaggerCache * tagger_cache, ClassificationEngineOptions * opts) {
+  int rc = CLASSIFIER_OK;
+  struct JobStuff job_stuff;  
+  job_stuff.job = job;
+  job_stuff.threshold = opts->positive_threshold;
+  
+  /* If the job is cancelled bail out before doing anything */
+  if (job->state == CJOB_STATE_CANCELLED) return CLASSIFIER_OK;
+       
+  NOW(job->started_at);
+  job->state = CJOB_STATE_TRAINING;
+   
+  /* Clear the error message if it exists */
+  if (job->errmsg) {
+    char *errmsg = job->errmsg;
+    job->errmsg = NULL;
+    free(errmsg);
+  }  
+  
+  /* Try and get the tagger from the tagger_cache */
+  job_stuff.tagger = NULL;
+  int cache_rc = get_tagger(tagger_cache, job->tag_url, &(job_stuff.tagger), &job->errmsg);  
+  debug("return from get_tagger with %i", cache_rc);
+  
+  switch (cache_rc) {
+    case TAGGER_OK:        
+      NOW(job->trained_at);
+      
+      /* Do classification */
+      job->state = CJOB_STATE_CLASSIFYING;
+      job->progress = 20.0;
+      job->progress_increment = 60.0 / item_cache_cached_size(item_cache);
+      
+      job_stuff.taggings = create_array(1000);
+      item_cache_each_item(item_cache, &classify_item_cb, &job_stuff);
+      NOW(job->classified_at);
+      job_stuff.tagger->last_classified = time(NULL);
+      
+      /* Save the results */
+      job->state = CJOB_STATE_INSERTING;
+      
+      if (job_stuff.job->item_scope == ITEM_SCOPE_NEW) {
+        update_taggings(job_stuff.tagger, job_stuff.taggings, &job->errmsg);         
+      } else {
+        replace_taggings(job_stuff.tagger, job_stuff.taggings, &job->errmsg);        
+      }
+      
+      /* Release the tagger  and clean up*/
+      release_tagger(tagger_cache, job_stuff.tagger);
+      free_array(job_stuff.taggings);
+      
+      NOW(job->completed_at);
+      job->progress = 100.0;
+      job->state = CJOB_STATE_COMPLETE;      
+      break;
+    case TAG_NOT_FOUND:
+      if (job->errmsg) {
+        error("TAG_NOT_FOUND: %s, %s", job->tag_url, job->errmsg);
+      } else {
+        error("TAG_NOT_FOUND: %s", job->tag_url);
+      }
+      job->state = CJOB_STATE_ERROR;
+      job->error = CJOB_ERROR_NO_SUCH_TAG;      
+      break;
+    case TAGGER_CHECKED_OUT:
+      debug("TAG_CHECKEDOUT");
+      // TODO handle checked out tagger
+      break;
+    case TAGGER_PENDING_ITEM_ADDITION:
+      debug("TAGGER_PENDING_ITEM_ADDITION");
+      rc = CLASSIFIER_REQUEUE;
+      time_t now = time(NULL);
+      
+      /* If the job has been tried before and it is still missing items,
+       * check to see if we have gone past to the missing-item-timeout.
+       */
+      if (job->first_time_tried > 0 && (now - job->first_time_tried) > opts->missing_item_timeout) {
+        job->state = CJOB_STATE_ERROR;
+        job->error = CJOB_ERROR_MISSING_ITEM_TIMEOUT;
+        rc = CLASSIFIER_FAIL;
+      } else if (job->first_time_tried < 0) {
+        job->first_time_tried = time(NULL);
+      }      
+      break;
+    default:
+    fatal("Got unknown value from get_tagger: %i", cache_rc);    
+  }
+  
+  return rc;
+}
 
 /* Creates but doesn't start a classification engine.
  * 
  * This verifies that the classifiation engine has a valid item source,
  * if the item source is invalid it returns NULL.
  */
-ClassificationEngine * create_classification_engine(ItemCache *item_cache, const Config *config) {
+ClassificationEngine * create_classification_engine(ItemCache *item_cache, TaggerCache * tagger_cache, ClassificationEngineOptions *options) {
   ClassificationEngine *engine = calloc(1, sizeof(ClassificationEngine));
   
   if (engine) {
-    engine->config = config;
+    engine->options = options;
     engine->item_cache = item_cache;
+    engine->tagger_cache = tagger_cache;
     item_cache_set_update_callback(item_cache, item_cache_updated_hook, engine);
-    cfg_engine_config(config, &(engine->engine_config));
     engine->is_running = false;
-    engine->is_inserting = false;
     engine->is_classification_suspended = false;
     engine->classification_job_queue = NULL;
     engine->num_threads_suspended = 0;
             
-    if (engine->engine_config.performance_log) {
-      const char *performance_log = engine->engine_config.performance_log;
+    if (engine->options->performance_log) {
+      const char *performance_log = engine->options->performance_log;
       engine->performance_log = fopen(performance_log, "a");
       if (NULL == engine->performance_log) {
         fprintf(stderr, "Error opening %s: %s", performance_log, strerror(errno));
@@ -196,7 +367,6 @@ ClassificationEngine * create_classification_engine(ItemCache *item_cache, const
     INIT_COND(engine->suspension_notification_cond);    
         
     engine->classification_job_queue = new_queue();
-    engine->tagging_store_queue = new_queue();
   }
   
 exit:
@@ -237,7 +407,6 @@ void free_classification_engine(ClassificationEngine *engine) {
     pthread_mutex_destroy(engine->perf_log_mutex);
     
     free_queue(engine->classification_job_queue);
-    free_queue(engine->tagging_store_queue);
     free(engine);
   }
 }
@@ -246,12 +415,12 @@ void free_classification_engine(ClassificationEngine *engine) {
  * Functions for adding, fetching and removing classification jobs.
  */
 
-static int add_classification_job(ClassificationEngine *engine, ClassificationJob *job) {
+static int _add_classification_job(ClassificationEngine *engine, ClassificationJob *job) {
   int failure = true;
   PWord_t job_pointer;
   
   pthread_mutex_lock(engine->classification_jobs_mutex);
-  JSLI(job_pointer, engine->classification_jobs, (uint8_t*) cjob_id(job));
+  JSLI(job_pointer, engine->classification_jobs, (uint8_t*) job->id);
   if (NULL != job_pointer) {
     *job_pointer = (Word_t) job;
     failure = false;
@@ -270,26 +439,12 @@ static int add_classification_job(ClassificationEngine *engine, ClassificationJo
 /* Adds a classification job to the engine.
  * 
  */
-ClassificationJob * ce_add_classification_job_for_tag(ClassificationEngine * engine, int tag_id) {
+ClassificationJob * ce_add_classification_job(ClassificationEngine * engine, const char * tag_url) {
   ClassificationJob *job = NULL;
+  
   if (engine) {
-    job = create_tag_classification_job(tag_id);
-    if (add_classification_job(engine, job)) {
-      free_classification_job(job);
-      job = NULL;
-    }
-  }
-  return job;
-}
-
-ClassificationJob * ce_add_classify_new_items_job_for_tag(ClassificationEngine * engine, int tag_id) {
-  ClassificationJob *job = NULL;
-  if (engine) {
-    job = create_tag_classification_job(tag_id);
-    job->item_scope = ITEM_SCOPE_NEW;
-    job->auto_cleanup = true;
-    
-    if (add_classification_job(engine, job)) {
+    job = create_classification_job(tag_url);
+    if (_add_classification_job(engine, job)) {
       free_classification_job(job);
       job = NULL;
     }
@@ -298,18 +453,19 @@ ClassificationJob * ce_add_classify_new_items_job_for_tag(ClassificationEngine *
   return job;
 }
 
-/* Adds a classification job to the engine.
- * 
- */
-ClassificationJob * ce_add_classification_job_for_user(ClassificationEngine * engine, int user_id) {
+ClassificationJob * ce_add_classify_new_items_job_for_tag(ClassificationEngine * engine, const char * tag_url) {
   ClassificationJob *job = NULL;
   if (engine) {
-    job = create_user_classification_job(user_id);
-    if (add_classification_job(engine, job)) {
+    job = create_classification_job(tag_url);
+    job->item_scope = ITEM_SCOPE_NEW;
+    job->auto_cleanup = true;
+    
+    if (_add_classification_job(engine, job)) {
       free_classification_job(job);
       job = NULL;
     }
   }
+  
   return job;
 }
 
@@ -329,11 +485,11 @@ ClassificationJob * ce_fetch_classification_job(const ClassificationEngine * eng
   return job;
 }
 
-int ce_remove_classification_job(ClassificationEngine * engine, const ClassificationJob *job) {
+int ce_remove_classification_job(ClassificationEngine * engine, const ClassificationJob *job, int force) {
   int removed = false;
-  if (engine && job && cjob_state(job) == CJOB_STATE_COMPLETE) {
+  if (engine && job && (job->state == CJOB_STATE_COMPLETE || job->state == CJOB_STATE_ERROR || force)) {
     pthread_mutex_lock(engine->classification_jobs_mutex);
-    JSLD(removed, engine->classification_jobs, (uint8_t*) job->job_id);
+    JSLD(removed, engine->classification_jobs, (uint8_t*) job->id);
     pthread_mutex_unlock(engine->classification_jobs_mutex);
   }
   return removed;
@@ -373,30 +529,19 @@ int ce_is_running(const ClassificationEngine * engine) {
  * been started. The engine will then process jobs as they are added to the engine.
  */
 int ce_start(ClassificationEngine * engine) {
-  DB_SYSTEM_INIT;
   int success = true;
   if (engine) {
     engine->is_running = true;
-    engine->is_inserting = true;
 
     int i;
     
-    engine->classification_worker_threads = calloc(engine->engine_config.num_workers, sizeof(pthread_t));
-    for (i = 0; i < engine->engine_config.num_workers; i++) {
+    engine->classification_worker_threads = calloc(engine->options->worker_threads, sizeof(pthread_t));
+    for (i = 0; i < engine->options->worker_threads; i++) {
       if (pthread_create(&(engine->classification_worker_threads[i]), NULL, classification_worker_func, engine)) {
         fatal("Error creating thread %i for classification", i + 1);
         exit(1);
       }
     }
-    
-    
-    if (pthread_create(&(engine->insertion_worker_thread), NULL, insertion_worker_func, engine)) {
-      fatal("Error creating thread for insertion");
-    }
-    
-//    if (pthread_create(&(engine->flusher), NULL, flusher_func, engine)) {
-//      fatal("Error creating thread for item source flushing");
-//    }    
   }
   
   return success;
@@ -414,16 +559,11 @@ int ce_stop(ClassificationEngine * engine) {
     pthread_mutex_unlock(engine->classification_suspension_mutex);
         
     int i;
-    for (i = 0; i < engine->engine_config.num_workers; i++) {
+    for (i = 0; i < engine->options->worker_threads; i++) {
       debug("joining thread %i", engine->classification_worker_threads[i]);
       pthread_join(engine->classification_worker_threads[i], NULL);
     }
     debug("Returned from cw join");
-    engine->is_inserting = false;
-    debug("is_inserting set to false");
-     
-    pthread_join(engine->insertion_worker_thread, NULL);
-    info("finishing with %i insertion jobs on queue", q_size(engine->tagging_store_queue));
   }
   
   return success;
@@ -439,11 +579,9 @@ void ce_run(ClassificationEngine *engine) {
     
     info("Classification Engine started, now blocking.");
     int i;
-    for (i = 0; i < engine->engine_config.num_workers; i++) {
+    for (i = 0; i < engine->options->worker_threads; i++) {
       pthread_join(engine->classification_worker_threads[i], NULL);
-    }
-    
-    pthread_join(engine->insertion_worker_thread, NULL);
+    }    
   }
 }
 
@@ -465,7 +603,7 @@ int ce_suspend(ClassificationEngine * engine) {
      */
     if (engine->is_running) {
       pthread_mutex_lock(engine->suspension_notification_mutex);
-      if (engine->num_threads_suspended < engine->engine_config.num_workers) {
+      if (engine->num_threads_suspended < engine->options->worker_threads) {
         pthread_cond_wait(engine->suspension_notification_cond, engine->suspension_notification_mutex);
       }
       pthread_mutex_unlock(engine->suspension_notification_mutex);
@@ -497,15 +635,14 @@ static void ce_record_classification_job_timings(ClassificationEngine *ce, const
   if (ce && job && job->state == CJOB_STATE_COMPLETE) {
     float wait_time = tdiff(job->created_at, job->started_at);
     float train_time = tdiff(job->started_at, job->trained_at);
-    float calc_time = tdiff(job->trained_at, job->computed_at);
-    float clas_time = tdiff(job->computed_at, job->classified_at);
+    float clas_time = tdiff(job->trained_at, job->classified_at);
     float insert_time = tdiff(job->classified_at, job->completed_at);
 
     if (ce->performance_log) {
       pthread_mutex_lock(ce->perf_log_mutex);    
-      fprintf(ce->performance_log, "%i,%i,%.5f,%.5f,%.5f,%.5f,%.5f\n", 
-                job->tags_classified, job->items_classified,
-                wait_time, train_time, calc_time, clas_time, 
+      fprintf(ce->performance_log, "%i,%.5f,%.5f,%.5f,%.5f\n", 
+                job->items_classified,
+                wait_time, train_time, clas_time, 
                 insert_time);
       fflush(ce->performance_log);
       pthread_mutex_unlock(ce->perf_log_mutex);
@@ -521,7 +658,7 @@ static void ce_record_classification_job_timings(ClassificationEngine *ce, const
   debug("Classification is suspended in %i", pthread_self());         \
   pthread_mutex_lock(ce->suspension_notification_mutex);              \
   ce->num_threads_suspended++;                                        \
-  if (ce->num_threads_suspended >= ce->engine_config.num_workers) {   \
+  if (ce->num_threads_suspended >= ce->options->worker_threads) {   \
     pthread_cond_signal(ce->suspension_notification_cond);            \
   }                                                                   \
   pthread_mutex_unlock(ce->suspension_notification_mutex);
@@ -533,11 +670,11 @@ static void ce_record_classification_job_timings(ClassificationEngine *ce, const
   debug("Classification resumed in %i", pthread_self());
 
 #define NEXT_IF_CANCELLED(ce, job) \
-  if (CJOB_STATE_CANCELLED == cjob_state(job)) { \
+  if (CJOB_STATE_CANCELLED == job->state) { \
     /* If it is cancelled we remove              \
      * and free the job ourselves */             \
     job->state = CJOB_STATE_COMPLETE;            \
-    ce_remove_classification_job(ce, job);       \
+    ce_remove_classification_job(ce, job, true);       \
     free_classification_job(job);                \
     continue;                                    \
   }
@@ -551,15 +688,11 @@ static void ce_record_classification_job_timings(ClassificationEngine *ce, const
  * 
  */
 void *classification_worker_func(void *engine_vp) {
-  DB_THREAD_INIT;
+  SET_XML_ERROR_HANDLERS;
+  
   /* Grab references to shared resources */
   ClassificationEngine *ce = (ClassificationEngine*) engine_vp;
   Queue *job_queue         = ce->classification_job_queue;  
-  
-  /* Create thread specific resources */
-  DBConfig tag_db_config;
-  cfg_tag_db_config(ce->config, &tag_db_config);
-  TagDB *tag_db = create_tag_db(&tag_db_config);
   
   while (!q_empty(job_queue) || ce->is_running) {
     /* Check if the engine is suspended.
@@ -590,96 +723,50 @@ void *classification_worker_func(void *engine_vp) {
     trace("Returned from queue, thread %i", pthread_self());
     
     if (job) {
-      debug("%i got job off queue: %s", pthread_self(), cjob_id(job));
+      debug("%i got job off queue: %s", pthread_self(), job->id);
       
       /* Only proceed if the job is not cancelled */
       NEXT_IF_CANCELLED(ce, job);
-      /* Get the reference to the item source here so we get it fresh for each job. This means that if
-       * the item source is flushed we get a new copy on the next job.
-       */
-      cjob_process(job, ce->item_cache, tag_db);
       
-      if (CJOB_STATE_ERROR != job->state) {
-        q_enqueue(ce->tagging_store_queue, job);
-      }     
+      int rc = run_classifcation_job(job, ce->item_cache, ce->tagger_cache, ce->options);
+      
+      if (rc == CLASSIFIER_REQUEUE) {
+        debug("Requeuing job");
+        q_enqueue(job_queue, job);
+      } else {
+        ce_record_classification_job_timings(ce, job);
+        if (job->auto_cleanup) {
+          ce_remove_classification_job(ce, job, true);
+          free_classification_job(job);
+        }
+      }
     }    
   }
 
   info("classification_worker %i ending", pthread_self());
-  free_tag_db(tag_db);
   
-  DB_THREAD_END;
-  return EXIT_SUCCESS;
-}
-
-void *insertion_worker_func(void *engine_vp) {
-  DB_THREAD_INIT;
-  info("Starting insertion worker thread id = %i", pthread_self());
-  ClassificationEngine *ce = (ClassificationEngine*) engine_vp;
-  EngineConfig econfig;
-  cfg_engine_config(ce->config, &econfig);
-  
-  DBConfig tagging_store_config;
-  cfg_tagging_store_db_config(ce->config, &tagging_store_config);
-  TaggingStore *store = create_db_tagging_store(&tagging_store_config, econfig.insertion_threshold);
-      
-  while(!q_empty(ce->tagging_store_queue) || ce->is_inserting) {
-    ClassificationJob *job = q_dequeue_or_wait(ce->tagging_store_queue, 1);
-    
-    if (job && job->taggings) {
-      debug("%i got job off insertion queue: %s", pthread_self(), cjob_id(job));
-      /* Only proceed if the job is not cancelled */
-      NEXT_IF_CANCELLED(ce, job);
-      
-      if (job->item_scope == ITEM_SCOPE_ALL) {
-        tagging_store_replace_taggings(store, job->taglist, job->taggings, job->num_taggings, &(job->progress));
-      } else {
-        tagging_store_replace_taggings(store, NULL, job->taggings, job->num_taggings, &(job->progress));
-      }
-      
-      job->state = CJOB_STATE_COMPLETE;
-      job->progress = 100;
-      NOW(job->completed_at);       
-      ce_record_classification_job_timings(ce, job);
-            
-      if (job->auto_cleanup) {
-        ce_remove_classification_job(ce, job);
-        free_classification_job(job);
-      } else {
-        // clean up taggings, since they are no longer needed      
-        cjob_free_taggings(job);
-      }
-    }
-  }
-  
-  info("insertion worker function ending");
-  free_tagging_store(store);
-  DB_THREAD_END;
   return EXIT_SUCCESS;
 }
 
 static void create_classify_new_item_jobs_for_all_tags(ClassificationEngine *ce) {
- if (ce) {
-   DBConfig dbConfig;
-   cfg_tag_db_config(ce->config, &dbConfig);
-   TagDB *tag_db = create_tag_db(&dbConfig);
-   if (tag_db) {
-     int i;
-     int size;
-     int *ids = tag_db_get_all_tag_ids(tag_db, &size);
-     
-     for (i = 0; i < size; i++) {
-       ce_add_classify_new_items_job_for_tag(ce, ids[i]);
-     }
-     
-     free(ids);
-     info("Created %i classify new items jobs", size);
-   } else {
-     error("Could not create tag_db in create_classify_new_item_jobs_for_all_tags");
-   }
-   
-   free_tag_db(tag_db);
- }
+  if (ce) {
+    Array *tag_urls;
+    char *errmsg = NULL;
+    int rc = fetch_tags(ce->tagger_cache, &tag_urls, &errmsg);
+    
+    if (rc == TAG_INDEX_OK) {      
+      int i;
+
+      for (i = 0; i < tag_urls->size; i++) {
+       ce_add_classify_new_items_job_for_tag(ce, (char *) tag_urls->elements[i]);
+      }
+
+      info("Created %i classify new items jobs", tag_urls->size);
+    } else {
+      error("Could not fetch tag urls: %s", errmsg);
+      free(errmsg);
+    }    
+  }
 }
 
 void item_cache_updated_hook(ItemCache * item_cache, void *memo) {
@@ -687,413 +774,4 @@ void item_cache_updated_hook(ItemCache * item_cache, void *memo) {
   if (ce) {
     create_classify_new_item_jobs_for_all_tags(ce);
   }
-}
-
-//void *flusher_func(void *engine_vp) {
-//  ClassificationEngine *engine = (ClassificationEngine*) engine_vp;
-//  
-//  if (engine) {
-//    pthread_mutex_t flush_wait_mutex;
-//    pthread_cond_t flush_wait_cond;
-//    
-//    if (pthread_mutex_init(&flush_wait_mutex, NULL) || pthread_cond_init(&flush_wait_cond, NULL)) {
-//      fatal("Could not create mutex or cond for flusher thread");
-//    } else {
-//      while (engine->is_running) {        
-//        // This will run at 0200 everyday
-//        char timebuffer[26];
-//        time_t now = time(0);
-//        struct tm now_tm;
-//        localtime_r(&now, &now_tm);
-//        
-//        // If we are past 0200 move to the next day
-//        if (now_tm.tm_hour >= 3) {
-//          now_tm.tm_mday++;
-//        }
-//        
-//        now_tm.tm_hour = 4;
-//        now_tm.tm_min = 30;
-//        now_tm.tm_sec = 0;
-//        struct timespec wake_at;
-//        wake_at.tv_sec = mktime(&now_tm);
-//        wake_at.tv_nsec = 0;
-//        
-//        pthread_mutex_lock(&flush_wait_mutex);
-//        if (ETIMEDOUT == pthread_cond_timedwait(&flush_wait_cond, &flush_wait_mutex, &wake_at)) {
-//          time_t woke_at = time(0);
-//          ctime_r(&woke_at, timebuffer);
-//          info("Flusher thread woke up at %s", timebuffer);
-//          
-//          ce_suspend(engine);
-//          is_flush(engine->item_source);
-//          create_classify_new_item_jobs_for_all_tags(engine);
-//          ce_resume(engine);
-//          
-//          time_t done_at = time(0);
-//          ctime_r(&done_at, timebuffer);
-//          info("Flushing complete and classification resumed at %s", timebuffer);
-//        } else {
-//          // woke up for some other reasons
-//        }
-//        pthread_mutex_unlock(&flush_wait_mutex);
-//      }
-//    }    
-//  }
-//  
-//  return EXIT_SUCCESS;
-//}
-
-/********************************************************************************
- * Classification Job functions
- ********************************************************************************/
-#define SET_JOB_ERROR(job, err, msg, ...) \
-  job->state = CJOB_STATE_ERROR; \
-  job->error = err;              \
-  error(msg, __VA_ARGS__);
-
-static const char * generate_job_id() {
-  char *job_id = calloc(JOB_ID_SIZE, sizeof(char));
-  if (NULL == job_id) {
-    fatal("Error malloc'ing job id");
-  } else {
-    uuid_t uuid;
-    uuid_generate(uuid);
-    uuid_unparse(uuid, job_id);
-  }
-  
-  return job_id;
-}
-
-static ClassificationJob * create_classification_job() {
-  ClassificationJob *job = malloc(sizeof(ClassificationJob));
-  if (job) {
-    job->tag_id           = 0;
-    job->user_id          = 0;
-    job->progress         = 0;
-    job->job_id           = generate_job_id();
-    job->state            = CJOB_STATE_WAITING;
-    job->error            = CJOB_ERROR_NO_ERROR;
-    job->item_scope       = ITEM_SCOPE_ALL;
-    job->tags_classified  = 0;
-    job->items_classified = 0;
-    job->auto_cleanup     = false;
-    job->taggings         = NULL;
-    job->num_taggings     = 0;
-    job->taglist          = NULL;
-    job->classifiers      = NULL;
-    NOW(job->created_at);
-  }
-  
-  return job;
-}
-
-ClassificationJob * create_tag_classification_job(int tag_id) {
-  ClassificationJob *job = create_classification_job();
-  if (job) {
-    job->tag_id = tag_id;
-    job->type = CJOB_TYPE_TAG_JOB;    
-  }
-  
-  return job;
-}
-
-ClassificationJob * create_user_classification_job(int user_id) {
-  ClassificationJob *job = create_classification_job();
-  if (job) {
-    job->user_id = user_id;
-    job->type = CJOB_TYPE_USER_JOB;    
-  }
-  
-  return job;
-}
-
-void free_classification_job(ClassificationJob * job) {
-  if (job) {
-    int i;
-    
-    if (job->taggings) {
-      for (i = 0; i < job->num_taggings; i++) {
-        free(job->taggings[i]);
-      }
-    
-      free(job->taggings);
-    }
-    
-    if (job->job_id) {
-      free((char *)job->job_id);
-    }
-    
-    if (job->taglist) {
-      free_taglist(job->taglist);
-    }
-        
-    free(job);
-  }
-}
-
-const char * cjob_id(const ClassificationJob * job) {
-  return job->job_id;
-}
-
-int cjob_tag_id(const ClassificationJob * job) {
-  return job->tag_id;
-}
-
-int cjob_type(const ClassificationJob * job) {
-  return job->type;
-}
-
-int cjob_user_id(const ClassificationJob * job) {
-  return job->user_id;
-}
-
-float cjob_progress(const ClassificationJob * job) {
-  return job->progress;
-}
-
-ClassificationJobState cjob_state(const ClassificationJob * job) {
-  return job->state;
-}
-
-static const char * state_msgs[] = {
-    "Waiting",
-    "Training",
-    "Calculating",
-    "Classifying",
-    "Inserting",
-    "Complete",
-    "Cancelled",
-    "Error"
-};
-
-static const char * error_msgs[] = {
-    "No error",
-    "Tag does not exist",
-    "No tags to classify for user",
-    "Bad job type",
-    "Unknown error"
-};
-
-const char * cjob_state_msg(const ClassificationJob * job) {
-  return state_msgs[job->state];
-}
-
-ClassificationJobError cjob_error(const ClassificationJob *job) {
-  return job->error;
-}
-
-const char * cjob_error_msg(const ClassificationJob *job) {
-  return error_msgs[job->error];
-}
-
-void cjob_free_taggings(ClassificationJob *job) {
-  if (job) {
-    int i;
-    for (i = 0; i < job->num_taggings; i++) {
-      free(job->taggings[i]);
-    }
-    
-    free(job->taggings);
-    job->taggings = NULL;
-    job->num_taggings = 0;
-  }
-}
-
-void cjob_cancel(ClassificationJob *job) {
-  job->state = CJOB_STATE_CANCELLED;
-}
-
-float cjob_duration(const ClassificationJob *job) {
-  float duration;
-  
-  if (CJOB_STATE_COMPLETE == job->state) {
-    duration =  tdiff(job->created_at, job->completed_at);
-  } else {
-    struct timeval now;
-    NOW(now);
-    duration = tdiff(job->started_at, now);
-  }
-  
-  return duration;
-}
-
-static int classify_item(const Item *item, void *memo) {
-  ClassificationJob *job = (ClassificationJob *) memo;
-  int rc = CLASSIFIER_OK;
-  int i;
-        
-  for (i = 0; i < job->taglist->size; i++) {
-    if (job->item_scope == ITEM_SCOPE_NEW && 
-        item_get_time(item) < tag_last_classified_at(job->taglist->tags[i])) {
-      /* Only classifying new items and we have reached the point where
-       * the tag has already been applied to subsequent items, so if
-       * this is the only tag we bail out completely, if there are other
-       * tags just try the next one.
-       */
-      if (job->taglist->size > 1) {
-        continue;
-      } else {
-        debug("item time %i less than last classified time %i", item_get_time(item), tag_last_classified_at(job->taglist->tags[i]));
-        rc = CLASSIFIER_FAIL;
-        break;
-      }
-    }
-     
-    job->items_classified++;
-    debug("classifying %d", item_get_id(item));
-    Tagging *tagging = classify(job->classifiers[i], item);
-    if (!tagging) MALLOC_ERR();
-    
-    job->taggings[job->num_taggings++] = tagging;        
-  }
-
-  job->progress += job->progress_increment;
-  
-  return rc;
-malloc_error:
-  job->error = CJOB_STATE_ERROR;
-  job->error = CJOB_ERROR_UNKNOWN_ERROR;
-  fatal("Malloc error in classification processing, probably out of memory??");
-  return CLASSIFIER_FAIL;
-}
-
-/** Do the actual classification.
- * 
- */
-static int cjob_classify(ClassificationJob *job, ItemCache *item_cache) {
-  
-  if (job->taglist->size < 1) {
-    return 1;
-  }
-  
-  int i;
-  int failed = false;
-  
-  int number_of_items = item_cache_cached_size(item_cache);
-  job->progress_increment = 60.0 / number_of_items;
-
-  // allocate enough space for a tagging for each item in each tag
-  job->taggings = calloc(job->taglist->size * number_of_items, sizeof(Tagging*));
-  if (!job->taggings) MALLOC_ERR();
-  // allocate enough space for pointers to all the classifiers
-  job->classifiers = calloc(job->taglist->size, sizeof(Classifier*));
-  if (!job->classifiers) MALLOC_ERR();
-  
-  /* Start by training up all the classifiers for the tags */
-  job->state = CJOB_STATE_TRAINING;
-  TrainedClassifier **tc = calloc(job->taglist->size, sizeof(TrainedClassifier*));
-  if (!tc) MALLOC_ERR();
-  
-  for (i = 0; i < job->taglist->size; i++) {
-    tc[i] = train(job->taglist->tags[i], item_cache);
-    if (!tc[i]) MALLOC_ERR();
-  }
-  job->progress = 10.0;
-  NOW(job->trained_at);
-      
-  /* Now precompute all the classifiers */
-  job->state = CJOB_STATE_CALCULATING;
-  
-  for (i = 0; i < job->taglist->size; i++) {
-    job->classifiers[i] = precompute(tc[i], item_cache_random_background(item_cache));
-    if (!job->classifiers[i]) MALLOC_ERR();
-    
-    /*  Once we have the precomputed classifier
-     *  we can discard the trained classifier.
-     */
-    tc_free(tc[i]);
-    tc[i] = NULL;
-  }
-  job->progress = 20.0;
-  NOW(job->computed_at);
-  
-  /* Clean up trained classifier array */
-  free(tc);
-  tc = NULL;
-            
-  /* Now do the actual classification of each item for each classifier */
-  job->state = CJOB_STATE_CLASSIFYING;  
-  item_cache_each_item(item_cache, classify_item, job);
-  
-exit:
-  for (i = 0; i < job->taglist->size; i++) {
-    if (tc && tc[i]) {
-      tc_free(tc[i]);      
-    }
-    
-    if (job->classifiers && job->classifiers[i]) {
-      free_classifier(job->classifiers[i]);      
-    }
-  }  
-  
-  if (job->classifiers) {
-    free(job->classifiers);
-  }
-  
-  if (tc) {
-    free(tc);
-  }  
-  
-  return failed;
-  
-malloc_error:
-  job->error = CJOB_STATE_ERROR;
-  job->error = CJOB_ERROR_UNKNOWN_ERROR;
-  fatal("Malloc error in classification processing, probably out of memory??");
-  failed = true;
-  goto exit;
-}
-
-static void cjob_process(ClassificationJob *job, ItemCache *item_cache, TagDB *tag_db) {
-  /* If the job is cancelled bail out before doing anything */
-  if (job->state == CJOB_STATE_CANCELLED) return;
-  
-  NOW(job->started_at);
-  
-  switch (job->type) {
-    case CJOB_TYPE_TAG_JOB: {
-      Tag *tag = tag_db_load_tag_by_id(tag_db, job->tag_id);
-      if (tag) {
-        job->taglist = create_tag_list();
-        taglist_add_tag(job->taglist, tag);
-      } else {
-        SET_JOB_ERROR(job, CJOB_ERROR_NO_SUCH_TAG, "Tag %i does not exist", job->tag_id);
-      }
-    }
-    break;
-    case CJOB_TYPE_USER_JOB:
-      job->taglist = tag_db_load_tags_to_classify_for_user(tag_db, job->user_id);          
-      if (!job->taglist || job->taglist->size == 0) {
-        SET_JOB_ERROR(job, CJOB_ERROR_NO_TAGS_FOR_USER, "No tags for user %i", job->user_id);
-      }
-    break;
-    default:
-      SET_JOB_ERROR(job, CJOB_ERROR_BAD_JOB_TYPE, "Unknown CJOB type: %i", job->type);
-    break;
-  }
-    
-  if (job->taglist) {
-    job->tags_classified = job->taglist->size;
-    job->progress = 5.0;
-    
-    if (!cjob_classify(job, item_cache)) {
-      int i;
-      for (i = 0; i < job->taglist->size; i++) {
-        tag_db_update_last_classified_at(tag_db, job->taglist->tags[i]);        
-      }
-      job->progress = 80.0;
-      job->state = CJOB_STATE_INSERTING;
-      NOW(job->classified_at);
-    }    
-  }  
-}
-
-/**********************************************************************************
- * Helpers
- */
-
-static float tdiff(struct timeval from, struct timeval to) {
-  double from_d = from.tv_sec + (from.tv_usec / 1000000.0);
-  double to_d = to.tv_sec + (to.tv_usec / 1000000.0);
-  return to_d - from_d;  
 }

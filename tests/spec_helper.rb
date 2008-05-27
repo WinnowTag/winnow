@@ -18,6 +18,7 @@ require 'atom'
 require 'atom/pub'
 require 'sqlite3'
 require 'net/http'
+require File.dirname(__FILE__) + "/test_http_server.rb"
 
 CLASSIFIER_URL = "http://localhost:8008"
 ROOT = File.expand_path(File.dirname(__FILE__))
@@ -129,33 +130,57 @@ def destroy_entry(id)
 end
 
 def start_classifier(opts = {})
+  @classifier_url = URI.parse("http://localhost:8008")
   options = {:min_tokens => 0, :load_items_since => 3650}.update(opts)
   system("cp -f #{File.join(ROOT, 'fixtures/valid.db')} #{Database}")
   system("chmod 644 #{Database}") 
+  system("rm -f /tmp/classifier-test.pid")
   classifier = File.join(ROOT, "../src/classifier")
+  
+  tag_index = "--tag-index #{opts[:tag_index]}" if opts[:tag_index]
   
   if ENV['srcdir']
     classifier = File.join(ENV['PWD'], '../src/classifier')
   end
-  classifier_cmd = "#{classifier} -d --pid /tmp/classifier-test.pid " +
-                                     "-t http://localhost:8010/tokenize " +
-                                     "-l /tmp/classifier-item_cache_spec.log " +
-                                     "-c #{File.join(ROOT, "fixtures/real-db.conf")} " +
+  classifier_cmd = "#{classifier} --pid /tmp/classifier-test.pid " +
+                                     "--tokenizer-url http://localhost:8010/tokenize " +
+                                     "-o /tmp/classifier-item_cache_spec.log " +
+                                     "--performance-log /tmp/perf.log " +
                                      "--cache-update-wait-time 1 " +
+                                     "-p 8008 " +
                                      "--load-items-since #{options[:load_items_since]} " +
                                      "--min-tokens #{options[:min_tokens] or 0} " +
-                                     "--db #{Database} 2> /dev/null" 
+                                     "--positive-threshold #{options[:positive_threshold] or 0} " +
+                                     "--missing-item-timeout #{options[:missing_item_timeout] or 60} " +
+                                     "--db #{Database} #{tag_index}" 
                                      
-  if options[:malloc_log]
-    classifier_cmd = "MallocStackLogging=1 #{classifier_cmd}"
-  end
   
-  system(classifier_cmd)
-  sleep(0.1)
+  
+  if options[:malloc_log]
+    @classifier_pid = fork do
+       STDERR.close
+      ENV['MallocStackLogging'] = '1'
+      classifier_cmd = "#{classifier_cmd}"    
+      exec(classifier_cmd)
+    end
+  else
+    system("#{classifier_cmd} -d")
+  end  
+    
+  sleep(0.1) if opts[:sleep] != false
+end
+
+def classifier_http(&block)
+  Net::HTTP.start(@classifier_url.host, @classifier_url.port, &block) 
 end
 
 def stop_classifier
-  system("kill -9 `cat /tmp/classifier-test.pid`")
+  if @classifier_pid
+    system("kill -9 #{@classifier_pid}")
+    @classifier_pid = nil
+  else
+    system("kill -9 `cat /tmp/classifier-test.pid`")
+  end
 end
 
 def start_tokenizer
@@ -165,6 +190,29 @@ end
 
 def stop_tokenizer
   system("tokenizer_control stop")
+end
+
+def create_job(training_url)
+  job = Job.new(:tag_url => training_url)
+  job.save.should be_true
+  job
+end
+
+def run_job(training_url = 'http://localhost:8888/mytag-training.atom')
+ job = create_job(training_url)
+  
+  @http.should receive_request("/mytag-training.atom") do |req, res|
+    res.body = File.read(File.join(File.dirname(__FILE__), 'fixtures', 'complete_tag.atom'))
+  end
+  
+  tries = 0
+  while job.progress < 100 && tries < 100
+    job.reload
+    tries += 1
+  end
+  
+  job.progress.should >= 100
+  job.destroy
 end
 
 def not_leak
@@ -182,9 +230,9 @@ class MemoryLeaks
   
   def matches?(target)
     @target = target
-    @result = `leaks -exclude regcomp #{@target}`
+    @result = `leaks -exclude regcomp -exclude JudySLIns -exclude xmlSetStructuredErrorFunc #{@target}`
     if @result =~ /(\d+) leaks?/
-      @leaks = $1.to_i
+      @leaks = @result.scan(/Leak:/).size 
       @leaks <= @n
     end
   end

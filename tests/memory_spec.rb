@@ -46,14 +46,16 @@ describe 'the classifier' do
     'classifier'.should have_no_more_than_leaks(1) 
   end
   
-  it "should not leak memory while processing a classification job" do
-    job = Job.create(:tag_id => 48)
-    while job.progress < 100
-      job.reload
+  describe "job functionality" do
+    before(:each) do
+      @http = TestHttpServer.new(:port => 8888)
     end
-    job.destroy
     
-    'classifier'.should have_no_more_than_leaks(1)
+    xit "should not leak memory while processing a classification job" do
+      run_job
+      sleep(1)
+      'classifier'.should have_no_more_than_leaks(1)
+    end
   end
 end
 

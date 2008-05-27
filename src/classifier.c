@@ -9,7 +9,6 @@
 #include <math.h>
 #include "classifier.h"
 #include "logging.h"
-#include "tag.h"
 #include "misc.h"
 #include "clue.h"
 
@@ -372,7 +371,7 @@ static int compare_clues(const void *clue1_p, const void *clue2_p) {
 
 /** Selects the clues from a classifier to use when classifying an item.
  */
-const Clue ** select_clues(const Classifier * classifier, const Item *item, int *num_clues) {
+const Clue ** select_clues(const ClueList * clues, const Item *item, int *num_clues) {
   Token token;
   int i = 0;
   int num_item_tokens = item_get_num_tokens(item);
@@ -382,19 +381,19 @@ const Clue ** select_clues(const Classifier * classifier, const Item *item, int 
   // which is one per item token. Use calloc so it is effectively
   // NULL terminating the array. This will just hold pointers to
   // the actual clues that are stored in the classifier.
-  const Clue **clues = calloc(num_item_tokens, sizeof(Clue*));
+  const Clue **selected_clues = calloc(num_item_tokens, sizeof(Clue*));
   
   token.id = 0;
   while (item_next_token(item, &token)) {
-    const Clue *clue = cls_clue_for(classifier, token.id);
+    const Clue *clue = get_clue(clues, token.id);
     if (NULL != clue && MIN_PROB_STRENGTH <= clue_strength(clue)) {      
-      clues[i++] = clue;
+      selected_clues[i++] = clue;
     }
   }
   
-  qsort(clues, i, sizeof(Clue*), compare_clues); 
+  qsort(selected_clues, i, sizeof(Clue*), compare_clues); 
   *num_clues = MIN(i, max_clues);
-  return clues;
+  return selected_clues;
 }
 
 /** Combines the probabilities for each individual token into a single probability for the item.
@@ -442,267 +441,44 @@ static double chi2_combine(const Clue **clues, int num_clues) {
 /*****************************************************************************
  * These functions provide the API to the classifier for the outside world.
  */
-  
-/** Functions for transitioning classifiers between various states */
-TrainedClassifier * train(const Tag *tag, const ItemCache *item_cache) {
-  TrainedClassifier *tc = malloc(sizeof(struct TRAINED_CLASSIFIER));
-  
-  if (NULL != tc) {
-    tc->user_id = tag_user_id(tag);
-    tc->user = tag_user(tag);
-    tc->tag_id = tag_tag_id(tag);
-    tc->tag_name = tag_tag_name(tag);
-    tc->bias = tag_bias(tag);
-    tc->positive_pool = new_pool();
-    tc->negative_pool = new_pool();
-    
-    if (tc->positive_pool == NULL || tc->negative_pool == NULL) {
-      goto train_malloc_error;
-    }
-    
-    int size = tag_positive_examples_size(tag);
-    
-    if (0 < size) {
-      int *examples = tag_positive_examples(tag);
-    
-      if (NULL != examples) {
-        pool_add_items(tc->positive_pool, examples, size, item_cache);
-        free(examples);
-      } else {
-        goto train_malloc_error;
-      }
-    }
-    
-    size = tag_negative_examples_size(tag);
-    
-    if (0 < size) {
-      int *examples = tag_negative_examples(tag);
-      
-      if (NULL != examples) {
-        pool_add_items(tc->negative_pool, examples, size, item_cache);
-        free(examples);
-      } else {
-        goto train_malloc_error;
-      }      
-    }    
-  }
-  
-  return tc;
-  train_malloc_error:
-    error("Malloc error in train");
-    tc_free(tc);
-    return NULL;
-}
 
-Classifier * precompute(const TrainedClassifier *tc, const Pool *background) {
-  Classifier *classifier = malloc(sizeof(struct CLASSIFIER));
-  if (NULL != classifier) {
-    classifier->user = tc_get_user(tc);
-    classifier->tag_name = tc_get_tag_name(tc);
-    classifier->tag_id = tc_get_tag_id(tc);
-    classifier->user_id = tc_get_user_id(tc);
-    classifier->bias = tc_get_bias(tc);
-    classifier->clues = NULL;
-    
-    struct PROB_TOKEN positive_token, negative_token, background_token;
-    const Pool *positive_pool = tc_get_positive_pool(tc);
-    const Pool *negative_pool = tc_get_negative_pool(tc);
-    const ProbToken *foregrounds[] = {&positive_token};
-    const ProbToken *backgrounds[] = {&negative_token, &background_token};
-    positive_token.pool_size = pool_total_tokens(positive_pool) / classifier->bias;
-    negative_token.pool_size = pool_total_tokens(negative_pool) * classifier->bias;
-    background_token.pool_size = pool_total_tokens(background)  * classifier->bias;
-    const int fg_total_tokens = positive_token.pool_size;
-    const int bg_total_tokens = negative_token.pool_size + background_token.pool_size;
-    Token working_token;
-    working_token.id = 0;
-    
-    // Start with the background as it is probably the biggest
-    while (pool_next_token(background, &working_token)) {
-      PWord_t clue_p;
-      background_token.token_count = working_token.frequency;
-      positive_token.token_count = pool_token_frequency(positive_pool, working_token.id);
-      negative_token.token_count = pool_token_frequency(negative_pool, working_token.id);
-      double prob = probability(foregrounds, 1, backgrounds, 2, fg_total_tokens, bg_total_tokens);
-      const Clue *clue = new_clue(working_token.id, prob);
-
-      JLI(clue_p, classifier->clues, working_token.id);
-      if (NULL == clue_p) goto classifier_malloc_error;
-      *clue_p = (Word_t) clue;
-    }
-    
-    // Now do the foreground
-    working_token.id = 0;
-    while (pool_next_token(positive_pool, &working_token)) {
-      PWord_t clue_p;
-      // already done it?
-      JLG(clue_p, classifier->clues, working_token.id);
-      if (NULL == clue_p) {
-        positive_token.token_count = working_token.frequency;
-        negative_token.token_count = pool_token_frequency(negative_pool, working_token.id);
-        background_token.token_count = pool_token_frequency(background, working_token.id);
-      
-        double prob = probability(foregrounds, 1, backgrounds, 2, fg_total_tokens, bg_total_tokens);
-        const Clue *clue = new_clue(working_token.id, prob);
-       
-        JLI(clue_p, classifier->clues, working_token.id);
-        if (NULL == clue_p) goto classifier_malloc_error;
-        *clue_p = (Word_t) clue;
-      }      
-    }
-    
-    // Now do the background
-    working_token.id = 0;
-    while (pool_next_token(negative_pool, &working_token)) {
-      PWord_t clue_p;
-      // already done it?
-      JLG(clue_p, classifier->clues, working_token.id);
-      if (NULL == clue_p) {
-        negative_token.token_count = working_token.frequency;
-        positive_token.token_count = pool_token_frequency(positive_pool, working_token.id);
-        background_token.token_count = pool_token_frequency(background, working_token.id);
-      
-        double prob = probability(foregrounds, 1, backgrounds, 2, fg_total_tokens, bg_total_tokens);
-        const Clue *clue = new_clue(working_token.id, prob);
-       
-        JLI(clue_p, classifier->clues, working_token.id);
-        if (NULL == clue_p) goto classifier_malloc_error;
-        *clue_p = (Word_t) clue;
-      }      
-    }
-  }
+/** This function is used to provide a hook to calculate the probability for a token given
+ *  a positive, negative and random background pool.  This function fulfils the interface
+ *  defined by the Tagger module.
+ */
+double naive_bayes_probability(const Pool * positive_pool, const Pool * negative_pool, const Pool * random_bg, int token_id, double bias) {
+  ProbToken positive_token   = {pool_token_frequency(positive_pool, token_id), pool_total_tokens(positive_pool) / bias};
+  ProbToken negative_token   = {pool_token_frequency(negative_pool, token_id), pool_total_tokens(negative_pool) * bias};
+  ProbToken background_token = {pool_token_frequency(random_bg, token_id), pool_total_tokens(random_bg) * bias};
   
-  return classifier;
-  classifier_malloc_error:
-    free_classifier(classifier);
-    return NULL;
+  const int fg_total_tokens = positive_token.pool_size;
+  const int bg_total_tokens = negative_token.pool_size + background_token.pool_size;
+  const ProbToken *foregrounds[] = {&positive_token};
+  const ProbToken *backgrounds[] = {&negative_token, &background_token};
+
+  return probability(foregrounds, 1, backgrounds, 2, fg_total_tokens, bg_total_tokens);
 }
 
 /** Classifies the item using the given classifier.
  *
- * Returns the Tagging containing the probability (0..1) that the
- * item is in the tag represented by the classifier.
+ * Returns the probability (0..1) that the item is in 
+ * the tag represented by the classifier.
  */
-Tagging * classify(const Classifier *classifier, const Item * item) {
-  if (NULL == classifier || NULL == item) {
-    error("classify received NULL classifier(%x) or item(%x)", classifier, item);
-    return NULL;
+double naive_bayes_classify(const ClueList *clues, const Item * item) {
+  if (NULL == clues || NULL == item) {
+    fatal("classify received NULL classifier(%x) or item(%x)", clues, item);
+    return 0.5;
   }
   
-  Tagging *tagging = malloc(sizeof(Tagging));
-  if (NULL != tagging) {
-    tagging->item_id = item_get_id(item);
-    tagging->user = cls_user(classifier);
-    tagging->tag_name = cls_tag_name(classifier);
-    tagging->tag_id = cls_tag_id(classifier);
-    tagging->user_id = cls_user_id(classifier);
+  double prob = 0.5;
+  int num_clues;
+  const Clue **selected_clues = select_clues(clues, item, &num_clues);
     
-    int num_clues;
-    const Clue **clues = select_clues(classifier, item, &num_clues);
+  if (num_clues > 0) {
+    prob = chi2_combine(selected_clues, num_clues);    
+  }
+  
+  free(selected_clues);
     
-    if (num_clues > 0) {
-      tagging->strength = chi2_combine(clues, num_clues);
-    } else {
-      tagging->strength = UNKNOWN_WORD_PROB;
-    }
-    
-    free(clues);
-  }
-  return tagging;
-}
-
-/**** Trained classifier functions ****/
-float tc_get_bias(const TrainedClassifier *tc) {
-  return tc->bias;
-}
-
-const Pool * tc_get_positive_pool(const TrainedClassifier *tc) {
-  return tc->positive_pool;
-}
-
-const Pool * tc_get_negative_pool(const TrainedClassifier *tc) {
-  return tc->negative_pool;
-}
-
-const char * tc_get_user(const TrainedClassifier *tc) {
-  return tc->user;
-}
-
-int tc_get_user_id(const TrainedClassifier *tc) {
-  return tc->user_id;
-}
-
-const char * tc_get_tag_name(const TrainedClassifier *tc) {
-  return tc->tag_name;
-}
-
-int tc_get_tag_id(const TrainedClassifier *tc) {
-  return tc->tag_id;
-}
-
-void tc_free(TrainedClassifier *tc) {
-  free_pool(tc->positive_pool);
-  free_pool(tc->negative_pool);
-  free(tc);
-}
-
-/***** Classifier Functions *****/
-const char * cls_tag_name(const Classifier *cls) {
-  return cls->tag_name;
-}
-
-int cls_tag_id(const Classifier *cls) {
-  return cls->tag_id;
-}
-
-const char * cls_user(const Classifier *cls) {
-  return cls->user;
-}
-
-int cls_user_id(const Classifier *cls) {
-  return cls->user_id;
-}
-
-int cls_num_clues(const Classifier *cls) {
-  Word_t count;
-  JLC(count, cls->clues, 0, -1);
-  return count;
-}
-
-const Clue * cls_clue_for(const Classifier *cls, int token_id) {
-  Clue *clue = NULL;
-  PWord_t clue_p;
-  JLG(clue_p, cls->clues, token_id);
-  if (NULL != clue_p) {
-    clue = (Clue*)(*clue_p);
-  }
-  return clue;
-}
-
-double cls_probability_for(const Classifier *cls, int token_id) {
-  double probability = UNKNOWN_WORD_PROB;
-  PWord_t clue_p;
-  JLG(clue_p, cls->clues, token_id);
-  if (NULL != clue_p) {
-    Clue *clue = (Clue*)(*clue_p);
-    probability = clue_probability(clue);
-  }
-  return probability;
-}
-
-void free_classifier(Classifier *cls) {
-  if (NULL != cls) {
-    if (cls->clues) {
-      PWord_t clue;
-      Word_t index = 0;
-      Word_t bytes_freed;
-      JLF(clue, cls->clues, index);
-      while (NULL != clue) {
-        free((Clue*)(*clue));
-        JLN(clue, cls->clues, index);
-      }
-      JLFA(bytes_freed, cls->clues);
-    }
-    free(cls);
-  }
+  return prob;
 }
