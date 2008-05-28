@@ -1,0 +1,210 @@
+= Classifier Documentation =
+
+This document describes the current architecture of the Peerworks classification system.  It doesn't discuss the details of the classification algorithm itself, instead it focuses on how that algorithm is uses to process items, integrate with other applications and scale to meet the demands of classifying items using many user's tags.
+
+== Overview ==
+
+The classifier is built in the C programming language and is targeted at the POSIX platform.  Typically, the classifier will run as a daemon process which provides a HTTP interface for controlling classification jobs. 
+
+A typical job processing chain will consist of a front end sending a REST request to the classifier to perform the classification for a given tag.  This job will be added to the classifiers internal queue and a reference to the job's progress status URL will be returned to the front-end.  While the job is being processed the front-end can perform GET requests on the returned URL to get updates to the status of the job.  
+
+When the classifier starts processing the job, it will first fetch the training document for the tag.  This document contains the items used the user has provided as manual examples for the tag.  The classifier will then build a tagger that is used internally to perform classification.  The tagger is run over each item in the classifier's internal cache to produce a probability that the item is within that tag.  For each item where the probability is over a certain threshold, the item is added to a classifier taggings document which is then sent back to the front-end for storage and updating of the display.
+
+There are 4 main components to the classifier: the HTTP server, the Item Cache, the Tagger Cache and the Classification Engine. These are shown, with their relationships in the following diagram.
+
+[[Image(http://trac.winnow.peerworks.org/index.cgi/raw-attachment/wiki/ClassifierSoftwareDocumentation/MajorComponents.png)]]
+
+These will be detailed next, followed by details of the protocols used and finally a discussion on some of the scaling issues we will face.
+
+=== Definitions ===
+
+The following terms are used within this document:
+
+ tagger::
+ item::
+ classifier::
+ example::
+ tag document::
+
+== HTTP Server ==
+
+The Classifier includes an embedded HTTP server that is used to control classification jobs and add new items to the classifier's Item Cache.
+
+=== Classification Job Control ===
+
+The HTTP interface for classification job control allows a user to start, query and stop a classification job. This is all done through a REST style interface where jobs are represented as resources within the classifier.  All resources are represented in XML. All operations may return HTTP status codes in the case of something going wrong during the processing of the request.
+
+==== Starting a job ====
+
+To start a job, a caller needs to seed a job description to the classifier using a HTTP post to /classifier/jobs.  A reference to the resource URL for the job is then returned when the classifier successfully creates the job.  
+
+For example, the follow POST request with create a job for the tag defined at http://example.org/tag.atom:
+
+{{{
+POST /classifier/jobs HTTP/1.1
+Host: localhost
+
+<?xml version="1.0" ?>
+<job>
+	<tag-url>http://example.org/tag.atom</tag-url>
+</job>
+
+
+}}}
+
+If the job is successfully created the classifier will return a 201 Created response like this:
+
+{{{
+HTTP/1.1 201 Created
+Date: Fri, 7 Oct 2005 17:17:11 GMT
+Content-Length: nnn
+Content-Type: application/xml
+Location: http://localhost/classifier/jobs/JOBID
+}}}
+
+==== Job Status Reporting ====
+
+The URL provides in the location header returned by classifier is the resource URL for the job.  This URL can be used to query the classifier on the status of the job using the HTTP GET method.  
+
+The classification job description shows the job's progress using a state attribute.  The state attribute can be one of the follow values:
+
+ Waiting:: The job is in the queue waiting for a worker thread to start it.
+ Training:: The tagger for the job is being trained with the examples provided in the tag definition. Training involves combining the features in each of the positive and negative examples with the random background to end up with an index of feature identifiers and probabilities for the tagger.  The details of how this computed and combined is left up to the classifier implementation.
+ Classifying:: The job is classifying each item in the item cache.
+ Inserting:: The job is sending the resulting items and probabilities to the callback URL provided by the tagger.
+ Complete:: The job is complete!
+ Error:: An error occurred while processing the job.
+
+The description also includes these attributes:
+
+ progress:: A percentage complete.
+ duration:: Number of seconds the job as been running for.
+ error-msg (Optional):: A human readable error message when the job state is Error. 
+
+For example, the follow GET request:
+
+{{{
+GET /classifier/jobs/JOBID
+Host: localhost
+}}}
+
+Will return an XML document describing the status of the job identified by JOBID. 
+
+For example:
+
+{{{
+HTTP/1.1 200 Ok
+Date: Fri, 7 Oct 2005 17:17:11 GMT
+Content-Length: nnn
+Content-Type: application/xml
+
+<?xml version="1.0" ?>
+<job>
+	<id>JOBID</id>
+	<progress>10.0</progress>
+	<status>Training</status>
+	<duration>0.1</duration>
+	<error-msg></error-msg>
+</job>
+
+}}}
+
+==== Cancelling and Deleting Jobs ====
+
+When a job is complete or a user wants to cancel it, the client should send a delete request to the job's URL. For example:
+
+{{{
+DELETE /classifier/jobs/JOBID HTTP/1.1
+Host: localhost
+}}}
+
+This will cancel the job if it is still running or if it is complete it will delete the job.  After a DELETE has been send to a job URL, subsequent GETs on that URL will return a HTTP 404 response.
+
+=== Parameters ===
+
+The follow command line parameters are relevant to the HTTP server.
+
+{{{
+-p, --port N     the port to run the HTTP server on
+    -a, --allowed_ip IP_ADDRESS
+                     An IP address to allow to make HTTP requests
+                     Default: any
+
+}}}
+
+== Classification Engine ==
+
+The Classification Engine is the core component within the classifier. It manages an internal queue of classification jobs and a number of worker threads that process those jobs. It also maintains an index of current jobs referenced by their job id.
+
+Typically a job is added to the classification engine by the HTTP server front end.  When this happens the jobs is assigned a UUID as it's id and added to the back of the job queue.  When a worker thread is available it takes to first job on the front of the queue. Using the tag URL that is specified in the job, the worker fetches the tagger from the Tagger Cache and uses it to classify each item in the Item Cache.  Once all the items have been classified, the worker will filter out the items that were classified below the probability threshold (default of 0.9) and then sends the resulting list of items and their classification probabilities to the call-back URL provided by the tagger.  The worker thread is then finished with the job and can move on the next job in the queue.
+
+=== Different Job Types ===
+
+There are two different job types within the classification engine:
+
+All items job::
+This type of job will classify all the items in the in-memory item cache. 
+It is the default job type.
+New items job::
+This type of job will only classify items that have been added to the in-memory cache since the last time the given tag was classified. This is the type of job that is created in response to cache updating operations.
+
+=== Error Reporting ===
+
+Errors are reported using error constants and error messages.  The following errors constants are supported:
+
+ NO_SUCH_TAG:: The tag could not be found or the tag document could not be retrieved.
+ MISSING_ITEM_TIMEOUT:: Some items used as examples in the tag were missing and the job timed out while waiting to add them to the item database.
+
+=== Parameters ===
+
+The following command line parameters are relevant to the behaviour of the classification engine.
+
+{{{
+-n, --worker-threads N
+                    number of threads for processing jobs
+                    Default: 1
+-t, --positive-threshold N
+                    probability threshold for considering a tag to be
+                    applied to and item
+                    Default: 0
+    --performance-log FILE
+                    location of the file in which to write job timings
+
+    --tag-index URL
+                    URL which provides an index of the tags to classify
+
+    --missing-item-timeout N
+                    Number of seconds to wait for missing items to be added
+                    before a job depending on them is canceled and an error
+                    is returned instead                     Default: 60 seconds
+
+}}}
+
+== Tagger Cache ==
+
+TBD
+
+== Item Cache ==
+
+The Item Cache provides a cache of the items that the classifier can use in training and classification and their extracted features that are used in classification.  The Item Cache provides two levels of caching. There is a persistent cache of items and their features over a given time period and an in memory cache of a subset of the persistent cache that contains the items that will actually be classified.
+
+The length of the subset to use for the in-memory cache can be specified as a command-line parameter, the default is to keep items from the last 30 days in memory.  When the classifier is first started it will load these items into memory from the persistent cache. The in-memory cache maintains two indexes for these items, one that allows fast retrieval of an item given it's id and one which orders items by time.  The first index is used for fast retrieval of training items if they happen to be in the in-memory cache and the second index is used so that classification occurs in chronological order and when a job only needs to process items added since a given time it can stop processing when it reaches that point.
+
+The in-memory item cache only contains the id, the extracted features and a timestamp for the item.  Extracted features are stored in a Judy array that maps the feature id to it's value. In our current case the feature id is the atomized version of a token, i.e. an int32, and the value represents the frequency of the token in that item. On the other hand, the persistent cache stores both the extracted features and the raw data of the item.
+
+=== Updating the cache ===
+
+The Item Cache is populated via the Atom Publishing protocol.  As items are published to the cache they use the following processing chain within the classifier.
+
+[[Image(http://trac.winnow.peerworks.org/index.cgi/raw-attachment/wiki/ClassifierSoftwareDocumentation/ItemCacheUpdateChart.png)]]
+
+In the above diagram, the parallelograms represent internal queues within the classifier. These are used so that tokenization and database insertion can be serialized and performed asynchronously from the Atom Publishing Protocol (APP) requests that add the items. When a APP request adds an item it is immediately saved in it's raw state in the SQLite database. This allows the HTTP request-response cycle to be completed very quickly and the tokenization and updating of the in-memory items cache (which requires locking out all classificaiton jobs) to occur in the background.
+
+The Item Cache also provides a callback that is triggered when either a certain number of items have been added to the cache or a certain amount of time has passed since the last item was added to the cache.  By default this is triggered after either 200 items have been added or 60 seconds have passed since the last addition.
+
+=== Purging the cache ===
+
+A separate thread runs nightly which purges the in-memory cache of items older than 30 days. Currently there is no mechanism for purging the persistent cache, but considering this cache is getting quite large, it currently has almost 350K items in it and the database is 3GB is size we probably need to solve this soon.
+
+
+
