@@ -152,6 +152,9 @@ typedef struct TAGGER_CACHE {
   
   /* Array of taggers indexed by training url. */
   Pvoid_t taggers;
+  
+  /* Array of tagger ids that could not be fetched */
+  Pvoid_t failed_tags;
 } TaggerCache;
 
 extern Tagging *     create_tagging      (const char * item_id, double strength);
@@ -170,6 +173,10 @@ extern void          free_tagger_cache   (TaggerCache * tagger_cache);
 extern int           get_tagger          (TaggerCache * tagger_cache, const char * tag_training_url, Tagger ** tagger, char ** errmsg);
 extern int           release_tagger      (TaggerCache * tagger_cache, Tagger * tagger);
 extern int           fetch_tags          (TaggerCache * tagger_cache, Array **a, char ** errmsg);
+extern int           is_cached           (TaggerCache * tagger_cache, const char * tag_training_url);
+extern int           is_error            (TaggerCache * tagger_cache, const char * tag_training_url);
+extern int           clear_error         (TaggerCache * tagger_cache, const char * tag_training_url);
+extern int           fetch_tagger_in_background(TaggerCache *cache, const char * tag);
 
 /* Only in the header for testing. */
 extern int           parse_tag_index     (const char * document, Array * a, time_t * updated);

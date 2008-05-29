@@ -207,7 +207,7 @@ static int start_classifier(const char * db_file, const char * tokenizer_url) {
     }
     
     engine = create_classification_engine(item_cache, tagger_cache, &ce_options);
-    httpd = httpd_start(&http_config, engine, item_cache);  
+    httpd = httpd_start(&http_config, engine, item_cache, tagger_cache);  
     ce_run(engine);
     return EXIT_SUCCESS;
   }

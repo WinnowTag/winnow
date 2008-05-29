@@ -16,6 +16,7 @@
 #include <regex.h>
 #include "httpd.h"
 #include "item_cache.h"
+#include "tagger.h"
 #include "logging.h"
 #include "misc.h"
 #include "git_revision.h"
@@ -79,12 +80,14 @@ struct HTTPD {
   HttpConfig *config;
   ClassificationEngine *ce;
   ItemCache *item_cache;
+  TaggerCache *tagger_cache;
   regex_t start_job_regex;
   regex_t job_status_regex;
   regex_t about_regex;
   regex_t item_cache_feeds_regex;
   regex_t item_cache_create_feed_items_regex;
   regex_t item_cache_feed_items_regex;
+  regex_t get_clues_regex;
 };
 
 typedef struct posted_data {
@@ -99,6 +102,7 @@ typedef struct HTTP_REQUEST {
   struct MHD_Connection *connection;
   ClassificationEngine *ce;
   ItemCache *item_cache;
+  TaggerCache *tagger_cache;
   struct timeval start_time;
 } HTTPRequest;
 
@@ -455,6 +459,48 @@ static int start_job(const HTTPRequest * request, HTTPResponse * response) {
   return ret;
 }
 
+static int get_clues_handler(const HTTPRequest * request, HTTPResponse * response) {
+  if (request->method != GET) {
+    response->code = MHD_HTTP_METHOD_NOT_ALLOWED;
+    response->content = METHOD_NOT_ALLOWED;
+    response->content_type = CONTENT_TYPE;
+  } else {
+    const char *item_id = MHD_lookup_connection_value(request->connection, MHD_GET_ARGUMENT_KIND, "item");
+    const char *tag_url = MHD_lookup_connection_value(request->connection, MHD_GET_ARGUMENT_KIND, "tag");
+    
+    if (!(item_id && tag_url)) {
+      response->code = MHD_HTTP_BAD_REQUEST;
+      response->content_type = "text/plain";
+      !item_id ? (response->content = "Missing item parameter") : (response->content = "Missing tag parameter");
+    } else {
+      int free_when_done = 0;
+      Item *item = item_cache_fetch_item(request->item_cache, item_id, &free_when_done);
+      
+      if (!item) {
+        response->code = MHD_HTTP_NOT_FOUND;
+        response->content_type = "text/plain";
+        response->content = "The item does not exist in the classifier's item cache.";
+      } else if (!is_cached(request->tagger_cache, tag_url)) {
+        if (is_error(request->tagger_cache, tag_url)) {
+          response->code = MHD_HTTP_NOT_FOUND;
+          response->content = "";
+        } else {
+          fetch_tagger_in_background(request->tagger_cache, tag_url);
+          response->code = MHD_HTTP_FOUND;
+          response->content = "";
+        }
+      } else {
+        /* Have the tag and the item so we can get the clues */
+        HTTP_ISE(response);        
+      }
+      
+      if (item && free_when_done) free_item(item);
+    }
+  }
+  
+  return 1;
+}
+
 static int job_handler(const HTTPRequest * request, HTTPResponse * response) {
   int ret;
   char *job_id = extract_job_id(request->path);
@@ -513,7 +559,9 @@ static int handle_request(const Httpd * httpd, const HTTPRequest * request, HTTP
     add_entry(request, response);
   } else if (0 == regexec(&httpd->item_cache_feed_items_regex, request->path, 0, NULL, 0)) {
     entry_handler(request, response);  
-  } else {
+  } else if (0 == regexec(&httpd->get_clues_regex, request->path, 0, NULL, 0)) {
+    get_clues_handler(request, response);
+  } else {    
     HTTP_NOT_FOUND(response);
   }
   
@@ -540,6 +588,7 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     request->connection = connection;
     request->ce = httpd->ce;
     request->item_cache = httpd->item_cache;
+    request->tagger_cache = httpd->tagger_cache;
     request->path = strdup(raw_url);    
     gettimeofday(&request->start_time, NULL);
         
@@ -632,49 +681,29 @@ static int access_policy(void *ip_vp, const struct sockaddr * addr, socklen_t ad
   return allow;
 }
 
-Httpd * httpd_start(HttpConfig *config, ClassificationEngine *ce, ItemCache *item_cache) {
+#define COMPILE_REGEX(regex, pattern) \
+  if ((regex_error = regcomp(regex, pattern, REG_EXTENDED | REG_NOSUB)) != 0) { \
+    char buffer[1024]; \
+    regerror(regex_error, &httpd->start_job_regex, buffer, sizeof(buffer)); \
+    fatal("Error compiling REGEX: %s", buffer); \
+  }
+
+Httpd * httpd_start(HttpConfig *config, ClassificationEngine *ce, ItemCache *item_cache, TaggerCache * tagger_cache) {
   Httpd *httpd = malloc(sizeof(Httpd));
   if (httpd) {
     int regex_error;
     httpd->config = config;
     httpd->ce = ce;
     httpd->item_cache = item_cache;
+    httpd->tagger_cache = tagger_cache;
     
-    if ((regex_error = regcomp(&httpd->start_job_regex, "^/classifier/jobs/?(.xml)?$", REG_EXTENDED | REG_NOSUB)) != 0) {
-      char buffer[1024];
-      regerror(regex_error, &httpd->start_job_regex, buffer, sizeof(buffer));
-      fatal("Error compiling REGEX: %s", buffer);
-    }
-    
-    if ((regex_error = regcomp(&httpd->job_status_regex, "^/classifier/jobs/.+(.xml)*$", REG_EXTENDED | REG_NOSUB))) {
-      char buffer[1024];
-      regerror(regex_error, &httpd->job_status_regex, buffer, sizeof(buffer));
-      fatal("Error compiling REGEX: %s", buffer);
-    }
-    
-    if ((regex_error = regcomp(&httpd->about_regex, "^/classifier(.xml)?$", REG_EXTENDED | REG_NOSUB))) {
-      char buffer[1024];
-      regerror(regex_error, &httpd->about_regex, buffer, sizeof(buffer));
-      fatal("Error compiling REGEX: %s", buffer);
-    }
-    
-    if ((regex_error = regcomp(&httpd->item_cache_feeds_regex, "^/feeds/?([0-9]+)?$", REG_EXTENDED | REG_NOSUB))) {
-      char buffer[1024];
-      regerror(regex_error, &httpd->item_cache_feeds_regex, buffer, sizeof(buffer));
-      fatal("Error compiling REGEX: %s", buffer);
-    }
-    
-    if ((regex_error = regcomp(&httpd->item_cache_create_feed_items_regex, "^/feeds/([0-9]+)/feed_items/?$", REG_EXTENDED | REG_NOSUB))) {
-      char buffer[1024];
-      regerror(regex_error, &httpd->item_cache_create_feed_items_regex, buffer, sizeof(buffer));
-      fatal("Error compiling REGEX: %s", buffer);
-    }
-    
-    if ((regex_error = regcomp(&httpd->item_cache_feed_items_regex, "^/feed_items/([0-9]+)$", REG_EXTENDED | REG_NOSUB))) {
-      char buffer[1024];
-      regerror(regex_error, &httpd->item_cache_feed_items_regex, buffer, sizeof(buffer));
-      fatal("Error compiling REGEX: %s", buffer);
-    }
+    COMPILE_REGEX(&httpd->start_job_regex,                    "^/classifier/jobs/?(.xml)?$");
+    COMPILE_REGEX(&httpd->job_status_regex,                   "^/classifier/jobs/.+(.xml)*$");
+    COMPILE_REGEX(&httpd->about_regex,                        "^/classifier(.xml)?$");
+    COMPILE_REGEX(&httpd->item_cache_feeds_regex,             "^/feeds/?([0-9]+)?$");
+    COMPILE_REGEX(&httpd->item_cache_create_feed_items_regex, "^/feeds/([0-9]+)/feed_items/?$");
+    COMPILE_REGEX(&httpd->item_cache_feed_items_regex,        "^/feed_items/([0-9]+)$");
+    COMPILE_REGEX(&httpd->get_clues_regex,                    "^/classifier/clues");
         
     httpd->mhd = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG,
                                   httpd->config->port,

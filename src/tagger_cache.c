@@ -7,6 +7,7 @@
  */
 
 #include <string.h>
+#include <sys/types.h>
 #include "misc.h"
 #include "tagger.h"
 #include "logging.h"
@@ -18,6 +19,8 @@ TaggerCache * create_tagger_cache(ItemCache * item_cache, TaggerCacheOptions *op
   tagger_cache->item_cache = item_cache;
   tagger_cache->options = opts;
   tagger_cache->tag_urls = NULL;
+  tagger_cache->failed_tags = NULL;
+  tagger_cache->taggers = NULL;
   tagger_cache->tag_urls_last_updated = -1;
   
   tagger_cache->random_background = item_cache_random_background(item_cache);
@@ -293,6 +296,80 @@ int release_tagger(TaggerCache *tagger_cache, Tagger * tagger) {
   }
   
   return rc;
+}
+
+int is_cached(TaggerCache *cache, const char * tag) {
+  int cached = 0;
+  
+  if (cache && tag) {
+    pthread_mutex_lock(&cache->mutex);
+    PWord_t tagger_pointer;
+    
+    JSLG(tagger_pointer, cache->taggers, (uint8_t*) tag);
+    if (tagger_pointer) {
+      cached = 1;
+    }
+    
+    pthread_mutex_unlock(&cache->mutex);
+  }
+  
+  return cached;
+}
+
+int is_error(TaggerCache *cache, const char * tag) {
+  int _error = 0;
+  
+  if (cache && tag) {
+    pthread_mutex_lock(&cache->mutex);
+    PWord_t tagger_pointer;
+    debug("is error for %s", tag);
+    JSLG(tagger_pointer, cache->failed_tags, (uint8_t*) tag);
+    if (tagger_pointer) {
+      _error = 1;
+    }
+    pthread_mutex_unlock(&cache->mutex);
+  }
+  
+  return _error;
+}
+
+struct background_fetch_data {
+  TaggerCache *tagger_cache;
+  char * tag;
+};
+
+static void *background_fetcher(void *memo) {
+  struct background_fetch_data *data = (struct background_fetch_data*) memo;
+  debug("background fetcher started for %s", data->tag);
+  PWord_t tag_pointer;
+  pthread_mutex_lock(&data->tagger_cache->mutex);  
+  JSLI(tag_pointer, data->tagger_cache->failed_tags, (uint8_t*) data->tag);
+  pthread_mutex_unlock(&data->tagger_cache->mutex);
+  free(data->tag);
+  free(data);
+  return 0;
+}
+
+int fetch_tagger_in_background(TaggerCache *cache, const char * tag) {
+  if (cache && tag) {
+    struct background_fetch_data *data = malloc(sizeof(struct background_fetch_data));
+    if (data) {
+      data->tag = strdup(tag);
+      data->tagger_cache = cache;
+      pthread_t background_thread;
+      memset(&background_thread, 0, sizeof(pthread_t));
+      
+      if (pthread_create(&background_thread, NULL, background_fetcher, data)) {
+        error("Could not create background fetcher thread");
+        free(data->tag);
+        free(data);
+      }
+    } else {
+      fatal("Could not malloc memory for background_fetch_data");
+    }
+  }
+  
+  return 0;
 }
 
 /** Fetchs the tag urls from the tag index.

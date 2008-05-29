@@ -18,6 +18,6 @@ typedef struct HTTP_CONFIG {
   const char *allowed_ip;
 } HttpConfig;
 
-extern Httpd * httpd_start(HttpConfig *config, ClassificationEngine *ce, ItemCache *item_cache);
+extern Httpd * httpd_start(HttpConfig *config, ClassificationEngine *ce, ItemCache *item_cache, TaggerCache * tagger_cache);
 extern void    httpd_stop (Httpd *httpd);
 #endif /*HTTPD_H_*/
