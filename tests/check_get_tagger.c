@@ -87,72 +87,72 @@ static void teardown(void) {
 
 START_TEST (test_get_tagger_returns_NULL_for_NULL_tag_url) {
   Tagger *tagger = NULL;
-  get_tagger(tagger_cache, NULL, &tagger, NULL);
+  get_tagger(tagger_cache, NULL, 1, &tagger, NULL);
   assert_null(tagger);
 } END_TEST
 
 START_TEST (test_get_tagger_returns_TAG_NOT_FOUND_when_missing) {
   Tagger *tagger = NULL;
-  int rc = get_tagger(tagger_cache, "http://example.org/missing.atom", &tagger, NULL);
+  int rc = get_tagger(tagger_cache, "http://example.org/missing.atom", 1, &tagger, NULL);
   assert_equal(TAG_NOT_FOUND, rc);
 } END_TEST
 
 START_TEST (test_get_tagger_returns_TAG_NOT_FOUND_when_missing_but_doesnt_check_it_out) {
   Tagger *tagger = NULL;
-  int rc = get_tagger(tagger_cache, "http://example.org/missing.atom", &tagger, NULL);
+  int rc = get_tagger(tagger_cache, "http://example.org/missing.atom", 1, &tagger, NULL);
   assert_equal(TAG_NOT_FOUND, rc);
-  rc = get_tagger(tagger_cache, "http://example.org/missing.atom", &tagger, NULL);
+  rc = get_tagger(tagger_cache, "http://example.org/missing.atom", 1, &tagger, NULL);
   assert_equal(TAG_NOT_FOUND, rc);  
 } END_TEST
 
 START_TEST (test_get_tagger_when_tagger_missing_returns_NULL) {
   Tagger *tagger = NULL;
-  get_tagger(tagger_cache, "http://example.org/missing.atom", &tagger, NULL);
+  get_tagger(tagger_cache, "http://example.org/missing.atom", 1, &tagger, NULL);
   assert_null(tagger);
 } END_TEST
 
 START_TEST (test_get_tagger_when_tagger_missing_sets_error_message) {
   char *err = "none";
   Tagger *tagger = NULL;
-  get_tagger(tagger_cache, "http://example.org/missing.atom", &tagger, &err);
+  get_tagger(tagger_cache, "http://example.org/missing.atom", 1, &tagger, &err);
   assert_equal_s("Error message", err);
 } END_TEST
 
 START_TEST (test_get_tagger_returns_TAGGER_OK_when_valid) {
   Tagger *tagger = NULL;
-  int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   assert_equal(TAGGER_OK, rc);
 } END_TEST
 
 START_TEST (test_get_tagger_that_returns_a_complete_valid_document_returns_a_tagger_in_precomputed_state) {
   Tagger *tagger = NULL;
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   assert_not_null(tagger);
   assert_equal(TAGGER_PRECOMPUTED, tagger->state);
 } END_TEST
 
 START_TEST (test_get_tagger_called_again_without_releasing_the_tagger_returns_TAGGER_CHECKED_OUT) {
   Tagger *tagger = NULL;
-  int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   assert_equal(TAGGER_OK, rc);
-  rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   assert_equal(TAGGER_CHECKED_OUT, rc);
 } END_TEST
 
 START_TEST (test_get_tagger_called_again_without_releasing_the_tagger_sets_error_message) {
   char *err = "none";
   Tagger *tagger = NULL;
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, &err);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, &err);
   assert_equal_s("Tagger already being processed", err);
 } END_TEST
 
 START_TEST (test_get_tagger_called_again_after_releasing_the_tagger_gets_the_same_tagger) {
   Tagger *tagger = NULL;
   Tagger *second = NULL;
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   release_tagger(tagger_cache, tagger);
-  int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &second, NULL);  
+  int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &second, NULL);  
   assert_equal(TAGGER_OK, rc);
   assert_not_null(tagger);
   assert_not_null(second);
@@ -161,9 +161,9 @@ START_TEST (test_get_tagger_called_again_after_releasing_the_tagger_gets_the_sam
 
 START_TEST (test_get_cached_tagger_triggers_conditional_get_with_tags_updated_time) {
   Tagger *tagger = NULL;
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   release_tagger(tagger_cache, tagger);
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   assert_equal(tagger->updated, last_updated_called);
 } END_TEST
 
@@ -172,25 +172,25 @@ START_TEST (test_get_cached_tagger_triggers_conditional_get_with_tags_updated_ti
 
 START_TEST (test_get_tagger_that_returns_a_incomplete_valid_document_returns_TAG_PENDING_ITEM_ADDITION) {
   Tagger *tagger = NULL;
-  int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   assert_equal(TAGGER_PENDING_ITEM_ADDITION, rc);
 } END_TEST
 
 START_TEST (test_get_tagger_that_returns_a_incomplete_valid_document_has_null_tagger) {
   Tagger *tagger = NULL;
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   assert_null(tagger);
 } END_TEST
 
 START_TEST (test_get_tagger_twice_that_returns_a_incomplete_valid_document_returns_TAG_PENDING_ITEM_ADDITION) {
   Tagger *tagger = NULL;
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
-  int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
+  int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   assert_equal(TAGGER_PENDING_ITEM_ADDITION, rc);
 } END_TEST
 
 START_TEST (test_get_tagger_with_missing_items_should_add_the_items_to_the_item_cache) {
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", NULL, NULL);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, NULL, NULL);
   
   sqlite3 *db;
   sqlite3_stmt *stmt;
@@ -237,11 +237,11 @@ static void setup_for_updated(void) {
 
 START_TEST (test_updating_tagger_has_later_timestamp) {
   Tagger *tagger;
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom",  1, &tagger, NULL);
   time_t updated = tagger->updated;
   release_tagger(tagger_cache, tagger);
   tagger = NULL;
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   assert_not_null(tagger);
   assert_true(updated < tagger->updated);
 } END_TEST
@@ -249,13 +249,13 @@ START_TEST (test_updating_tagger_has_later_timestamp) {
 START_TEST (test_updated_tagger_gets_cached) {
   Tagger *tagger;
 
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   time_t updated = tagger->updated;
   release_tagger(tagger_cache, tagger);
   
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   release_tagger(tagger_cache, tagger);
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   release_tagger(tagger_cache, tagger);
   
   assert_true(updated < tagger->updated);
@@ -265,13 +265,13 @@ START_TEST (test_updated_tagger_with_missing_items_checks_it_back_in) {
   updated_document = read_document("fixtures/incomplete_tag.atom");
   Tagger *tagger;
 
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   time_t updated = tagger->updated;
   release_tagger(tagger_cache, tagger);
   
-  int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   assert_equal(TAGGER_PENDING_ITEM_ADDITION, rc);
-  rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   assert_equal(TAGGER_PENDING_ITEM_ADDITION, rc);
 } END_TEST
 
@@ -282,15 +282,15 @@ START_TEST (test_get_tagger_again_after_items_are_added_returns_tagger) {
   updated_document = read_document("fixtures/incomplete_tag.atom");
   Tagger *tagger;
 
-  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   release_tagger(tagger_cache, tagger);
   
-  int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  int rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   assert_equal(TAGGER_PENDING_ITEM_ADDITION, rc);
   
   // cheat here and switch out the item cache to one that has the items
   tagger_cache->item_cache = missing_item_cache;
-  rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", &tagger, NULL);
+  rc = get_tagger(tagger_cache, "http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", 1, &tagger, NULL);
   assert_equal(TAGGER_OK, rc);
   assert_equal(TAGGER_PRECOMPUTED, tagger->state);
 } END_TEST

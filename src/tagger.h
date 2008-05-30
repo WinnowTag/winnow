@@ -170,7 +170,7 @@ extern void          free_tagger         (Tagger * tagger);
 
 extern TaggerCache * create_tagger_cache (ItemCache * item_cache, TaggerCacheOptions * options);
 extern void          free_tagger_cache   (TaggerCache * tagger_cache);
-extern int           get_tagger          (TaggerCache * tagger_cache, const char * tag_training_url, Tagger ** tagger, char ** errmsg);
+extern int           get_tagger          (TaggerCache * tagger_cache, const char * tag_training_url, int do_fetch, Tagger ** tagger, char ** errmsg);
 extern int           release_tagger      (TaggerCache * tagger_cache, Tagger * tagger);
 extern int           fetch_tags          (TaggerCache * tagger_cache, Array **a, char ** errmsg);
 extern int           is_cached           (TaggerCache * tagger_cache, const char * tag_training_url);

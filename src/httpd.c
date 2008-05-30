@@ -460,27 +460,37 @@ static int start_job(const HTTPRequest * request, HTTPResponse * response) {
 }
 
 static int get_clues_handler(const HTTPRequest * request, HTTPResponse * response) {
+  Item *item = NULL;
+  int free_when_done = 0;
+  const char *item_id = MHD_lookup_connection_value(request->connection, MHD_GET_ARGUMENT_KIND, "item");
+  const char *tag_url = MHD_lookup_connection_value(request->connection, MHD_GET_ARGUMENT_KIND, "tag");
+    
   if (request->method != GET) {
     response->code = MHD_HTTP_METHOD_NOT_ALLOWED;
     response->content = METHOD_NOT_ALLOWED;
     response->content_type = CONTENT_TYPE;
+  } else if (!(item_id && tag_url)) {
+    response->code = MHD_HTTP_BAD_REQUEST;
+    response->content_type = "text/plain";
+    !item_id ? (response->content = "Missing item parameter") : (response->content = "Missing tag parameter");
+  } else if (NULL == (item = item_cache_fetch_item(request->item_cache, item_id, &free_when_done))) {
+    response->code = MHD_HTTP_NOT_FOUND;
+    response->content_type = "text/plain";
+    response->content = "The item does not exist in the classifier's item cache.";
   } else {
-    const char *item_id = MHD_lookup_connection_value(request->connection, MHD_GET_ARGUMENT_KIND, "item");
-    const char *tag_url = MHD_lookup_connection_value(request->connection, MHD_GET_ARGUMENT_KIND, "tag");
-    
-    if (!(item_id && tag_url)) {
-      response->code = MHD_HTTP_BAD_REQUEST;
-      response->content_type = "text/plain";
-      !item_id ? (response->content = "Missing item parameter") : (response->content = "Missing tag parameter");
-    } else {
-      int free_when_done = 0;
-      Item *item = item_cache_fetch_item(request->item_cache, item_id, &free_when_done);
-      
-      if (!item) {
-        response->code = MHD_HTTP_NOT_FOUND;
-        response->content_type = "text/plain";
-        response->content = "The item does not exist in the classifier's item cache.";
-      } else if (!is_cached(request->tagger_cache, tag_url)) {
+    Tagger *tagger = NULL;
+    int get_tagger_rc = get_tagger(request->tagger_cache, tag_url, false, &tagger, NULL);
+
+    switch (get_tagger_rc) {
+      case TAG_NOT_FOUND:
+        /* This means that the tag is not cached, but we need to check is_error to see if
+         * a previous background fetch resulted in an error since our call to get_tagger
+         * doesn't actually do the fetching.  The reason for this is that if the tag is not 
+         * cached we don't want our call to get_tagger to do the actual fetching because it
+         * would block the HTTP thread and could result in deadlocks if the tag url points back to the
+         * server which generated this request.  So instead we trigger the fetching of the
+         * tag in another thread and return a redirect to the caller.
+         */
         if (is_error(request->tagger_cache, tag_url)) {
           response->code = MHD_HTTP_NOT_FOUND;
           response->content = "";
@@ -489,14 +499,23 @@ static int get_clues_handler(const HTTPRequest * request, HTTPResponse * respons
           response->code = MHD_HTTP_FOUND;
           response->content = "";
         }
-      } else {
-        /* Have the tag and the item so we can get the clues */
-        HTTP_ISE(response);        
-      }
-      
-      if (item && free_when_done) free_item(item);
-    }
-  }
+        break;
+      case TAGGER_PENDING_ITEM_ADDITION:
+        response->code = MHD_HTTP_FAILED_DEPENDENCY;
+        response->content = "The classifier is missing some items required to perform this operation.  Please try again later.";
+        break;
+      case TAGGER_CHECKED_OUT:
+        // TODO handle tagger_checked_out in get_clues
+        HTTP_ISE(response);
+        break;
+      case TAGGER_OK:
+        response->code = MHD_HTTP_OK;
+        response->content = "";
+        break;
+    }      
+
+    if (free_when_done) free_item(item);
+  }    
   
   return 1;
 }

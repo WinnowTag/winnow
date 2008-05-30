@@ -165,6 +165,7 @@ static int add_missing_entries(ItemCache * item_cache, Tagger * tagger) {
  *
  *  @param tagger_cache The cache to get the tagger from.
  *  @param tag_training_url Used as the URL for the tag training document and the key into the tagger cache.
+ *  @param do_fetch Boolean indicating whether the tag will be fetched or updated.
  *  @param tagger A pointer to a Tagger pointer. This will be intitalized to the tagger if the call is
  *                successful. Don't free it when you are done with it, instead call release_tagger.
  *  @param errmsg Will be allocated and filled with an error message if an error occurs. The caller must free
@@ -179,7 +180,7 @@ static int add_missing_entries(ItemCache * item_cache, Tagger * tagger) {
  *
  *  TODO Double check this locking
  */
-int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger ** tagger, char ** errmsg) {
+int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, int do_fetch, Tagger ** tagger, char ** errmsg) {
   int rc = -1;
   
   if (tagger_cache && tag_training_url) {
@@ -200,25 +201,28 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
     
     debug("checkout complete");
     
-    if (TAGGER_CHECKED_OUT != cache_rc) {      
-      if (cache_rc == TAGGER_NOT_CACHED) {
-        /* If we get here the tagger has not been cached so attempt to fetch it,
-       * if we get it we need to store it and mark it as checked out.
-       */
-        temp_tagger = fetch_tagger(tagger_cache, tag_training_url, -1, errmsg);
-        if (temp_tagger) {
-          new_tagger = true;
-        }
-      } else if (temp_tagger && temp_tagger->state != TAGGER_PARTIALLY_TRAINED) {
-        /* The tagger is cached, so we need to see if it has been updated, but only if it has no pending items. */
-        Tagger *updated_tagger = fetch_tagger(tagger_cache, temp_tagger->training_url, temp_tagger->updated, errmsg);
-        
-        // TODO do we need to check if it is not found or there is a network error?
-        if (updated_tagger) {
-          new_tagger = true;
-          temp_tagger = updated_tagger;          
-        } else {
-          debug("Tag %s not modified, using cached version", temp_tagger->training_url);
+    if (TAGGER_CHECKED_OUT != cache_rc) {
+      /* Only fetch or update if do_fetch is true */
+      if (do_fetch) {
+        if (cache_rc == TAGGER_NOT_CACHED) {
+          /* If we get here the tagger has not been cached so attempt to fetch it,
+         * if we get it we need to store it and mark it as checked out.
+         */
+          temp_tagger = fetch_tagger(tagger_cache, tag_training_url, -1, errmsg);
+          if (temp_tagger) {
+            new_tagger = true;
+          }
+        } else if (temp_tagger && temp_tagger->state != TAGGER_PARTIALLY_TRAINED) {
+          /* The tagger is cached, so we need to see if it has been updated, but only if it has no pending items. */
+          Tagger *updated_tagger = fetch_tagger(tagger_cache, temp_tagger->training_url, temp_tagger->updated, errmsg);
+
+          // TODO do we need to check if it is not found or there is a network error?
+          if (updated_tagger) {
+            new_tagger = true;
+            temp_tagger = updated_tagger;          
+          } else {
+            debug("Tag %s not modified, using cached version", temp_tagger->training_url);
+          }
         }
       }
       
@@ -341,10 +345,21 @@ struct background_fetch_data {
 static void *background_fetcher(void *memo) {
   struct background_fetch_data *data = (struct background_fetch_data*) memo;
   debug("background fetcher started for %s", data->tag);
-  PWord_t tag_pointer;
-  pthread_mutex_lock(&data->tagger_cache->mutex);  
-  JSLI(tag_pointer, data->tagger_cache->failed_tags, (uint8_t*) data->tag);
-  pthread_mutex_unlock(&data->tagger_cache->mutex);
+  
+  Tagger *tagger = NULL;
+  int rc = get_tagger(data->tagger_cache, data->tag, true, &tagger, NULL);
+  
+  switch (rc) {
+    case TAGGER_OK:
+      release_tagger(data->tagger_cache, tagger);
+      break;
+    default:
+      pthread_mutex_lock(&data->tagger_cache->mutex);  
+      PWord_t tag_pointer;
+      JSLI(tag_pointer, data->tagger_cache->failed_tags, (uint8_t*) data->tag);
+      pthread_mutex_unlock(&data->tagger_cache->mutex);
+  }
+  
   free(data->tag);
   free(data);
   return 0;
