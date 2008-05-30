@@ -8,6 +8,7 @@
 #
 
 require File.dirname(__FILE__) + "/spec_helper.rb"
+require 'json'
 
 describe "get_clues" do
   before(:each) do
@@ -84,6 +85,24 @@ describe "get_clues" do
       sleep(1)
     classifier_http do |http|
       http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag).code.should == "200"
+    end
+  end
+  
+  it "should return clues in the body if the tag was able to be fetched" do
+    tag = "file:#{File.join(File.expand_path(File.dirname(__FILE__)), 'fixtures', 'complete_tag.atom')}"
+    classifier_http do |http|
+      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag).code.should == "302" # The first request triggers the fetching
+    end
+      sleep(1)
+    classifier_http do |http|
+      response = http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag)
+      
+      response['content-type'].should == "application/json"
+      json = nil
+      lambda { json = JSON.parse(response.body) }.should_not raise_error(JSON::ParserError)
+      json.size.should > 0
+      json.first['clue'].should == 'bar'
+      json.first['prob'].should == 0.054373
     end
   end
   

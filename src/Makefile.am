@@ -12,7 +12,7 @@ lib_LTLIBRARIES = libclassifier.la
 # see as we deploy to more sites.
 #
 LDFLAGS = -rpath $(libdir) @SQLITE3_LDFLAGS@ @CURL_LIBS@
-AM_CPPFLAGS = -I$(srcdir)/../microhttpd/src/include -I$(srcdir)/../judy/src
+AM_CPPFLAGS = -I$(srcdir)/../microhttpd/src/include -I$(srcdir)/../judy/src -I$(srcdir)/../json-c
 CFLAGS = -Wall @SQLITE3_CFLAGS@ @CURL_CFLAGS@ 
 
 libclassifier_la_SOURCES = classifier.c classifier.h \
@@ -45,7 +45,7 @@ BUILT_SOURCES=git_revision.h
 CLEANFILES=git_revision.h
 bin_PROGRAMS = classifier
 classifier_SOURCES = git_revision.h main.c 
-classifier_LDADD = libclassifier.la ../microhttpd/src/daemon/libmicrohttpd.la ../judy/src/obj/libJudy.la
+classifier_LDADD = libclassifier.la ../microhttpd/src/daemon/libmicrohttpd.la ../judy/src/obj/libJudy.la ../json-c/libjson.la
 
 #cls_bench_SOURCES = bench.c
 #cls_bench_LDADD = libclassifier.la

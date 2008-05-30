@@ -58,6 +58,7 @@ static Tagger * fetch_tagger(TaggerCache * tagger_cache, const char * tag_traini
       tagger->training_url = strdup(tag_training_url);
       tagger->probability_function = &naive_bayes_probability;
       tagger->classification_function = &naive_bayes_classify;
+      tagger->get_clues_function = &select_clues;
     
       if (tagger->state != TAGGER_LOADED) {
         tagger = NULL; // free_tagger

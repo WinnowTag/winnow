@@ -339,6 +339,16 @@ int classify_item(const Tagger *tagger, const Item *item, double * probability) 
   return rc;
 }
 
+Clue ** get_clues(const Tagger *tagger, const Item *item, int *num) {
+  Clue **clues = NULL;
+  
+  if (tagger && item && tagger->state == TAGGER_PRECOMPUTED && tagger->get_clues_function) {
+    clues = tagger->get_clues_function(tagger->clues, item, num);
+  }
+  
+  return clues;
+}
+
 static struct output {
   int pos;
   int size;

@@ -4,7 +4,7 @@ AC_CONFIG_LIBOBJ_DIR(src)
 AC_GNU_SOURCE
 AC_DEFINE_DIR([DATADIR], [datadir], [The place where data is installed])
 AC_CONFIG_SUBDIRS([microhttpd])
-
+AC_CONFIG_SUBDIRS([json-c])
 
 AC_CONFIG_SUBDIRS([judy])
 AC_DEFINE([HAVE_JUDY_H], 1, [Have the Judy.h header])

@@ -20,6 +20,8 @@
 #include "logging.h"
 #include "misc.h"
 #include "git_revision.h"
+#define _bits_h_
+#include <json.h>
 
 #define CONTENT_TYPE "application/xml"
 #define NOT_FOUND "<?xml version='1.0' ?>\n<errors><error>Resource not found.</error></errors>\n"
@@ -508,9 +510,34 @@ static int get_clues_handler(const HTTPRequest * request, HTTPResponse * respons
         // TODO handle tagger_checked_out in get_clues
         HTTP_ISE(response);
         break;
-      case TAGGER_OK:
-        response->code = MHD_HTTP_OK;
-        response->content = "";
+      case TAGGER_OK: {
+          int num_clues = 0;
+          int i;
+          Clue ** clues = get_clues(tagger, item, &num_clues);
+          struct json_object *clue_array = json_object_new_array();
+
+          for (i = 1; i < num_clues; i++) {
+            char * feature = item_cache_globalize(request->item_cache, clues[i]->token_id);
+            if (!feature) {
+              continue;
+            }
+
+            struct json_object *clue = json_object_new_object();
+            json_object_object_add(clue, "clue", json_object_new_string(feature));
+            json_object_object_add(clue, "prob", json_object_new_double(clues[i]->probability));
+            json_object_array_add(clue_array, clue);
+            free(feature);
+          } 
+
+          response->code = MHD_HTTP_OK;
+          response->content_type = "application/json";
+          response->content = strdup(json_object_to_json_string(clue_array));
+          response->free_content = true;
+
+          free(clues);
+          json_object_put(clue_array);
+        }
+       
         break;
     }      
 
@@ -665,7 +692,7 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     
     struct timeval end_time;
     gettimeofday(&end_time, NULL);    
-    info("%s %s %i %.7fs %i", method, raw_url, response.code, tdiff(request->start_time, end_time), ret);
+    info("%s %s %i %.7fs %i", method, raw_url, response.code, tdiff(request->start_time, end_time), strlen(response.content));
     
     free(request->path);
     if (request->data) {

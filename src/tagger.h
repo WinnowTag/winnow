@@ -80,6 +80,8 @@ typedef struct TAGGER {
   /* The function that is used to classify a item */
   double (*classification_function)(const ClueList *clues, const Item *item);
   
+  Clue ** (*get_clues_function)(const ClueList *clues, const Item *item, int *num);
+  
   /**** Tag examples *****/
   
   /* The number of positive examples */
@@ -163,6 +165,7 @@ extern Tagger *      build_tagger        (const char * atom);
 extern TaggerState   train_tagger        (Tagger * tagger, ItemCache * item_cache);
 extern TaggerState   precompute_tagger   (Tagger * tagger, const Pool * random_background);
 extern int           classify_item       (const Tagger * tagger, const Item * item, double * probability);
+extern Clue **       get_clues           (const Tagger * tagger, const Item * item, int * num);
 extern int           update_taggings     (const Tagger * tagger, Array *list, char ** errmsg);
 extern int           replace_taggings    (const Tagger * tagger, Array *list, char ** errmsg);
 extern int           get_missing_entries (Tagger * tagger, ItemCacheEntry ** entries);

@@ -1,5 +1,5 @@
 ACLOCAL_AMFLAGS = -I m4
-SUBDIRS = microhttpd judy src . tests schema bin
+SUBDIRS = microhttpd json-c judy src . tests schema bin
 
 dist-hook:
 	rm -rf `find $(distdir) -name .svn`
