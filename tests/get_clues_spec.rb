@@ -61,15 +61,15 @@ describe "get_clues" do
     end
   end
   
-  it "should return 302 if the tag is not in the cache" do
+  it "should return 424 if the tag is not in the cache" do
     classifier_http do |http|
-      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=foo').code.should == "302"
+      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=foo').code.should == "424"
     end
   end
   
   it "should return 404 if the tag is not able to be fetched" do
     classifier_http do |http|
-      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=foo').code.should == "302" # The first request triggers the fetching
+      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=foo').code.should == "424" # The first request triggers the fetching
     end
       sleep(1)
     classifier_http do |http|
@@ -80,7 +80,7 @@ describe "get_clues" do
   it "should return 200 if the tag was able to be fetched" do
     tag = "file:#{File.join(File.expand_path(File.dirname(__FILE__)), 'fixtures', 'complete_tag.atom')}"
     classifier_http do |http|
-      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag).code.should == "302" # The first request triggers the fetching
+      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag).code.should == "424" # The first request triggers the fetching
     end
       sleep(1)
     classifier_http do |http|
@@ -91,7 +91,7 @@ describe "get_clues" do
   it "should return clues in the body if the tag was able to be fetched" do
     tag = "file:#{File.join(File.expand_path(File.dirname(__FILE__)), 'fixtures', 'complete_tag.atom')}"
     classifier_http do |http|
-      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag).code.should == "302" # The first request triggers the fetching
+      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag).code.should == "424" # The first request triggers the fetching
     end
       sleep(1)
     classifier_http do |http|
@@ -109,7 +109,7 @@ describe "get_clues" do
   it "should return 424 if the tag is incomplete" do
     tag = "file:#{File.join(File.expand_path(File.dirname(__FILE__)), 'fixtures', 'incomplete_tag.atom')}"
     classifier_http do |http|
-      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag).code.should == "302" # The first request triggers the fetching
+      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag).code.should == "424" # The first request triggers the fetching
     end
       sleep(1)
     classifier_http do |http|
@@ -120,7 +120,7 @@ describe "get_clues" do
   it "should return a message if the tag is incomplete" do
     tag = "file:#{File.join(File.expand_path(File.dirname(__FILE__)), 'fixtures', 'incomplete_tag.atom')}"
     classifier_http do |http|
-      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag).code.should == "302" # The first request triggers the fetching
+      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag).code.should == "424" # The first request triggers the fetching
     end
       sleep(1)
     classifier_http do |http|

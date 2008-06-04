@@ -6,6 +6,9 @@
  * Please contact info@peerworks.org for further information.
  */
 
+#include "tagger.h"
+
+
 #include <config.h>
 #include <stdlib.h>
 #include <string.h>
@@ -498,8 +501,8 @@ static int get_clues_handler(const HTTPRequest * request, HTTPResponse * respons
           response->content = "";
         } else {
           fetch_tagger_in_background(request->tagger_cache, tag_url);
-          response->code = MHD_HTTP_FOUND;
-          response->content = "";
+          response->code = MHD_HTTP_FAILED_DEPENDENCY;
+          response->content = "The classifier needs to load the tag to perform this operation. Please try again later.";
         }
         break;
       case TAGGER_PENDING_ITEM_ADDITION:
@@ -507,8 +510,8 @@ static int get_clues_handler(const HTTPRequest * request, HTTPResponse * respons
         response->content = "The classifier is missing some items required to perform this operation.  Please try again later.";
         break;
       case TAGGER_CHECKED_OUT:
-        // TODO handle tagger_checked_out in get_clues
-        HTTP_ISE(response);
+        response->code = MHD_HTTP_FAILED_DEPENDENCY;
+        response->content = "The classifier is waiting on the tagger to become available.  Please try again later.";
         break;
       case TAGGER_OK: {
           int num_clues = 0;
@@ -536,6 +539,7 @@ static int get_clues_handler(const HTTPRequest * request, HTTPResponse * respons
 
           free(clues);
           json_object_put(clue_array);
+          release_tagger(request->tagger_cache, tagger);
         }
        
         break;
