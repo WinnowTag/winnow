@@ -232,7 +232,9 @@ libjson_la_SOURCES = \
 	json_tokener.c \
 	json_util.c \
 	linkhash.c \
-	printbuf.c
+	printbuf.c \
+	printbuf.h \
+	json_object_private.h
 
 test1_SOURCES = test1.c
 test1_LDADD = $(lib_LTLIBRARIES)

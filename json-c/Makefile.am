@@ -25,7 +25,9 @@ libjson_la_SOURCES = \
 	json_tokener.c \
 	json_util.c \
 	linkhash.c \
-	printbuf.c
+	printbuf.c \
+	printbuf.h \
+	json_object_private.h
 
 check_PROGRAMS = test1 test2
 
