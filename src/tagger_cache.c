@@ -396,7 +396,7 @@ int is_cached(TaggerCache *cache, const char * tag) {
 
 /* Return true if an error occured while fetching the tag in the background.
  */
-int is_error(TaggerCache *cache, const char * tag) {
+int is_failed_tag(TaggerCache *cache, const char * tag) {
   int _error = 0;
   
   if (cache && tag) {

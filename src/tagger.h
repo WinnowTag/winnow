@@ -178,7 +178,7 @@ extern int           get_tagger_without_fetching (TaggerCache *tagger_cache, con
 extern int           release_tagger      (TaggerCache * tagger_cache, Tagger * tagger);
 extern int           fetch_tags          (TaggerCache * tagger_cache, Array **a, char ** errmsg);
 extern int           is_cached           (TaggerCache * tagger_cache, const char * tag_training_url);
-extern int           is_error            (TaggerCache * tagger_cache, const char * tag_training_url);
+extern int           is_failed_tag            (TaggerCache * tagger_cache, const char * tag_training_url);
 extern int           clear_error         (TaggerCache * tagger_cache, const char * tag_training_url);
 extern int           fetch_tagger_in_background(TaggerCache *cache, const char * tag);
 
