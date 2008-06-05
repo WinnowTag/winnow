@@ -484,7 +484,7 @@ static int get_clues_handler(const HTTPRequest * request, HTTPResponse * respons
     response->content = "The item does not exist in the classifier's item cache.";
   } else {
     Tagger *tagger = NULL;
-    int get_tagger_rc = get_tagger(request->tagger_cache, tag_url, false, &tagger, NULL);
+    int get_tagger_rc = get_tagger_without_fetching(request->tagger_cache, tag_url, &tagger, NULL);
 
     switch (get_tagger_rc) {
       case TAG_NOT_FOUND:

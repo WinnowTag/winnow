@@ -558,6 +558,20 @@ int get_missing_entries(Tagger * tagger, ItemCacheEntry ** entries) {
   return rc;
 }
 
+TaggerState prepare_tagger(Tagger *tagger, ItemCache *item_cache) {
+  if (tagger && item_cache) {
+    if (tagger->state != TAGGER_PRECOMPUTED) {      
+      if (TAGGER_TRAINED == tagger->state || TAGGER_TRAINED == train_tagger(tagger, item_cache)) {        
+        precompute_tagger(tagger, item_cache_random_background(item_cache));
+      }
+    }
+    
+    return tagger->state;
+  }
+  
+  return TAGGER_SEQUENCE_ERROR;
+}
+
 void free_tagger(Tagger * tagger) {
   if (tagger) {
     if (tagger->tag_id)                  free(tagger->tag_id);

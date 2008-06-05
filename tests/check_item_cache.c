@@ -214,8 +214,8 @@ START_TEST (test_iteration_happens_in_reverse_updated_order) {
 } END_TEST
 
 /* Test RandomBackground */
-START_TEST (test_random_background_is_null_before_load) {
-  assert_null(item_cache_random_background(item_cache));
+START_TEST (test_random_background_is_empty_pool_before_load) {
+  assert_not_null(item_cache_random_background(item_cache));
 } END_TEST
 
 START_TEST (test_creates_random_background_after_load) {
@@ -1131,7 +1131,7 @@ item_cache_suite(void) {
   
   TCase *rndbg = tcase_create("random background");
   tcase_add_checked_fixture(rndbg, setup_cache, teardown_item_cache);
-  tcase_add_test(rndbg, test_random_background_is_null_before_load);
+  tcase_add_test(rndbg, test_random_background_is_empty_pool_before_load);
   tcase_add_test(rndbg, test_creates_random_background_after_load);
   tcase_add_test(rndbg, test_random_background_is_correct_size);
   tcase_add_test(rndbg, test_random_background_has_right_count_for_a_token);

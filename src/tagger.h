@@ -125,6 +125,8 @@ typedef struct TAGGER_CACHE_OPTIONS {
   const char * tag_index_url;
 } TaggerCacheOptions;
 
+typedef int (*TagRetriever)(const char * tag_training_url, time_t last_updated, char ** tag_document, char ** errmsg);
+
 typedef struct TAGGER_CACHE {
   TaggerCacheOptions *options;
   
@@ -133,12 +135,9 @@ typedef struct TAGGER_CACHE {
   
   /* The item cache to get items for training taggers */
   ItemCache *item_cache;
-  
-  /* The random background used in precomputing probabilities for taggers */
-  const Pool * random_background;
-  
+    
   /* Function used to fetch tag documents. This is really just a function pointer to help testing. */
-  int (*tag_retriever)(const char * tag_training_url, time_t last_updated, char ** tag_document, char ** errmsg);
+  TagRetriever tag_retriever;
   
   /* Function used to fetch tag index documents. This is really just a function pointer to help testing. */
   int (*tag_index_retriever)(const char * tag_index_url, time_t last_updated, char ** tag_index_document, char ** errmsg);
@@ -164,6 +163,7 @@ extern Tagging *     create_tagging      (const char * item_id, double strength)
 extern Tagger *      build_tagger        (const char * atom);
 extern TaggerState   train_tagger        (Tagger * tagger, ItemCache * item_cache);
 extern TaggerState   precompute_tagger   (Tagger * tagger, const Pool * random_background);
+extern TaggerState   prepare_tagger      (Tagger * tagger, ItemCache * item_cache);
 extern int           classify_item       (const Tagger * tagger, const Item * item, double * probability);
 extern Clue **       get_clues           (const Tagger * tagger, const Item * item, int * num);
 extern int           update_taggings     (const Tagger * tagger, Array *list, char ** errmsg);
@@ -173,7 +173,8 @@ extern void          free_tagger         (Tagger * tagger);
 
 extern TaggerCache * create_tagger_cache (ItemCache * item_cache, TaggerCacheOptions * options);
 extern void          free_tagger_cache   (TaggerCache * tagger_cache);
-extern int           get_tagger          (TaggerCache * tagger_cache, const char * tag_training_url, int do_fetch, Tagger ** tagger, char ** errmsg);
+extern int           get_tagger          (TaggerCache * tagger_cache, const char * tag_training_url, Tagger ** tagger, char ** errmsg);
+extern int           get_tagger_without_fetching (TaggerCache *tagger_cache, const char * tag_training_url, Tagger ** tagger, char ** errmsg);
 extern int           release_tagger      (TaggerCache * tagger_cache, Tagger * tagger);
 extern int           fetch_tags          (TaggerCache * tagger_cache, Array **a, char ** errmsg);
 extern int           is_cached           (TaggerCache * tagger_cache, const char * tag_training_url);

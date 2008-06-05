@@ -904,10 +904,14 @@ int item_cache_each_item(ItemCache *item_cache, ItemIterator iterator, void *mem
  * @param item_cache The ItemCache to get the random background pool for.
  * @return The random background pool.
  */
-const Pool * item_cache_random_background(const ItemCache * item_cache)  {
+const Pool * item_cache_random_background(ItemCache * item_cache)  {
   const Pool * random_background = NULL;
   if (item_cache) {
-    random_background = item_cache->random_background;
+    if (!item_cache->random_background) {
+      item_cache->random_background = new_pool();
+    }
+    
+    random_background = item_cache->random_background;    
   }
   
   return random_background;

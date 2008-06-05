@@ -44,7 +44,7 @@ extern int          item_cache_cached_size        (ItemCache *item_cache);
 extern Item *       item_cache_fetch_item         (ItemCache *item_cache,  const unsigned char * item_id, int * free_when_done);  
 extern const char * item_cache_errmsg             (const ItemCache *is);
 extern int          item_cache_each_item          (ItemCache *item_cache, ItemIterator iterator, void *memo);
-extern const Pool * item_cache_random_background  (const ItemCache *item_cache);
+extern const Pool * item_cache_random_background  (ItemCache *item_cache);
 extern int          item_cache_add_entry          (ItemCache *item_cache, ItemCacheEntry *entry);
 extern int          item_cache_remove_entry       (ItemCache *item_cache, int entry_id);
 extern int          item_cache_add_feed           (ItemCache *item_cache, Feed *feed);
