@@ -679,6 +679,33 @@ static void ce_record_classification_job_timings(ClassificationEngine *ce, const
     continue;                                    \
   }
 
+static int wait_if_suspended(ClassificationEngine * ce) {
+  int exit = false;
+  /* Check if the engine is suspended.
+   * 
+   * If it is we wait on the classification_suspension_cond
+   * until the thread gets woken up again.
+   * 
+   * We can also be woken up to stop, in which case the classification
+   * will still be suspended and we quit straight away.
+   */
+  pthread_mutex_lock(ce->classification_suspension_mutex);
+    if (ce->is_classification_suspended) {
+      NOTIFY_SUSPENSION(ce);
+      pthread_cond_wait(ce->classification_suspension_cond, ce->classification_suspension_mutex);
+      NOTIFY_RESUMPTION(ce);
+
+      // Been woken up to exit - not to continue
+      if (ce->is_classification_suspended) {
+        pthread_mutex_unlock(ce->classification_suspension_mutex);
+        info("classification worker resumed to exit");
+        exit = true;
+      }
+    }
+  pthread_mutex_unlock(ce->classification_suspension_mutex);
+  return exit;
+}
+
 /* This is the function for classificaiton work threads.
  * 
  * Each worker shares the ItemSource, Random Background and Queues of
@@ -695,29 +722,7 @@ void *classification_worker_func(void *engine_vp) {
   Queue *job_queue         = ce->classification_job_queue;  
   
   while (!q_empty(job_queue) || ce->is_running) {
-    /* Check if the engine is suspended.
-     * 
-     * If it is we wait on the classification_suspension_cond
-     * until the thread gets woken up again.
-     * 
-     * We can also be woken up to stop, in which case the classification
-     * will still be suspended and we quit straight away.
-     */
-    pthread_mutex_lock(ce->classification_suspension_mutex);
-      if (ce->is_classification_suspended) {
-        NOTIFY_SUSPENSION(ce);
-        pthread_cond_wait(ce->classification_suspension_cond, ce->classification_suspension_mutex);
-        NOTIFY_RESUMPTION(ce);
-        
-        // Been woken up to exit - not to continue
-        if (ce->is_classification_suspended) {
-          pthread_mutex_unlock(ce->classification_suspension_mutex);
-          info("classification worker resumed to exit");
-          break;
-        }
-      }
-    pthread_mutex_unlock(ce->classification_suspension_mutex);
-     
+    if (wait_if_suspended(ce)) break;
     trace("About to wait on queue, thread %i", pthread_self());
     ClassificationJob *job = (ClassificationJob*) q_dequeue_or_wait(job_queue, 1);
     trace("Returned from queue, thread %i", pthread_self());
