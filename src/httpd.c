@@ -305,6 +305,9 @@ static int entry_handler(const HTTPRequest * request, HTTPResponse * response) {
     } else {
       HTTP_ISE(response);
     }
+  } else if (PUT == request->method) {
+  	response->code = MHD_HTTP_ACCEPTED;
+		response->content = "";
   } else {
     HTTP_ISE(response);
   }
