@@ -46,12 +46,26 @@ TaggerCache * create_tagger_cache(ItemCache * item_cache, TaggerCacheOptions *op
   return tagger_cache;
 }
 
+/** Sets up the classification functions for a new Tagger. 
+ *  
+ *  These will just the Naive Bayes functions from classifier.c
+ *
+ *  @param tagger The tagger
+ */
 static void setup_classification_functions(Tagger *tagger) {
   tagger->probability_function    = &naive_bayes_probability;
   tagger->classification_function = &naive_bayes_classify;
   tagger->get_clues_function      = &select_clues;
 }
 
+/* Fetch a Tag document and call build_tagger to return a Tagger representing that document.
+ *
+ * @param tag_retriever This is how the tag is actually fetched.
+ * @param tag_training_url The URL of the tag document.
+ * @param if_modified_since We only return the tagger if it has been modified since this date.
+ * @param errmsg Any errors will be put in here.
+ * @return The fetched tagger or NULL if it couldn't be found or wasn't modified.
+ */
 static Tagger * fetch_tagger(TagRetriever tag_retriever, const char * tag_training_url, time_t if_modified_since, char ** errmsg) {
   Tagger *tagger = NULL;
   
@@ -86,6 +100,8 @@ static Tagger * fetch_tagger(TagRetriever tag_retriever, const char * tag_traini
   return tagger;
 }
 
+/** Marks a tagger, identified by the tag_training_url, as checked out
+ */
 static int mark_as_checked_out(TaggerCache *tagger_cache, const char * tag_training_url) {
   debug("Checking out %s", tag_training_url);
   PWord_t tagger_pointer;
@@ -101,6 +117,7 @@ static int mark_as_checked_out(TaggerCache *tagger_cache, const char * tag_train
   return 0;
 }
 
+/* Returns true if the tag, identified by the tag_training_url is checked out. */
 static int is_checked_out(TaggerCache *tagger_cache, const char * tag_training_url) {
   int checked_out = false;
   PWord_t tagger_pointer = NULL;
@@ -113,6 +130,7 @@ static int is_checked_out(TaggerCache *tagger_cache, const char * tag_training_u
   return checked_out;
 }
 
+/** Gets a tagger, identified by the tag_training_url from the cache. */
 static Tagger * get_cached_tagger(TaggerCache *tagger_cache, const char * tag_training_url) {
   Tagger *tagger = NULL;
   PWord_t tagger_pointer = NULL;
@@ -125,6 +143,13 @@ static Tagger * get_cached_tagger(TaggerCache *tagger_cache, const char * tag_tr
   return tagger;
 }
 
+/* Checks out a tagger, identified by tag_training_url.
+ *
+ * If the tagger is already checked out this will return TAGGER_CHECKED_OUT and *tagger will be left untouched.
+ * If the tagger is not in the cache this will mark the tag_training_url as checked out, return TAGGER_NOT_CACHED
+ * and leave *tagger untouched.  In this case the tagger is still checked out though.
+ * If the tagger is cached and not checked out it returns TAGGER_OK and puts the tagger in *tagger.
+ */
 static int checkout_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger ** tagger) {
   int rc = TAGGER_OK;
   
@@ -142,6 +167,10 @@ static int checkout_tagger(TaggerCache * tagger_cache, const char * tag_training
   return rc;
 }
 
+/* Inserts the tagger in the cache.
+ *
+ * If the tagger is already cached it is replaced.
+ */
 static int cache_tagger(TaggerCache * tagger_cache, Tagger * tagger) {
   PWord_t tagger_pointer;
   
@@ -165,12 +194,18 @@ static int cache_tagger(TaggerCache * tagger_cache, Tagger * tagger) {
   return 0;
 }
 
+/* Release (or checkin) the tagger identified by tag_url.
+ * 
+ * Requires the tagger_cache lock to already be held.
+ */
 static int release_tagger_without_locks(TaggerCache *tagger_cache, uint8_t * tag_url) {
   int rc;
   JSLD(rc, tagger_cache->checked_out_taggers, tag_url);
   return rc;
 }
 
+/* Release (or checkin) the tagger identified by tag_url.
+ */
 static int release_tagger_by_url(TaggerCache *tagger_cache, uint8_t * tag_url) {
   int rc;
   pthread_mutex_lock(&tagger_cache->mutex);
@@ -179,6 +214,20 @@ static int release_tagger_by_url(TaggerCache *tagger_cache, uint8_t * tag_url) {
   return rc;
 }
 
+/* Release (or checkin) the tagger.
+ */
+int release_tagger(TaggerCache *tagger_cache, Tagger * tagger) {
+  int rc = 1;
+  if (tagger_cache && tagger) {
+    debug("releasing tagger %s", tagger->training_url);
+    rc = release_tagger_by_url(tagger_cache, (uint8_t*) tagger->training_url);
+  }
+  
+  return rc;
+}
+
+/** If there are any missing entries in the tag definition, these are added to the item cache.
+ */
 static int add_missing_entries_if_needed(ItemCache * item_cache, Tagger * tagger) {
   if (tagger && tagger->state == TAGGER_PARTIALLY_TRAINED) {
     int number_of_missing_entries = tagger->missing_positive_example_count + tagger->missing_negative_example_count;
@@ -220,6 +269,8 @@ int determine_return_state(Tagger *tagger, char ** errmsg) {
   }
 }
 
+/* This will fetch ori update the tagger, depending on whether tagger is NULL or not.
+ */
 static int fetch_or_update_tagger(TagRetriever tag_retriever, const char *tag_url, Tagger **tagger, char ** errmsg) {
   int updated = 0;
   
@@ -240,6 +291,9 @@ static int fetch_or_update_tagger(TagRetriever tag_retriever, const char *tag_ur
   return updated;
 }
 
+/** Gets the tagger from the internal cache.  The tagger will be prepared before being returned so all the same conditions
+ *  as get_tagger apply, except if the tagger is not in the cache this function won't try to fetch it.
+ */
 int get_tagger_without_fetching(TaggerCache *tagger_cache, const char * tag_training_url, Tagger ** tagger, char ** errmsg) {
   int rc = -1;
   *tagger = NULL;
@@ -323,16 +377,7 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
   return rc;
 }
 
-int release_tagger(TaggerCache *tagger_cache, Tagger * tagger) {
-  int rc = 1;
-  if (tagger_cache && tagger) {
-    debug("releasing tagger %s", tagger->training_url);
-    rc = release_tagger_by_url(tagger_cache, (uint8_t*) tagger->training_url);
-  }
-  
-  return rc;
-}
-
+/* Return true if the tagger, identified by tag, is in the cache. */
 int is_cached(TaggerCache *cache, const char * tag) {
   int cached = 0;
   
@@ -349,6 +394,8 @@ int is_cached(TaggerCache *cache, const char * tag) {
   return cached;
 }
 
+/* Return true if an error occured while fetching the tag in the background.
+ */
 int is_error(TaggerCache *cache, const char * tag) {
   int _error = 0;
   
@@ -366,6 +413,8 @@ int is_error(TaggerCache *cache, const char * tag) {
   return _error;
 }
 
+/* Mark the tag as having an error when fetching in the background.
+ */
 static void mark_as_error(TaggerCache *tagger_cache, const char * tag) {
   pthread_mutex_lock(&tagger_cache->mutex);  
   PWord_t tag_pointer;
@@ -378,6 +427,8 @@ struct background_fetch_data {
   char * tag;
 };
 
+/* pthread function for fetching a tagger in the background.
+ */
 static void *background_fetcher(void *memo) {
   struct background_fetch_data *data = (struct background_fetch_data*) memo;
   debug("background fetcher started for %s", data->tag);
@@ -394,6 +445,8 @@ static void *background_fetcher(void *memo) {
   return 0;
 }
 
+/** This will spawn a thread to fetch the tagger in the background.
+ */
 int fetch_tagger_in_background(TaggerCache *cache, const char * tag) {
   if (cache && tag) {
     struct background_fetch_data *data = malloc(sizeof(struct background_fetch_data));
