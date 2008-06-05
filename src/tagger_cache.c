@@ -14,61 +14,76 @@
 #include "classifier.h"
 #include "fetch_url.h"
 
+/** Creates a new TaggerCache with an item cache and some options.
+ *
+ *  @param item_cache The item cache that will be used in training taggers.
+ *  @param opts Some additional options for the TaggerCache.
+ *  @return The new TaggerCache or NULL if something goes wrong.
+ */
 TaggerCache * create_tagger_cache(ItemCache * item_cache, TaggerCacheOptions *opts) {
   TaggerCache *tagger_cache = calloc(1, sizeof(struct TAGGER_CACHE));
-  tagger_cache->item_cache = item_cache;
-  tagger_cache->options = opts;
-  tagger_cache->tag_urls = NULL;
-  tagger_cache->failed_tags = NULL;
-  tagger_cache->taggers = NULL;
-  tagger_cache->tag_urls_last_updated = -1;
   
-  tagger_cache->random_background = item_cache_random_background(item_cache);
-  if (tagger_cache->random_background == NULL) {
-    info("Operating with empty random background");
-    tagger_cache->random_background = new_pool();
-  }
-  
-  if (pthread_mutex_init(&tagger_cache->mutex, NULL)) {
-    fatal("pthread_mutex_init error for tagger_cache");
-    free(tagger_cache);
-    tagger_cache = NULL;
+  if (tagger_cache) {
+    tagger_cache->item_cache = item_cache;
+    tagger_cache->options = opts;
+    tagger_cache->tag_urls = NULL;
+    tagger_cache->failed_tags = NULL;
+    tagger_cache->taggers = NULL;
+    tagger_cache->tag_urls_last_updated = -1;
+
+    tagger_cache->random_background = item_cache_random_background(item_cache);
+    if (tagger_cache->random_background == NULL) {
+      info("Operating with empty random background");
+      tagger_cache->random_background = new_pool();
+    }
+
+    if (pthread_mutex_init(&tagger_cache->mutex, NULL)) {
+      fatal("pthread_mutex_init error for tagger_cache");
+      free(tagger_cache);
+      tagger_cache = NULL;
+    }
+  } else {
+    fatal("Could not allocate TaggerCache");
   }
   
   return tagger_cache;
 }
 
+static void setup_classification_functions(Tagger *tagger) {
+  tagger->probability_function    = &naive_bayes_probability;
+  tagger->classification_function = &naive_bayes_classify;
+  tagger->get_clues_function      = &select_clues;
+}
+
 static Tagger * fetch_tagger(TaggerCache * tagger_cache, const char * tag_training_url, time_t if_modified_since, char ** errmsg) {
+  Tagger *tagger = NULL;
+  
   if (tagger_cache->tag_retriever == NULL) {
     fatal("tagger_cache->tag_retriever not set");
-  }
-  
-  Tagger *tagger = NULL;
-  char *tag_document = NULL;
-  int rc = tagger_cache->tag_retriever(tag_training_url, if_modified_since, &tag_document, errmsg);
-  
-  if (rc == URL_OK && tag_document != NULL) {
-    tagger = build_tagger(tag_document);
-    
-    if (tagger) {
-      /* Replace the training url with the url we actually used to fetch it,
-       * i.e. don't trust the atom document to report this correctly.
-       */
-      free(tagger->training_url);
-      tagger->training_url = strdup(tag_training_url);
-      tagger->probability_function = &naive_bayes_probability;
-      tagger->classification_function = &naive_bayes_classify;
-      tagger->get_clues_function = &select_clues;
-    
-      if (tagger->state != TAGGER_LOADED) {
-        tagger = NULL; // free_tagger
-      }      
-    } else {
-      info("The tag document was badly formed");      
-      if (errmsg) *errmsg = strdup("The tag document was badly formed");      
+  } else {
+    char *tag_document = NULL;
+    int fetch_rc = tagger_cache->tag_retriever(tag_training_url, if_modified_since, &tag_document, errmsg);
+
+    if (fetch_rc == URL_OK && tag_document != NULL) {
+      tagger = build_tagger(tag_document);
+
+      if (tagger && tagger->state == TAGGER_LOADED) {
+        /* Replace the training url with the url we actually used to fetch it,
+         * i.e. don't trust the atom document to report this correctly.
+         */
+        free(tagger->training_url);
+        tagger->training_url = strdup(tag_training_url);
+        setup_classification_functions(tagger);
+      } else if (tagger) {
+        free_tagger(tagger);
+        tagger = NULL;          
+      } else {
+        info("The tag document was badly formed");      
+        if (errmsg) *errmsg = strdup("The tag document was badly formed");      
+      }
+
+      free(tag_document);    
     }
-    
-    free(tag_document);    
   }
   
   return tagger;
@@ -76,14 +91,13 @@ static Tagger * fetch_tagger(TaggerCache * tagger_cache, const char * tag_traini
 
 #define TAGGER_NOT_CACHED 16
 
-static int mark_as_checked_out(TaggerCache *tagger_cache, const char * tagger_identify) {
-  debug("Checking out %s", tagger_identify);
+static int mark_as_checked_out(TaggerCache *tagger_cache, const char * tag_training_url) {
+  debug("Checking out %s", tag_training_url);
   PWord_t tagger_pointer;
   
-  JSLI(tagger_pointer, tagger_cache->checked_out_taggers, (const uint8_t*) tagger_identify);
+  JSLI(tagger_pointer, tagger_cache->checked_out_taggers, (const uint8_t*) tag_training_url);
   
   if (tagger_pointer != NULL) {
-    // Don't store the tagger here - don't need it and I don't want to have to update it.
     *tagger_pointer = 1;
   } else {
     fatal("Malloc error allocating element in checked_out_taggers");
@@ -92,22 +106,39 @@ static int mark_as_checked_out(TaggerCache *tagger_cache, const char * tagger_id
   return 0;
 }
 
+static int is_checked_out(TaggerCache *tagger_cache, const char * tag_training_url) {
+  int checked_out = false;
+  PWord_t tagger_pointer = NULL;
+  
+  JSLG(tagger_pointer, tagger_cache->checked_out_taggers, (uint8_t*) tag_training_url);
+  if (tagger_pointer) {
+    checked_out = true;
+  }
+  
+  return checked_out;
+}
+
+static Tagger * get_cached_tagger(TaggerCache *tagger_cache, const char * tag_training_url) {
+  Tagger *tagger = NULL;
+  PWord_t tagger_pointer = NULL;
+  
+  JSLG(tagger_pointer, tagger_cache->taggers, (uint8_t*) tag_training_url);
+  if (tagger_pointer) {
+    tagger = (Tagger*) (*tagger_pointer);
+  }
+  
+  return tagger;
+}
+
 static int checkout_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger ** tagger) {
   int rc = TAGGER_OK;
-  PWord_t tagger_pointer;
   
-  JSLG(tagger_pointer, tagger_cache->checked_out_taggers, (const uint8_t*) tag_training_url);
-  if (tagger_pointer != NULL) {
+  if (is_checked_out(tagger_cache, tag_training_url)) {
     rc = TAGGER_CHECKED_OUT;
+  } else if ((*tagger = get_cached_tagger(tagger_cache, tag_training_url))) {
+    mark_as_checked_out(tagger_cache, tag_training_url);
   } else {
-    JSLG(tagger_pointer, tagger_cache->taggers, (const uint8_t*) tag_training_url);
-    
-    if (tagger_pointer != NULL) {
-      *tagger = (Tagger*) (*tagger_pointer);
-      mark_as_checked_out(tagger_cache, (*tagger)->training_url);
-    } else {
-      rc = TAGGER_NOT_CACHED;
-    }
+    rc = TAGGER_NOT_CACHED;
   }
   
   return rc;
@@ -119,8 +150,7 @@ static int cache_tagger(TaggerCache * tagger_cache, Tagger * tagger) {
   JSLI(tagger_pointer, tagger_cache->taggers, (uint8_t*) tagger->training_url);
   if (tagger_pointer != NULL) {
     if (*tagger_pointer != 0) {
-       // we are replacing a tagger in the cache, so free the old one
-       free_tagger((Tagger*) (*tagger_pointer));
+      free_tagger((Tagger*) (*tagger_pointer));
       debug("Replacing %s in cache", tagger->training_url);
     } else {
       debug("Inserting %s into cache for the first time", tagger->training_url);
@@ -141,7 +171,6 @@ static int release_tagger_without_locks(TaggerCache *tagger_cache, uint8_t * tag
 }
 
 static int add_missing_entries(ItemCache * item_cache, Tagger * tagger) {
-  /* Only add missing entries if the tagger is new. */
   int number_of_missing_entries = tagger->missing_positive_example_count + tagger->missing_negative_example_count;
   ItemCacheEntry *entries[number_of_missing_entries];
   memset(entries, 0, sizeof(entries));
@@ -245,7 +274,7 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, int do
         
         /* If the new tagger is not in the PRECOMPUTED state check it back in since we don't return it */
         if (temp_tagger->state != TAGGER_PRECOMPUTED) {
-          release_tagger_without_locks(tagger_cache, tag_training_url);
+          release_tagger_without_locks(tagger_cache, (uint8_t*) tag_training_url);
         }
         
         pthread_mutex_unlock(&tagger_cache->mutex);
@@ -279,7 +308,7 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, int do
         
         /* Make sure a missing tag is not checked out */
         pthread_mutex_lock(&tagger_cache->mutex);
-        release_tagger_without_locks(tagger_cache, tag_training_url);
+        release_tagger_without_locks(tagger_cache, (uint8_t*) tag_training_url);
         pthread_mutex_unlock(&tagger_cache->mutex);
       }
     } else {
@@ -296,7 +325,7 @@ int release_tagger(TaggerCache *tagger_cache, Tagger * tagger) {
   if (tagger_cache && tagger) {
     debug("releasing tagger %s", tagger->training_url);
     pthread_mutex_lock(&tagger_cache->mutex);
-    rc = release_tagger_without_locks(tagger_cache, tagger->training_url);
+    rc = release_tagger_without_locks(tagger_cache, (uint8_t*) tagger->training_url);
     pthread_mutex_unlock(&tagger_cache->mutex);
   }
   
@@ -308,10 +337,8 @@ int is_cached(TaggerCache *cache, const char * tag) {
   
   if (cache && tag) {
     pthread_mutex_lock(&cache->mutex);
-    PWord_t tagger_pointer;
     
-    JSLG(tagger_pointer, cache->taggers, (uint8_t*) tag);
-    if (tagger_pointer) {
+    if (get_cached_tagger(cache, tag)) {
       cached = 1;
     }
     
@@ -338,6 +365,13 @@ int is_error(TaggerCache *cache, const char * tag) {
   return _error;
 }
 
+static void mark_as_error(TaggerCache *tagger_cache, const char * tag) {
+  pthread_mutex_lock(&tagger_cache->mutex);  
+  PWord_t tag_pointer;
+  JSLI(tag_pointer, tagger_cache->failed_tags, (uint8_t*) tag);
+  pthread_mutex_unlock(&tagger_cache->mutex);
+}
+
 struct background_fetch_data {
   TaggerCache *tagger_cache;
   char * tag;
@@ -348,19 +382,12 @@ static void *background_fetcher(void *memo) {
   debug("background fetcher started for %s", data->tag);
   
   Tagger *tagger = NULL;
-  int rc = get_tagger(data->tagger_cache, data->tag, true, &tagger, NULL);
-  
-  switch (rc) {
-    case TAGGER_OK:
-      release_tagger(data->tagger_cache, tagger);
-      break;
-    default:
-      pthread_mutex_lock(&data->tagger_cache->mutex);  
-      PWord_t tag_pointer;
-      JSLI(tag_pointer, data->tagger_cache->failed_tags, (uint8_t*) data->tag);
-      pthread_mutex_unlock(&data->tagger_cache->mutex);
+  if (TAGGER_OK == get_tagger(data->tagger_cache, data->tag, true, &tagger, NULL)) {
+    release_tagger(data->tagger_cache, tagger);
+  } else {
+    mark_as_error(data->tagger_cache, data->tag);
   }
-  
+    
   free(data->tag);
   free(data);
   return 0;
