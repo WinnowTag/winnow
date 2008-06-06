@@ -304,7 +304,7 @@ describe "Job Processing after item addition" do
 
   it "should include the added item" do
     create_entry
-    
+    sleep(1)
     job_results do |req, res|
       Atom::Feed.load_feed(req.body).should have(@item_count + 1).entries
     end

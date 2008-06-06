@@ -37,6 +37,7 @@ typedef enum CLASSIFICATION_JOB_ERROR {
   CJOB_ERROR_NO_TAGS_FOR_USER,
   CJOB_ERROR_BAD_JOB_TYPE,
   CJOB_ERROR_MISSING_ITEM_TIMEOUT,
+  CJOB_ERROR_CHECKED_OUT,
   CJOB_ERROR_UNKNOWN_ERROR
 } ClassificationJobError;
 
@@ -46,7 +47,7 @@ typedef enum ITEM_SCOPE {
 } ItemScope;
 
 typedef struct CLASSIFICATION_JOB {
-  const char * id; 
+  const char * id;
   const char * tag_url;
   float progress;
   float progress_increment;
