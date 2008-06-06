@@ -8,26 +8,4 @@ Running the Engine
 The classifier can be run using the "classifier" executable. If you performed the "make install"
 of the build instructions this is likely in your PATH.
 
-The classifier program supports these options:
-
- -c CONFIG_FILE 
-     Defines the name of the configuration file to use. 
-     Defaults to config/classifier.conf in the current directory.
- -l LOG_FILE
-     Defines where to write log messages to.
-     Defaults to log/classifier.log in the current directory.
- -d
-     Forces the classifier to run as a daemon.
-
- -v 
-     Show version information.
-     
-When the classifier is running, you should be able to access it's http server on whatever
-port is defined in the config file, although the responses won't be that useful or friendly
-yet.
-     
-Configuration
-============================================
-
-See tests/conf/test.confg in the distribution directory for a
-documented example of the configuration file.
+Run "classifier -h" to see a list of supported arguments.
