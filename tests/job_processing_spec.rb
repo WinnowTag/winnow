@@ -354,6 +354,25 @@ describe "Job Processing after item addition" do
     #`wc -l /tmp/perf.log`.to_i.should == Tagging.count(:select => 'distinct tag_id') + 2 # +1 for header, +1 for previous job
   end
 end
+
+describe 'Job Processing using files' do
+  before(:each) do
+    FileUtils.rm_f('/tmp/taggings.atom')
+    start_classifier()
+  end
+  
+  it "should fetch the tag file and save the results" do
+    times = 0
+    job = create_job("file:#{File.expand_path(File.dirname(__FILE__) + "/fixtures/file_tag.atom")}")
+    while job.progress < 100
+      job.reload
+      sleep(0.1)
+      times += 1
+      times.should < 10
+    end
+    File.exist?("/tmp/taggings.atom").should be_true
+  end
+end
     
 def job_results(atom = 'complete_tag.atom', times_gotten = 1)
   gets = 0
