@@ -361,6 +361,10 @@ describe 'Job Processing using files' do
     start_classifier()
   end
   
+  after(:each) do
+    stop_classifier
+  end
+  
   it "should fetch the tag file and save the results" do
     times = 0
     job = create_job("file:#{File.expand_path(File.dirname(__FILE__) + "/fixtures/file_tag.atom")}")
