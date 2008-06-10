@@ -80,8 +80,6 @@ extern void                   ce_run(ClassificationEngine *engine);
 extern int                    ce_num_jobs_in_system(const ClassificationEngine *engine);
 extern int                    ce_num_waiting_jobs(const ClassificationEngine *engine);
 extern ClassificationJob    * ce_add_classification_job(ClassificationEngine *engine, const char * tag_url);
-//extern ClassificationJob    * ce_add_classify_new_items_job_for_tag(ClassificationEngine *engine, int tag_id);
-extern ClassificationJob    * ce_add_classification_job_for_user(ClassificationEngine *engine, int user_id);
 extern ClassificationJob    * ce_fetch_classification_job(const ClassificationEngine *engine, const char * job_id);
 extern int                    ce_remove_classification_job(ClassificationEngine *engine, const ClassificationJob *job, int force);
 extern float                  cjob_duration(const ClassificationJob *job);
