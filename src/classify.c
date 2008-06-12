@@ -19,7 +19,7 @@
 #include "feature_extractor.h"
 #include "fetch_url.h"
 
-void print_help() {
+static void print_help() {
 	printf("Peerworks Classifier\n\n");
 	printf("This version of the classifier will classify a\n single tag file or directory of tag files.\n\n");
 	printf("Usage: classify <item_cache> <tag-file-url-or-directory>\n");
@@ -34,7 +34,7 @@ static TaggerCache *tagger_cache;
 static ClassificationEngineOptions ce_options = {1, 0.0, 10, NULL};
 static ClassificationEngine *engine;
 
-int start_classifier(char * corpus) {
+static int start_classifier(char * corpus) {
 	if (CLASSIFIER_OK != item_cache_create(&item_cache, corpus, &item_cache_options)) {
     fprintf(stderr, "Error opening classifier database file at %s: %s\n", corpus, item_cache_errmsg(item_cache));
     free_item_cache(item_cache);
@@ -79,13 +79,18 @@ int main(int argc, char ** argv) {
 	} else {
 		char *item_cache = argv[1];
 		char *tag = argv[2];
-		initialize_logging("/dev/null");
+		//initialize_logging("/dev/null");
 
 		if (start_classifier(item_cache)) {
 			printf("Error starting the classifier");
 		} else {
-			ce_add_classification_job(engine, tag);
+			ClassificationJob *job = ce_add_classification_job(engine, tag);
 			ce_stop(engine);
+			if (job->state != CJOB_STATE_COMPLETE) {
+				char buffer[512];
+				cjob_error_msg(job, buffer, 512);
+				printf("Job not complete: %s\n", buffer);
+			}
 		}
 	}
 
