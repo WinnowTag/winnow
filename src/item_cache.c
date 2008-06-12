@@ -644,13 +644,14 @@ static struct token * read_tokens(const char * path, int * num_tokens) {
       
   if (NULL != token_file) {
     int file_size = get_file_size(token_file, path);
+    debug("File size for %s is %i", path, file_size);
     
     if (file_size < 0) {
       error("Could not get file size for %s: %s", path, strerror(errno));
     } else if (0 != (file_size % TOKEN_BYTES)) {
       error(CORRUPT_TOKEN_FILE, path, sizeof(struct token), file_size);
     } else {
-      int _num_tokens = file_size / sizeof(struct token);
+      int _num_tokens = file_size / TOKEN_BYTES;
       tokens = calloc(_num_tokens, sizeof(struct token));
 
       if (!tokens) {
@@ -659,16 +660,19 @@ static struct token * read_tokens(const char * path, int * num_tokens) {
         int i = 0;
         for (; i < _num_tokens; i++) {
           char buffer[TOKEN_BYTES];
-          int bytes_read = fread(tokens, 1, sizeof(buffer), token_file);
+          int bytes_read = fread(buffer, 1, sizeof(buffer), token_file);
           
           if (bytes_read != sizeof(buffer)) {
             error("From %s expected to read %i tokens but only got %i", path, _num_tokens, i + 1);
             free(tokens);
             tokens = NULL;
             break;
-          } else {
-            tokens[i].id = (buffer[0] << 24 | buffer[1] << 16 | buffer[2] << 8 | buffer[3]);
-            tokens[i].frequency = (buffer[4] << 8 | buffer[5]);
+          } else {            
+            tokens[i].id = (((buffer[3] & 0xFF) << 24) | 
+                            ((buffer[2] & 0xFF) << 16) | 
+                            ((buffer[1] & 0xFF) <<  8) | 
+                             (buffer[0] & 0xFF));
+            tokens[i].frequency = (buffer[5] << 8 | buffer[4]);
           }
         }
         
@@ -702,7 +706,8 @@ static int fetch_tokens_for(ItemCache * item_cache, Item * item) {
     } else {      
       int num_tokens = 0;
       struct token *tokens = read_tokens(path, &num_tokens);
-
+      debug("Got back %i tokens", num_tokens);
+      
       if (tokens) {
         int i;
         for (i = 0; i < num_tokens; i++) {
@@ -907,8 +912,7 @@ static Item * fetch_item_from_catalog(ItemCache * item_cache, const char * id) {
 		if (SQLITE_ROW == sqlite3_rc) {
 			item = create_item(sqlite3_column_text(item_cache->fetch_item_stmt, 0));
 			if (NULL != item) {
-        item->key = 890806;
-        //item->key = sqlite3_column_int(item_cache->fetch_item_stmt, 1);
+        item->key = sqlite3_column_int(item_cache->fetch_item_stmt, 1);
 				item->time = (time_t) sqlite3_column_int64(item_cache->fetch_item_stmt, 2);
 			}
 		} else if (SQLITE_DONE != sqlite3_rc) {
