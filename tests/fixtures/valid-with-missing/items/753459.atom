@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<entry xmlns="http://www.w3.org/2005/Atom">
+  <title>Looking for a Job</title>
+  <id>urn:peerworks.org:entry#2</id>
+  <updated>2007-05-03T01:42:42+09:30</updated>
+  <link href="http://collector.mindloom.org/feed_items/753459" rel="self"/>
+  <link href="http://damienkatz.net/2007/01/looking_for_a_j.html" rel="alternate"/>
+  <link href="http://collector.mindloom.org/feed_items/753459/spider" rel="http://peerworks.org/rel/spider"/>
+  <author>
+    <name>author 753459</name>
+  </author>
+  <content type="html">Content for 753459</content>
+</entry>

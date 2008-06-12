@@ -34,7 +34,7 @@ static ClassificationEngineOptions opts = {1, 0.0, NULL};
 
 static void setup_engine() {
   setup_fixture_path();
-  item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
+  item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
   item_cache_load(item_cache);
   tagger_cache = create_tagger_cache(item_cache, NULL);
   tagger_cache->tag_retriever = &fetch_url;
@@ -69,7 +69,7 @@ START_TEST(cancelling_a_job_removes_it_from_the_system_once_a_worker_gets_to_it)
   ClassificationJob *job = ce_add_classification_job(ce, TAG_ID);
   char job_id[64];
   strncpy(job_id, job->id, 64);
-    
+
   assert_equal(1, ce_num_waiting_jobs(ce));
   cjob_cancel(job);
   assert_equal(1, ce_num_waiting_jobs(ce));
@@ -123,7 +123,7 @@ START_TEST (remove_classification_job_removes_the_job_from_the_engines_job_index
 
 START_TEST (remove_classification_job_wont_removes_the_job_from_the_engines_job_index_if_job_is_not_complete) {
   ClassificationJob *job = ce_add_classification_job(ce, TAG_ID);
-  
+
   int res = ce_remove_classification_job(ce, job, 0);
   assert_false(res);
   ClassificationJob *j2 = ce_fetch_classification_job(ce, job->id);
@@ -136,7 +136,7 @@ START_TEST (remove_classification_job_wont_removes_the_job_from_the_engines_job_
 
 START_TEST(test_engine_initialization) {
   ItemCache *item_cache;
-  item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
+  item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
   item_cache_load(item_cache);
   tagger_cache = create_tagger_cache(item_cache, NULL);
   ClassificationEngine *engine = create_classification_engine(item_cache, tagger_cache, &opts);
@@ -147,10 +147,10 @@ START_TEST(test_engine_initialization) {
 
 START_TEST(test_engine_starting_and_stopping) {
   ItemCache *item_cache;
-  item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
+  item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
   item_cache_load(item_cache);
   tagger_cache = create_tagger_cache(item_cache, NULL);
-  
+
   ClassificationEngine *engine = create_classification_engine(item_cache, tagger_cache, &opts);
   assert_not_null(engine);
   int start_code = ce_start(engine);
@@ -169,10 +169,10 @@ Suite * classification_engine_suite(void) {
 
   // START_TESTS
   tcase_add_checked_fixture(tc_initialization_case, setup_fixture_path, teardown_fixture_path);
-  tcase_add_test(tc_initialization_case, test_engine_initialization); 
+  tcase_add_test(tc_initialization_case, test_engine_initialization);
   tcase_add_test(tc_initialization_case, test_engine_starting_and_stopping);
   // END_TESTS
-  
+
   TCase *tc_jt_case = tcase_create("job tracking");
   tcase_add_checked_fixture(tc_jt_case, setup_engine, teardown_engine);
   // START_TESTS
@@ -196,7 +196,7 @@ Suite * classification_engine_suite(void) {
   // TODO  tcase_add_test(tc_end_to_end, can_send_bogus_tag_id_without_taking_down_the_server);
   // TODO   tcase_add_test(tc_end_to_end, can_send_bogus_user_id_without_taking_down_the_server);
   // TODO  tcase_add_test(tc_end_to_end, test_new_items_job_insert_taggings_for_items_with_time_later_than_last_classified);
-  
+
   suite_add_tcase(s, tc_initialization_case);
   suite_add_tcase(s, tc_jt_case);
   // TODO suite_add_tcase(s, tc_end_to_end);
@@ -206,7 +206,7 @@ Suite * classification_engine_suite(void) {
 int main(void) {
   initialize_logging("test.log");
   int number_failed;
-  
+
   SRunner *sr = srunner_create(classification_engine_suite());
   srunner_run_all(sr, CK_NORMAL);
   number_failed = srunner_ntests_failed(sr);

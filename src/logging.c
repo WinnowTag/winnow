@@ -12,6 +12,7 @@
 #include <time.h>
 #if HAVE_STDARG_H
 #include <stdarg.h>
+#include <stdio.h>
 #endif
 
 static FILE *log_file = NULL;
@@ -52,6 +53,8 @@ void _fatal(const char *file, int line, const char *fmt, ...) {
   va_list argp;
   va_start(argp, fmt);
   _log("FATAL", file, line, fmt, argp);
+  vfprintf(stderr, fmt, argp);
+  fprintf(stderr, "\n");
   va_end(argp);
   exit(1);
 }

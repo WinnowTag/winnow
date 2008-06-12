@@ -20,7 +20,7 @@ static int free_when_done;
 static void setup(void) {
   item_cache_options.cache_update_wait_time = 1;
   setup_fixture_path();
-  item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
+  item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
   item_cache_load(item_cache);
 }
 
@@ -71,20 +71,20 @@ START_TEST (token_iteration) {
   Pool *pool = new_pool();
   pool_add_item(pool, item_cache_fetch_item(item_cache, (unsigned char *) "urn:peerworks.org:entry#709254", &free_when_done));
   pool_add_item(pool, item_cache_fetch_item(item_cache, (unsigned char *) "urn:peerworks.org:entry#753459", &free_when_done));
-  
+
   Token token;
   token.id = 0;
-  
+
   ret_val = pool_next_token(pool, &token);
   assert_true(ret_val);
   assert_equal(1, token.id);
   assert_equal(1, token.frequency);
 
-  ret_val = pool_next_token(pool, &token);  
+  ret_val = pool_next_token(pool, &token);
   assert_true(ret_val);
   assert_equal(13, token.id);
   assert_equal(2, token.frequency);
-   
+
   free_pool(pool);
 } END_TEST
 
@@ -92,7 +92,7 @@ START_TEST (token_iteration_with_null_pool_doesnt_crash) {
   Token token;
   token.id = 0;
   int ret_val;
-  
+
   ret_val = pool_next_token(NULL, &token);
   assert_false(ret_val);
 } END_TEST
@@ -100,7 +100,7 @@ START_TEST (token_iteration_with_null_pool_doesnt_crash) {
 Suite *
 pool_suite(void) {
   Suite *s = suite_create("Pool");
-  
+
   TCase *tc_pool = tcase_create("Pool");
   tcase_add_checked_fixture (tc_pool, setup, teardown);
   tcase_add_test(tc_pool, create_pool);
@@ -109,15 +109,15 @@ pool_suite(void) {
   tcase_add_test(tc_pool, add_2_items_with_same_tokens);
   tcase_add_test(tc_pool, token_iteration);
   tcase_add_test(tc_pool, token_iteration_with_null_pool_doesnt_crash);
-  suite_add_tcase(s, tc_pool);  
-  
+  suite_add_tcase(s, tc_pool);
+
   return s;
 }
 
 int main(void) {
   initialize_logging("test.log");
   int number_failed;
-  
+
   SRunner *sr = srunner_create(pool_suite());
   srunner_run_all(sr, CK_NORMAL);
   number_failed = srunner_ntests_failed(sr);

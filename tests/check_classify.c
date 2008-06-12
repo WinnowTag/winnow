@@ -5,7 +5,7 @@
  *
  * Please contact info@peerworks.org for further information.
  */
- 
+
 #include <check.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -47,15 +47,15 @@ static void setup(void) {
   setup_fixture_path();
   read_document("fixtures/complete_tag.atom");
   random_background = new_pool();
-  item_cache_create(&item_cache, "fixtures/valid.db", &item_cache_options);
-  
+  item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
+
   tagger = build_tagger(document);
   train_tagger(tagger, item_cache);
   tagger->probability_function = &naive_bayes_probability;
   tagger->classification_function = &mock_classify;
   precompute_tagger(tagger, random_background);
   assert_equal(TAGGER_PRECOMPUTED, tagger->state);
-  
+
   classified_item = NULL;
   int freeit;
   item = item_cache_fetch_item(item_cache, (unsigned char*) "urn:peerworks.org:entry#709254", &freeit);
@@ -109,7 +109,7 @@ START_TEST (test_classify_item_with_no_classification_function_returns_SEQUENCE_
 
 Suite *
 check_classify_suite(void) {
-  Suite *s = suite_create("check classify");  
+  Suite *s = suite_create("check classify");
   TCase *tc_mock_classification = tcase_create("mock classification");
 
   tcase_add_checked_fixture(tc_mock_classification, setup, teardown);
@@ -118,7 +118,7 @@ check_classify_suite(void) {
   tcase_add_test(tc_mock_classification, test_classify_item_when_not_in_precompute_state_returns_SEQUENCE_ERROR);
   tcase_add_test(tc_mock_classification, test_classify_passed_item_to_the_classifcation_function);
   tcase_add_test(tc_mock_classification, test_classify_item_with_no_classification_function_returns_SEQUENCE_ERROR);
-  
+
   suite_add_tcase(s, tc_mock_classification);
   return s;
 }

@@ -22,7 +22,7 @@ require File.dirname(__FILE__) + "/test_http_server.rb"
 
 CLASSIFIER_URL = "http://localhost:8008"
 ROOT = File.expand_path(File.dirname(__FILE__))
-Database = '/tmp/classifier-copy.db'
+Database = '/tmp/classifier-copy'
 
 require 'active_record'
 require 'active_resource'
@@ -132,7 +132,7 @@ end
 def start_classifier(opts = {})
   @classifier_url = URI.parse("http://localhost:8008")
   options = {:min_tokens => 0, :load_items_since => 3650}.update(opts)
-  system("cp -f #{File.join(ROOT, 'fixtures/valid.db')} #{Database}")
+  system("cp -f #{File.join(ROOT, 'fixtures/valid')} #{Database}")
   system("chmod 644 #{Database}") 
   system("rm -f /tmp/classifier-test.pid")
   classifier = File.join(ROOT, "../src/classifier")

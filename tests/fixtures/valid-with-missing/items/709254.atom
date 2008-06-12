@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<entry xmlns="http://www.w3.org/2005/Atom">
+  <title>Squidoo Lens: Cybernetic Lens</title>
+  <id>urn:peerworks.org:entry#709254</id>
+  <updated>2007-05-13T10:23:59+09:30</updated>
+  <link href="http://collector.mindloom.org/feed_items/709254" rel="self"/>
+  <link href="http://www.squidoo.com/cyberneticlens" rel="alternate"/>
+  <link href="http://collector.mindloom.org/feed_items/709254/spider" rel="http://peerworks.org/rel/spider"/>
+  <author>
+    <name>author 709254</name>
+  </author>
+  <content type="html">Content for 709254</content>
+</entry>
