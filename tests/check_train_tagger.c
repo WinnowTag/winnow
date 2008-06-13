@@ -168,17 +168,6 @@ START_TEST (test_missing_item_cache_entries_include_the_ids) {
   assert_equal_s("urn:peerworks.org:entry#1", item_cache_entry_full_id(entries[2]));
 } END_TEST
 
-START_TEST (test_missing_item_cache_entries_include_the_titles) {
-  Tagger *tagger = build_tagger(document);
-  train_tagger(tagger, item_cache);
-  ItemCacheEntry *entries[3];
-  memset(entries, 0, sizeof(entries));
-  get_missing_entries(tagger, entries);
-  assert_equal_s("a more secularized religion", item_cache_entry_title(entries[0]));
-  assert_equal_s("Secular Faith", item_cache_entry_title(entries[1]));
-  assert_equal_s("Sensible Priors for Sparse Bayesian Learning", item_cache_entry_title(entries[2]));
-} END_TEST
-
 static ItemCache *missing_item_cache;
 
 static void setup_item_cache_with_missing_items(void) {
@@ -304,7 +293,6 @@ tag_loading_suite(void) {
   tcase_add_test(tc_incomplete_tag, test_training_a_tag_with_missing_items_stores_missing_negatives);
   tcase_add_test(tc_incomplete_tag, test_can_get_the_missing_item_cache_entries);
   tcase_add_test(tc_incomplete_tag, test_missing_item_cache_entries_include_the_ids);
-  tcase_add_test(tc_incomplete_tag, test_missing_item_cache_entries_include_the_titles);
 
   TCase *tc_incomplete_tag_after_adding_items = tcase_create("incomplete_tag.atom after adding missing items");
   tcase_add_checked_fixture(tc_incomplete_tag_after_adding_items, setup_incomplete, teardown);

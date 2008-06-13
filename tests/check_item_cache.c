@@ -10,6 +10,7 @@
 #include "fixtures.h"
 #include <stdio.h>
 #include "assertions.h"
+#include "read_document.h"
 #include "../src/item_cache.h"
 #include "../src/misc.h"
 #include "../src/item_cache.h"
@@ -242,43 +243,34 @@ START_TEST (test_random_background_has_right_count_for_a_token) {
 /* Item Cache modification */
 #include <sqlite3.h>
 
+static char *entry_document;
+
 static void setup_modification(void) {
   setup_fixture_path();
   system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
+  entry_document = read_document("fixtures/entry.atom");
 }
 
 static void teardown_modification(void) {
   teardown_fixture_path();
   free_item_cache(item_cache);
+  free(entry_document);
 }
 
 START_TEST (adding_an_entry_saves_all_its_attributes) {
-  ItemCacheEntry *entry = create_item_cache_entry("id#11", "Entry 11", "Author 11",
-                                          "http://example.org/11",
-                                          "http://example.org/11.html",
-                                          "http://example.org/11/spider",
-                                          "<p>This is some content</p>",
-                                          1178551600, 141, 1178551601, NULL);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 0);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
 
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy", &db, SQLITE_OPEN_READONLY, NULL);
-  sqlite3_prepare_v2(db, "select * from entries where id = ?", -1, &stmt, NULL);
-  sqlite3_bind_int(stmt, 1, item_cache_entry_id(entry));
+  sqlite3_open_v2("/tmp/valid-copy/catalog.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from entries where full_id = 'urn:peerworks.org:entry#1'", -1, &stmt, NULL);
   if (SQLITE_ROW == sqlite3_step(stmt)) {
-    assert_equal_s("id#11", sqlite3_column_text(stmt, 1));
-    assert_equal_s("Entry 11", sqlite3_column_text(stmt, 2));
-    assert_equal_s("Author 11", sqlite3_column_text(stmt, 3));
-    assert_equal_s("http://example.org/11", sqlite3_column_text(stmt, 4));
-    assert_equal_s("http://example.org/11.html", sqlite3_column_text(stmt, 5));
-    assert_equal_s("http://example.org/11/spider", sqlite3_column_text(stmt, 6));
-    assert_equal_s("<p>This is some content</p>", sqlite3_column_text(stmt, 7));
-    assert_equal_f(2454228.14351852, sqlite3_column_double(stmt, 8));
-    assert_equal(141, sqlite3_column_int(stmt, 9));
-    assert_equal_f(2454228.14353009, sqlite3_column_double(stmt, 10));
+    assert_equal_s("urn:peerworks.org:entry#1", sqlite3_column_text(stmt, 1));
+    assert_equal_f(2453583.02047454, sqlite3_column_double(stmt, 2));
+    assert_equal(0, sqlite3_column_int(stmt, 3));
   } else {
     fail("Could not get record");
   }
@@ -286,33 +278,26 @@ START_TEST (adding_an_entry_saves_all_its_attributes) {
   sqlite3_close(db);
 } END_TEST
 
+START_TEST (adding_an_entry_saves_its_xml) {
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 0);
+  int rc = item_cache_add_entry(item_cache, entry);
+  assert_equal(CLASSIFIER_OK, rc);
+  char *saved_doc = read_document("/tmp/valid-copy/items/890807.atom");
+  assert_not_null(saved_doc);
+  assert_equal_s(entry_document, saved_doc);
+} END_TEST
+
 START_TEST (test_can_add_entry_without_a_feed_id) {
-  ItemCacheEntry *entry = create_item_cache_entry("id#11", "Entry 11", "Author 11",
-                                          "http://example.org/11",
-                                          "http://example.org/11.html",
-                                          "http://example.org/11/spider",
-                                          "<p>This is some content</p>",
-                                          1178551600, 0, 1178551601, NULL);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 0);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
 
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy/catalog.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from entries where id = ?", -1, &stmt, NULL);
   sqlite3_bind_int(stmt, 1, item_cache_entry_id(entry));
-  if (SQLITE_ROW == sqlite3_step(stmt)) {
-    assert_equal_s("id#11", sqlite3_column_text(stmt, 1));
-    assert_equal_s("Entry 11", sqlite3_column_text(stmt, 2));
-    assert_equal_s("Author 11", sqlite3_column_text(stmt, 3));
-    assert_equal_s("http://example.org/11", sqlite3_column_text(stmt, 4));
-    assert_equal_s("http://example.org/11.html", sqlite3_column_text(stmt, 5));
-    assert_equal_s("http://example.org/11/spider", sqlite3_column_text(stmt, 6));
-    assert_equal_s("<p>This is some content</p>", sqlite3_column_text(stmt, 7));
-    assert_equal_f(2454228.14351852, sqlite3_column_double(stmt, 8));
-    assert_equal(SQLITE_NULL, sqlite3_column_type(stmt, 9));
-    assert_equal_f(2454228.14353009, sqlite3_column_double(stmt, 10));
-  } else {
+  if (SQLITE_ROW != sqlite3_step(stmt)) {
     fail("Could not get record");
   }
 
@@ -320,12 +305,7 @@ START_TEST (test_can_add_entry_without_a_feed_id) {
 } END_TEST
 
 START_TEST (adding_an_entry_twice_does_not_fail) {
-  ItemCacheEntry *entry = create_item_cache_entry("id#11", "Entry 11", "Author 11",
-                                          "http://example.org/11",
-                                          "http://example.org/11.html",
-                                          "http://example.org/11/spider",
-                                          "<p>This is some content</p>",
-                                          1178551600, 141, 1178551601, NULL);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
   rc = item_cache_add_entry(item_cache, entry);
@@ -333,18 +313,13 @@ START_TEST (adding_an_entry_twice_does_not_fail) {
 } END_TEST
 
 START_TEST (adding_an_entry_twice_does_not_add_a_duplicate) {
-  ItemCacheEntry *entry = create_item_cache_entry("id#11", "Entry 11", "Author 11",
-                                          "http://example.org/11",
-                                          "http://example.org/11.html",
-                                          "http://example.org/11/spider",
-                                          "<p>This is some content</p>",
-                                          1178551600, 141, 1178551601, NULL);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
   item_cache_add_entry(item_cache, entry);
   item_cache_add_entry(item_cache, entry);
 
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy/catalog.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select count(*) from entries", -1, &stmt, NULL);
 
   if (SQLITE_ROW == sqlite3_step(stmt)) {
@@ -356,17 +331,6 @@ START_TEST (adding_an_entry_twice_does_not_add_a_duplicate) {
   sqlite3_close(db);
 } END_TEST
 
-START_TEST (test_destroying_an_entry_removes_it_from_database) {
-  Item *item = item_cache_fetch_item(item_cache, (unsigned char*) "urn:peerworks.org:entry#753459", &free_when_done);
-  assert_not_null(item);
-  free_item(item);
-
-  int rc = item_cache_remove_entry(item_cache, 753459);
-  assert_equal(CLASSIFIER_OK, rc);
-  item = item_cache_fetch_item(item_cache, (unsigned char*) "urn:peerworks.org:entry#753459", &free_when_done);
-  assert_null(item);
-} END_TEST
-
 START_TEST (test_destroying_an_entry_removes_it_from_the_database_file) {
   int rc = item_cache_remove_entry(item_cache, 753459);
   assert_equal(CLASSIFIER_OK, rc);
@@ -375,24 +339,21 @@ START_TEST (test_destroying_an_entry_removes_it_from_the_database_file) {
 
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy/catalog.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from entries where id = 753459", -1, &stmt, NULL);
   rc = sqlite3_step(stmt);
   assert_equal(SQLITE_DONE, rc);
   sqlite3_close(db);
 } END_TEST
 
-START_TEST (test_destroying_an_entry_removes_tokens_from_the_database_file) {
+START_TEST (test_destroying_an_entry_removes_its_xml_document) {
   int rc = item_cache_remove_entry(item_cache, 753459);
-  assert_equal(CLASSIFIER_OK, rc);
+  assert_null(fopen("/tmp/valid-copy/items/753459.atom", "r"));
+} END_TEST
 
-  sqlite3 *db;
-  sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy", &db, SQLITE_OPEN_READONLY, NULL);
-  sqlite3_prepare_v2(db, "select * from entry_tokens where entry_id = 753459", -1, &stmt, NULL);
-  rc = sqlite3_step(stmt);
-  assert_equal(SQLITE_DONE, rc);
-  sqlite3_close(db);
+START_TEST (test_destroying_an_entry_removes_tokens) {
+  int rc = item_cache_remove_entry(item_cache, 753459);
+  assert_null(fopen("/tmp/valid-copy/tokens/753459.tokens", "r"));
 } END_TEST
 
 START_TEST (test_cant_delete_an_item_that_is_used_in_the_random_background) {
@@ -401,7 +362,7 @@ START_TEST (test_cant_delete_an_item_that_is_used_in_the_random_background) {
 
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy/catalog.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from entries where id = 890806", -1, &stmt, NULL);
   rc = sqlite3_step(stmt);
   assert_equal(SQLITE_ROW, rc);
@@ -411,14 +372,10 @@ START_TEST (test_cant_delete_an_item_that_is_used_in_the_random_background) {
 START_TEST (test_failed_deletion_doesnt_delete_tokens) {
   int rc = item_cache_remove_entry(item_cache, 890806);
   assert_equal(ITEM_CACHE_ENTRY_PROTECTED, rc);
-
-  sqlite3 *db;
-  sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy", &db, SQLITE_OPEN_READONLY, NULL);
-  sqlite3_prepare_v2(db, "select * from entry_tokens where entry_id = 890806", -1, &stmt, NULL);
-  rc = sqlite3_step(stmt);
-  assert_equal(SQLITE_ROW, rc);
-  sqlite3_close(db);
+  
+  FILE * file = fopen("/tmp/valid-copy/tokens/753459.tokens", "r");
+  assert_not_null(file);
+  fclose(file);
 } END_TEST
 
 /* Feed addition */
@@ -429,7 +386,7 @@ START_TEST (test_add_feed_to_item_cache) {
 
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy/catalog.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from feeds where id = 10", -1, &stmt, NULL);
   rc = sqlite3_step(stmt);
   assert_equal(SQLITE_ROW, rc);
@@ -446,7 +403,7 @@ START_TEST (test_add_feed_that_already_exists_updates_attributes) {
 
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy/catalog.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from feeds where id = 141", -1, &stmt, NULL);
   rc = sqlite3_step(stmt);
   assert_equal(SQLITE_ROW, rc);
@@ -462,7 +419,7 @@ START_TEST (test_deleting_a_feed_removes_it_from_the_database) {
 
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy/catalog.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from feeds where id = 141", -1, &stmt, NULL);
   rc = sqlite3_step(stmt);
   assert_equal(SQLITE_DONE, rc);
@@ -476,7 +433,7 @@ START_TEST (test_deleting_a_feed_removes_its_entries_from_the_database) {
 
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy/catalog.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select * from entries where feed_id = 141", -1, &stmt, NULL);
   rc = sqlite3_step(stmt);
   assert_equal(SQLITE_DONE, rc);
@@ -485,26 +442,20 @@ START_TEST (test_deleting_a_feed_removes_its_entries_from_the_database) {
 } END_TEST
 
 START_TEST (test_adding_entry_causes_it_to_be_added_to_the_tokenization_queue) {
-  ItemCacheEntry *entry = create_item_cache_entry("id#11", "Entry 11", "Author 11",
-                                            "http://example.org/11",
-                                            "http://example.org/11.html",
-                                            "http://example.org/11/spider",
-                                            "<p>This is some content</p>",
-                                            1178551600, 141, 1178551601, NULL);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
   item_cache_add_entry(item_cache, entry);
   assert_equal(1, item_cache_feature_extraction_queue_size(item_cache));
 } END_TEST
 
 START_TEST (test_adding_existing_entry_doesnt_tokenize_if_the_entry_is_tokenized) {
-  ItemCacheEntry *entry = create_item_cache_entry("urn:peerworks.org:entry#890806", "Entry 890806", "Author 890806",
-                                            "http://example.org/890806",
-                                            "http://example.org/890806.html",
-                                            "http://example.org/890806/spider",
-                                            "<p>This is some content</p>",
-                                            1178551600, 141, 1178551601, NULL);
-  item_cache_add_entry(item_cache, entry);
-  item_cache_add_entry(item_cache, entry);
+  char * existing = read_document("fixtures/existing_entry.atom");
+  ItemCacheEntry *entry = create_entry_from_atom_xml(existing, 141);
+  int rc1 = item_cache_add_entry(item_cache, entry);
+  int rc2 = item_cache_add_entry(item_cache, entry);
+  assert_equal(CLASSIFIER_OK, rc1);
+  assert_equal(CLASSIFIER_OK, rc2);
   assert_equal(0, item_cache_feature_extraction_queue_size(item_cache));
+  fprintf(stderr, "complete: %i\n", item_cache_feature_extraction_queue_size(item_cache));
 } END_TEST
 
 #include <sched.h>
@@ -606,12 +557,7 @@ START_TEST (test_add_item_puts_it_in_the_right_position_at_end) {
 
 START_TEST (test_save_item_stores_it_in_the_database) {
   // Need a corresponding entry
-  ItemCacheEntry *entry = create_item_cache_entry("id#9", "Entry 9", "Author 9",
-                                            "http://example.org/9",
-                                            "http://example.org/9.html",
-                                            "http://example.org/9/spider",
-                                            "<p>This is some content</p>",
-                                            1178551600, 141, 1178551601, NULL);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
 
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
@@ -673,24 +619,14 @@ static void teardown_feature_extraction(void) {
 }
 
 START_TEST (test_adding_entry_results_in_calling_the_tokenizer_with_the_entry) {
-  ItemCacheEntry *entry = create_item_cache_entry("id#11", "Entry 11", "Author 11",
-                                              "http://example.org/11",
-                                              "http://example.org/11.html",
-                                              "http://example.org/11/spider",
-                                              "<p>This is some content</p>",
-                                              1178551600, 141, 1178551601, NULL);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
   item_cache_add_entry(item_cache, entry);
   sleep(1);
   assert_equal(item_cache_entry_id(entry), tokenizer_called_with);
 } END_TEST
 
 START_TEST (test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_update_queue) {
-  ItemCacheEntry *entry = create_item_cache_entry("id#11", "Entry 11", "Author 11",
-                                                "http://example.org/11",
-                                                "http://example.org/11.html",
-                                                "http://example.org/11/spider",
-                                                "<p>This is some content</p>",
-                                                1178551600, 141, 1178551601, NULL);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
   item_cache_add_entry(item_cache, entry);
   sleep(1);
   assert_equal(1, item_cache_update_queue_size(item_cache));
@@ -719,12 +655,7 @@ static void teardown_null_feature_extraction(void) {
 }
 
 START_TEST (test_null_feature_extraction) {
-  ItemCacheEntry *entry = create_item_cache_entry("id#11", "Entry 11", "Author 11",
-                                                "http://example.org/11",
-                                                "http://example.org/11.html",
-                                                "http://example.org/11/spider",
-                                                "<p>This is some content</p>",
-                                                1178551600, 141, 1178551601, NULL);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
   item_cache_add_entry(item_cache, entry);
   sleep(1);
   assert_equal(0, item_cache_update_queue_size(item_cache));
@@ -755,24 +686,14 @@ static void teardown_full_update(void) {
 }
 
 START_TEST (test_adding_entry_causes_item_added_to_cache) {
-  ItemCacheEntry *entry = create_item_cache_entry("id#11", "Entry 11", "Author 11",
-                                                  "http://example.org/11",
-                                                  "http://example.org/11.html",
-                                                  "http://example.org/11/spider",
-                                                  "<p>This is some content</p>",
-                                                  1178551600, 141, 1178551601, NULL);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
   item_cache_add_entry(item_cache, entry);
   sleep(1);
   assert_equal(11, item_cache_cached_size(item_cache));
 } END_TEST
 
 START_TEST (test_adding_entry_causes_tokens_to_be_added_to_the_db) {
-  ItemCacheEntry *entry = create_item_cache_entry("id#11", "Entry 11", "Author 11",
-                                                  "http://example.org/11",
-                                                  "http://example.org/11.html",
-                                                  "http://example.org/11/spider",
-                                                  "<p>This is some content</p>",
-                                                  1178551600, 141, 1178551601, NULL);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
   item_cache_add_entry(item_cache, entry);
   sleep(1);
 
@@ -790,18 +711,8 @@ START_TEST (test_adding_entry_causes_tokens_to_be_added_to_the_db) {
 } END_TEST
 
 START_TEST (test_adding_multiple_entries_causes_item_added_to_cache) {
-  ItemCacheEntry *entry1 = create_item_cache_entry("id#11", "Entry 11", "Author 11",
-                                                  "http://example.org/11",
-                                                  "http://example.org/11.html",
-                                                  "http://example.org/11/spider",
-                                                  "<p>This is some content</p>",
-                                                  1178551600, 141, 1178551601, NULL);
-  ItemCacheEntry *entry2 = create_item_cache_entry("id#12", "Entry 12", "Author 12",
-                                                    "http://example.org/12",
-                                                    "http://example.org/12.html",
-                                                    "http://example.org/11/spider",
-                                                    "<p>This is some content</p>",
-                                                    1178551600, 141, 1178551601, NULL);
+  ItemCacheEntry *entry1 = create_entry_from_atom_xml(entry_document, 141);
+  ItemCacheEntry *entry2 = create_entry_from_atom_xml(entry_document, 141); // TODO create another document
 
   item_cache_add_entry(item_cache, entry1);
   item_cache_add_entry(item_cache, entry2);
@@ -817,12 +728,7 @@ static void update_callback(ItemCache * item_cache, void *memo) {
 START_TEST (test_update_callback) {
   int memo = 21;
   item_cache_set_update_callback(item_cache, update_callback, &memo);
-  ItemCacheEntry *entry1 = create_item_cache_entry("id#11", "Entry 11", "Author 11",
-                                                    "http://example.org/11",
-                                                    "http://example.org/11.html",
-                                                    "http://example.org/11/spider",
-                                                    "<p>This is some content</p>",
-                                                    1178551600, 141, 1178551601, NULL);
+  ItemCacheEntry *entry1 = create_entry_from_atom_xml(entry_document, 141);
 
   item_cache_add_entry(item_cache, entry1);
   sleep(2);
@@ -833,12 +739,7 @@ START_TEST (test_update_callback_not_triggered_for_invalid_item) {
   memo_ref = NULL;
   int memo = 21;
   item_cache_set_update_callback(item_cache, update_callback, &memo);
-  ItemCacheEntry *entry1 = create_item_cache_entry("id#11", "Entry 11", "Author 11",
-                                                    "http://example.org/11",
-                                                    "http://example.org/11.html",
-                                                    "http://example.org/11/spider",
-                                                    "<p>This is some content</p>",
-                                                    1178551600, 1, 1178551601, NULL);
+  ItemCacheEntry *entry1 = create_entry_from_atom_xml(entry_document, 141);
 
   item_cache_add_entry(item_cache, entry1);
   sleep(1);
@@ -1114,12 +1015,10 @@ item_cache_suite(void) {
   tcase_add_test(fetch_item_case, test_fetch_item_contains_item_time);
   tcase_add_test(fetch_item_case, test_fetch_item_contains_the_right_number_of_tokens);
   tcase_add_test(fetch_item_case, test_fetch_item_contains_the_right_frequency_for_a_given_token);
-/*
   tcase_add_test(fetch_item_case, test_fetch_item_after_load);
   tcase_add_test(fetch_item_case, test_fetch_item_after_load_contains_tokens);
   tcase_add_test(fetch_item_case, test_free_when_done_is_true_when_the_item_is_not_in_the_memory_cache);
   tcase_add_test(fetch_item_case, test_free_when_done_is_false_when_the_item_is_in_the_memory_cache);
-*/
 
   TCase *load = tcase_create("load");
   tcase_add_checked_fixture(load, setup_cache, teardown_item_cache);
@@ -1145,9 +1044,10 @@ item_cache_suite(void) {
   tcase_add_test(modification, adding_an_entry_twice_does_not_fail);
   tcase_add_test(modification, adding_an_entry_twice_does_not_add_a_duplicate);
   tcase_add_test(modification, adding_an_entry_saves_all_its_attributes);
+  tcase_add_test(modification, adding_an_entry_saves_its_xml);
   tcase_add_test(modification, test_can_add_entry_without_a_feed_id);
-  tcase_add_test(modification, test_destroying_an_entry_removes_it_from_database);
-  tcase_add_test(modification, test_destroying_an_entry_removes_tokens_from_the_database_file);
+  tcase_add_test(modification, test_destroying_an_entry_removes_its_xml_document);
+  tcase_add_test(modification, test_destroying_an_entry_removes_tokens);
   tcase_add_test(modification, test_destroying_an_entry_removes_it_from_the_database_file);
   tcase_add_test(modification, test_cant_delete_an_item_that_is_used_in_the_random_background);
   tcase_add_test(modification, test_failed_deletion_doesnt_delete_tokens);
@@ -1221,10 +1121,10 @@ item_cache_suite(void) {
 
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
-//  suite_add_tcase(s, load);
-//  suite_add_tcase(s, iteration);
-//  suite_add_tcase(s, rndbg);
-//  suite_add_tcase(s, modification);
+  suite_add_tcase(s, load);
+  suite_add_tcase(s, iteration);
+  suite_add_tcase(s, rndbg);
+  suite_add_tcase(s, modification);
 //  suite_add_tcase(s, loaded_modification);
 //  suite_add_tcase(s, feature_extraction);
 //  suite_add_tcase(s, null_feature_extraction);
