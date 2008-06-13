@@ -1114,10 +1114,12 @@ item_cache_suite(void) {
   tcase_add_test(fetch_item_case, test_fetch_item_contains_item_time);
   tcase_add_test(fetch_item_case, test_fetch_item_contains_the_right_number_of_tokens);
   tcase_add_test(fetch_item_case, test_fetch_item_contains_the_right_frequency_for_a_given_token);
+/*
   tcase_add_test(fetch_item_case, test_fetch_item_after_load);
   tcase_add_test(fetch_item_case, test_fetch_item_after_load_contains_tokens);
   tcase_add_test(fetch_item_case, test_free_when_done_is_true_when_the_item_is_not_in_the_memory_cache);
   tcase_add_test(fetch_item_case, test_free_when_done_is_false_when_the_item_is_in_the_memory_cache);
+*/
 
   TCase *load = tcase_create("load");
   tcase_add_checked_fixture(load, setup_cache, teardown_item_cache);
