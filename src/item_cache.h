@@ -16,7 +16,7 @@
 
 typedef struct TOKEN {
   int id;
-  int frequency;
+  short frequency;
 } Token, *Token_p;
 
 typedef struct ITEM_CACHE_OPTIONS {
@@ -85,11 +85,11 @@ extern const unsigned char * item_get_id             (const Item *item);
 extern int    item_get_total_tokens   (const Item *item);
 extern int    item_get_num_tokens     (const Item *item);
 extern time_t item_get_time           (const Item *item);
-extern int    item_get_token          (const Item *item, int token_id, Token_p token);
-extern int    item_next_token         (const Item *item, Token_p token);
+extern short  item_get_token_frequency(const Item *item, int token_id);
+extern int    item_next_token         (const Item *item, int * token_id, short * token_frequency);
 extern void   free_item               (Item *item);
 /* This should only be called by item loaders */
-extern int    item_add_token          (Item *item, int id, int frequency);
+extern int    item_add_token          (Item *item, int id, short frequency);
 
 /* Prototypes for pools */
 extern Pool * new_pool               (void);

@@ -39,22 +39,22 @@ void free_pool(Pool *pool) {
 /** Not Re-entrant */
 int pool_add_item(Pool *pool, const Item *item) {
   int success = true;
-  Token token;
-  token.id = 0;
+  int token_id = 0;
+  short frequency = 0;
   
-  while (item_next_token(item, &token)) {
+  while (item_next_token(item, &token_id, &frequency)) {
     PWord_t pool_frequency;
-    JLG(pool_frequency, pool->tokens, token.id);
+    JLG(pool_frequency, pool->tokens, token_id);
     
     if (NULL == pool_frequency) {
-      JLI(pool_frequency, pool->tokens, token.id);
+      JLI(pool_frequency, pool->tokens, token_id);
       if (PJERR == pool_frequency) goto malloc_error;
-      *pool_frequency = token.frequency;
+      *pool_frequency = (int) frequency;
     } else {
-      *pool_frequency = *pool_frequency + token.frequency;
+      *pool_frequency = *pool_frequency + (int) frequency;
     }
     
-    pool->total_tokens += token.frequency;
+    pool->total_tokens += (int) frequency;
   }
   
   return success;

@@ -92,10 +92,8 @@ START_TEST (test_fetch_item_contains_the_right_number_of_tokens) {
 START_TEST (test_fetch_item_contains_the_right_frequency_for_a_given_token) {
   Item *item = item_cache_fetch_item(item_cache, (unsigned char*) "urn:peerworks.org:entry#890806", &free_when_done);
   assert_not_null(item);
-  Token token;
-  item_get_token(item, 9949, &token);
-  assert_equal(9949, token.id);
-  assert_equal(3, token.frequency);
+  short freq = item_get_token_frequency(item, 9949);
+  assert_equal(3, freq);
 } END_TEST
 
 START_TEST (test_free_when_done_is_true_when_the_item_is_not_in_the_memory_cache) {
@@ -989,13 +987,12 @@ START_TEST (test_returns_correct_item_for_correct_xml) {
   int another_string = item_cache_atomize(item_cache, "t:another-string");
   int urlseg = item_cache_atomize(item_cache, "URLSeg:www.example.org");
 
-  Token token;
-  item_get_token(item, astring, &token);
-  assert_equal(4, token.frequency);
-  item_get_token(item, another_string, &token);
-  assert_equal(5, token.frequency);
-  item_get_token(item, urlseg, &token);
-  assert_equal(1, token.frequency);
+  short frequency = item_get_token_frequency(item, astring);
+  assert_equal(4, frequency);
+  frequency = item_get_token_frequency(item, another_string);
+  assert_equal(5, frequency);
+  frequency = item_get_token_frequency(item, urlseg);
+  assert_equal(1, frequency);
   free_item(item);
 } END_TEST
 

@@ -1846,40 +1846,39 @@ int item_get_total_tokens(const Item * item) {
   return item->total_tokens;
 }
 
-int item_get_token(const Item * item, int token_id, Token_p token) {
+short item_get_token_frequency(const Item * item, int token_id) {
+  short return_frequency;
   Word_t * frequency;
   JLG(frequency, item->tokens, token_id);
 
-  token->id = token_id;
   if (NULL == frequency) {
-    token->frequency = 0;
+    return_frequency = 0;
   } else {
-    token->frequency = *frequency;
+    return_frequency = *frequency;
   }
 
-  return 0;
+  return return_frequency;
 }
 
-int item_next_token(const Item * item, Token_p token) {
+int item_next_token(const Item * item, int * token_id, short * token_frequency) {
   int success = true;
   PWord_t frequency = NULL;
-  Word_t  token_id = token->id;
-
+  Word_t index = (Word_t) *token_id;
+  
   if (NULL != item) {
     if (0 == token_id) {
-      JLF(frequency, item->tokens, token_id);
+      JLF(frequency, item->tokens, index);
     } else {
-      JLN(frequency, item->tokens, token_id);
+      JLN(frequency, item->tokens, index);
     }
   }
 
   if (NULL == frequency) {
     success = false;
-    token->id = 0;
-    token->frequency = 0;
+    *token_frequency = 0;
   } else {
-    token->id = token_id;
-    token->frequency = *frequency;
+    *token_id = index;
+    *token_frequency = *frequency;
   }
 
   return success;
@@ -1897,7 +1896,7 @@ void free_item(Item *item) {
   }
 }
 
-int item_add_token(Item *item, int id, int token_frequency) {
+int item_add_token(Item *item, int id, short token_frequency) {
   int return_code = 0;
   Word_t token_id;
   Word_t * token_frequency_p;
@@ -1910,7 +1909,7 @@ int item_add_token(Item *item, int id, int token_frequency) {
     error("Could not malloc memory for token array");
     return_code = ERR;
   } else {
-    *token_frequency_p = token_frequency;
+    *token_frequency_p = (int) token_frequency;
   }
 
   return return_code;

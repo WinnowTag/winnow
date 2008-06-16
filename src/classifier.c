@@ -372,7 +372,6 @@ static int compare_clues(const void *clue1_p, const void *clue2_p) {
 /** Selects the clues from a classifier to use when classifying an item.
  */
 const Clue ** select_clues(const ClueList * clues, const Item *item, int *num_clues) {
-  Token token;
   int i = 0;
   int num_item_tokens = item_get_num_tokens(item);
   int max_clues = MAX(MAX_DISCRIMINATORS, MAX_CLUES_RATIO * num_item_tokens);
@@ -383,9 +382,11 @@ const Clue ** select_clues(const ClueList * clues, const Item *item, int *num_cl
   // the actual clues that are stored in the classifier.
   const Clue **selected_clues = calloc(num_item_tokens, sizeof(Clue*));
   
-  token.id = 0;
-  while (item_next_token(item, &token)) {
-    const Clue *clue = get_clue(clues, token.id);
+  int token_id = 0;
+  short token_frequency = 0;
+  
+  while (item_next_token(item, &token_id, &token_frequency)) {
+    const Clue *clue = get_clue(clues, token_id);
     if (NULL != clue && MIN_PROB_STRENGTH <= clue_strength(clue)) {      
       selected_clues[i++] = clue;
     }
