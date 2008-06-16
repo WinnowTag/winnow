@@ -453,7 +453,6 @@ START_TEST (test_adding_existing_entry_doesnt_tokenize_if_the_entry_is_tokenized
   assert_equal(CLASSIFIER_OK, rc1);
   assert_equal(CLASSIFIER_OK, rc2);
   assert_equal(0, item_cache_feature_extraction_queue_size(item_cache));
-  fprintf(stderr, "complete: %i\n", item_cache_feature_extraction_queue_size(item_cache));
 } END_TEST
 
 #include <sched.h>
