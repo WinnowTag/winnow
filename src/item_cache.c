@@ -38,7 +38,7 @@
 #define FETCH_RANDOM_BACKGROUND "select full_id from entries where id in (select entry_id from random_backgrounds)"
 #define INSERT_ENTRY_SQL "insert into entries (full_id, updated, feed_id, created_at) \
                           VALUES (:full_id, julianday(:updated, 'unixepoch'), :feed_id, julianday(:created_at, 'unixepoch'))"
-#define UPDATE_ENTRY_SQL "update entries set updated = julianday(:updated, 'unixepoch') where full_id = ?"
+#define UPDATE_ENTRY_SQL "update entries set updated = julianday(?, 'unixepoch') where full_id = ?"
 #define DELETE_ENTRY_SQL "delete from entries where id = ?"
 #define INSERT_FEED_SQL "insert or replace into feeds VALUES (?, ?)"
 #define DELETE_FEED_SQL "delete from feeds where id = ?"
@@ -686,7 +686,8 @@ static int insert_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
 
 static int update_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
   int rc = CLASSIFIER_OK;
-  sqlite3_bind_double(item_cache->update_entry_stmt, 7, entry->updated);
+  sqlite3_bind_double(item_cache->update_entry_stmt, 1, entry->updated);
+  sqlite3_bind_text(item_cache->update_entry_stmt, 2, entry->full_id, -1, NULL);
 
   if (SQLITE_DONE != sqlite3_step(item_cache->update_entry_stmt)) {
     error("Error update item %s: %s", entry->full_id, item_cache_errmsg(item_cache));

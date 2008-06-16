@@ -132,8 +132,8 @@ end
 def start_classifier(opts = {})
   @classifier_url = URI.parse("http://localhost:8008")
   options = {:min_tokens => 0, :load_items_since => 3650}.update(opts)
-  system("cp -f #{File.join(ROOT, 'fixtures/valid')} #{Database}")
-  system("chmod 644 #{Database}") 
+  system("rm -Rf #{Database} && cp -R #{File.join(ROOT, 'fixtures/valid')} #{Database}")
+  system("chmod -R 755 #{Database}") 
   system("rm -f /tmp/classifier-test.pid")
   classifier = File.join(ROOT, "../src/classifier")
   
