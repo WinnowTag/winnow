@@ -1157,11 +1157,9 @@ item_cache_suite(void) {
   suite_add_tcase(s, feature_extraction);
   suite_add_tcase(s, null_feature_extraction);
   suite_add_tcase(s, full_update);
-/*
   suite_add_tcase(s, purging);
   suite_add_tcase(s, atomization);
-*/
-//  suite_add_tcase(s, item_from_xml);
+  suite_add_tcase(s, item_from_xml);
   return s;
 }
 

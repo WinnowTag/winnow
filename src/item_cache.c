@@ -183,7 +183,7 @@ struct ITEM_CACHE {
   /* Cache purging interval in seconds */
   int purge_interval;
   
-  int freeing;
+  int shutting_down;
 };
 
 /******************************************************************************
@@ -724,7 +724,7 @@ static time_t get_purge_time(void) {
 static void * item_cache_purge_thread_func(void *memo) {
   ItemCache *item_cache = (ItemCache *) memo;
 
-  while (!item_cache->freeing) {
+  while (!item_cache->shutting_down) {
     sleep(item_cache->purge_interval);
     item_cache_purge_old_items(item_cache);
   }
@@ -769,7 +769,7 @@ static void * item_cache_purge_thread_func(void *memo) {
 static void * cache_updating_func(void *memo) {
   ItemCache *item_cache = (ItemCache*) memo;
 
-  while (!item_cache->freeing) {
+  while (!item_cache->shutting_down) {
     UpdateJob *job = q_dequeue_or_wait(item_cache->update_queue, item_cache->cache_update_wait_time);
     int items_added = 0;
 
@@ -906,7 +906,7 @@ int item_cache_create(ItemCache **item_cache, const char * cache_directory, cons
   (*item_cache)->cached_size = 0;
   (*item_cache)->feature_extraction_queue = new_queue();
   (*item_cache)->update_queue = new_queue();
-  (*item_cache)->freeing = 0;
+  (*item_cache)->shutting_down = 0;
   
   if (pthread_mutex_init(&(*item_cache)->db_access_mutex, NULL)) {
     fatal("pthread_mutex_init error for db_access_mutex");
@@ -937,18 +937,18 @@ int item_cache_create(ItemCache **item_cache, const char * cache_directory, cons
 void free_item_cache(ItemCache *item_cache) {
 
   if (item_cache) {
-    item_cache->freeing = 1;
+    item_cache->shutting_down = 1;
     
     if (item_cache->feature_extraction_thread) {
       pthread_join(*item_cache->feature_extraction_thread, NULL);
     }
     
-    if (item_cache->purge_thread) {
-      pthread_join(*item_cache->purge_thread, NULL);
-    }
-    
     if (item_cache->cache_updating_thread) {
       pthread_join(*item_cache->cache_updating_thread, NULL);
+    }
+    
+    if (item_cache->purge_thread) {
+      pthread_cancel(*item_cache->purge_thread);
     }
     
     if (item_cache->db) {
@@ -1587,7 +1587,7 @@ static void * feature_extraction_thread_func(void *memo) {
   ItemCache * item_cache = (ItemCache*) memo;
   info("feature extractor thread started");
 
-  while (!item_cache->freeing) {
+  while (!item_cache->shutting_down) {
     ItemCacheEntry *entry = q_dequeue_or_wait(item_cache->feature_extraction_queue, 1);
     if (entry) {
       debug("Got entry off feature_extraction_queue");
