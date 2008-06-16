@@ -61,7 +61,7 @@ static int load_tag_document(const char * tag_training_url, time_t last_updated,
 static void setup(void) {
   setup_fixture_path();
   document = read_document("fixtures/complete_tag.atom");
-  system("cp -Rf fixtures/valid /tmp/valid-copy");
+  system("rm -Rf /tmp/valid-copy && cp -Rf fixtures/valid /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   load_tag_document_called = 0;
   tagger_cache = create_tagger_cache(item_cache, options);
@@ -72,7 +72,7 @@ static void setup_for_incomplete(void) {
   setup_fixture_path();
   document = read_document("fixtures/incomplete_tag.atom");
 
-  system("cp -Rf fixtures/valid /tmp/valid-copy");
+  system("rm -Rf /tmp/valid-copy && cp -Rf fixtures/valid /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   load_tag_document_called = 0;
   tagger_cache = create_tagger_cache(item_cache, options);
@@ -194,7 +194,7 @@ START_TEST (test_get_tagger_with_missing_items_should_add_the_items_to_the_item_
 
   sqlite3 *db;
   sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_open_v2("/tmp/valid-copy/catalog.db", &db, SQLITE_OPEN_READONLY, NULL);
   sqlite3_prepare_v2(db, "select count(*) from entries;", -1, &stmt, NULL);
 
   if (SQLITE_ROW == sqlite3_step(stmt)) {
@@ -228,7 +228,7 @@ static void setup_for_updated(void) {
   setup_fixture_path();
   document = read_document("fixtures/complete_tag.atom");
   updated_document = read_document("fixtures/updated_complete_tag.atom");
-  system("cp -Rf fixtures/valid /tmp/valid-copy");
+  system("rm -Rf /tmp/valid-copy && cp -Rf fixtures/valid /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   load_tag_document_called = 0;
   tagger_cache = create_tagger_cache(item_cache, options);
@@ -277,7 +277,7 @@ START_TEST (test_updated_tagger_with_missing_items_checks_it_back_in) {
 
 START_TEST (test_get_tagger_again_after_items_are_added_returns_tagger) {
   ItemCache * missing_item_cache;
-  item_cache_create(&missing_item_cache, "fixtures/valid-with-missing.db", &item_cache_options);
+  item_cache_create(&missing_item_cache, "fixtures/valid-with-missing", &item_cache_options);
 
   updated_document = read_document("fixtures/incomplete_tag.atom");
   Tagger *tagger;

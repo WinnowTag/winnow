@@ -172,7 +172,7 @@ static ItemCache *missing_item_cache;
 
 static void setup_item_cache_with_missing_items(void) {
   setup_fixture_path();
-  item_cache_create(&missing_item_cache, "fixtures/valid-with-missing.db", &item_cache_options);
+  item_cache_create(&missing_item_cache, "fixtures/valid-with-missing", &item_cache_options);
 }
 
 static void teardown_item_cache_with_missing_items(void) {
@@ -222,7 +222,7 @@ START_TEST (test_retraining_with_item_cache_that_includes_missing_items_adds_tho
 
 static void setup_item_cache_with_some_missing_items(void) {
   setup_fixture_path();
-  item_cache_create(&missing_item_cache, "fixtures/valid-with-some-missing.db", &item_cache_options);
+  item_cache_create(&missing_item_cache, "fixtures/valid-with-some-missing", &item_cache_options);
 }
 
 static void teardown_item_cache_with_some_missing_items(void) {
