@@ -635,6 +635,7 @@ static void setup_feature_extraction(void) {
   item_cache_start_feature_extractor(item_cache);
 
   tokenized_item = create_item_with_tokens_and_time((unsigned char*) "id:9", tokens, 4, (time_t) 1178683198L);
+  entry_document = read_document("fixtures/entry.atom");
 }
 
 static void teardown_feature_extraction(void) {
@@ -671,6 +672,7 @@ static void setup_null_feature_extraction(void) {
   item_cache_start_feature_extractor(item_cache);
 
   tokenized_item = create_item_with_tokens_and_time((unsigned char*) "9", tokens, 4, (time_t) 1178683198L);
+  entry_document = read_document("fixtures/entry.atom");
 }
 
 static void teardown_null_feature_extraction(void) {
@@ -702,6 +704,7 @@ static void setup_full_update(void) {
   item_cache_start_cache_updater(item_cache);
 
   tokenized_item = create_item_with_tokens_and_time((unsigned char*) "9", tokens, 4, (time_t) 1178683198L);
+  entry_document = read_document("fixtures/entry.atom");
 }
 
 static void teardown_full_update(void) {
@@ -721,17 +724,12 @@ START_TEST (test_adding_entry_causes_tokens_to_be_added_to_the_db) {
   item_cache_add_entry(item_cache, entry);
   sleep(1);
 
-  sqlite3 *db;
-  sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy", &db, SQLITE_OPEN_READONLY, NULL);
-
-  sqlite3_prepare_v2(db, "select count(*) from entry_tokens where entry_id = ?", -1, &stmt, NULL);
-  sqlite3_bind_int(stmt, 1, item_cache_entry_id(entry));
-  int rc = sqlite3_step(stmt);
-  assert_equal(SQLITE_ROW, rc);
-  assert_equal(4, sqlite3_column_int(stmt, 0));
-  sqlite3_finalize(stmt);
-  sqlite3_close(db);
+  int entry_id = get_entry_id("/tmp/valid-copy/catalog.db", "urn:peerworks.org:entry#1");
+  char path[MAXPATHLEN];
+  sprintf(path, "/tmp/valid-copy/tokens/%i.tokens", entry_id);
+  FILE *file = fopen(path, "r");
+  assert_not_null(file);
+  fclose(file);
 } END_TEST
 
 START_TEST (test_adding_multiple_entries_causes_item_added_to_cache) {
@@ -755,7 +753,12 @@ START_TEST (test_update_callback) {
   ItemCacheEntry *entry1 = create_entry_from_atom_xml(entry_document, 141);
 
   item_cache_add_entry(item_cache, entry1);
-  sleep(2);
+  sleep(1);
+  
+  if (!memo_ref) {
+    sleep(1);
+  }
+  
   assert_equal(&memo, memo_ref);
 } END_TEST
 
@@ -1107,9 +1110,10 @@ item_cache_suite(void) {
 
   TCase *full_update = tcase_create("full update");
   tcase_add_checked_fixture(full_update, setup_full_update, teardown_full_update);
-  tcase_add_test(full_update, test_adding_entry_causes_item_added_to_cache);
-  tcase_add_test(full_update, test_adding_multiple_entries_causes_item_added_to_cache);
+  tcase_set_timeout(full_update, 5);
   tcase_add_test(full_update, test_update_callback);
+  tcase_add_test(full_update, test_adding_multiple_entries_causes_item_added_to_cache);
+  tcase_add_test(full_update, test_adding_entry_causes_item_added_to_cache);
   tcase_add_test(full_update, test_update_callback_not_triggered_for_invalid_item);
   tcase_add_test(full_update, test_adding_entry_causes_tokens_to_be_added_to_the_db);
 
@@ -1150,11 +1154,13 @@ item_cache_suite(void) {
   suite_add_tcase(s, rndbg);
   suite_add_tcase(s, modification);
   suite_add_tcase(s, loaded_modification);
-//  suite_add_tcase(s, feature_extraction);
-//  suite_add_tcase(s, null_feature_extraction);
-//  suite_add_tcase(s, full_update);
-//  suite_add_tcase(s, purging);
-//  suite_add_tcase(s, atomization);
+  suite_add_tcase(s, feature_extraction);
+  suite_add_tcase(s, null_feature_extraction);
+  suite_add_tcase(s, full_update);
+/*
+  suite_add_tcase(s, purging);
+  suite_add_tcase(s, atomization);
+*/
 //  suite_add_tcase(s, item_from_xml);
   return s;
 }
