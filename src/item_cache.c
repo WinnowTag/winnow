@@ -46,7 +46,10 @@
 #define INSERT_ATOM_SQL "insert into tokens (token) values (?)"
 #define FIND_TOKEN_SQL "select token from tokens where id = ?"
 //#define INSERT_ENTRY_TOKENS "insert into entry_tokens (entry_id, token_id, frequency) VALUES ((select id from entries where full_id = ?), ?, ?)"
-
+#define CORRUPT_TOKEN_FILE "Token file %s did not have a multiple of %i bytes, it has %i bytes and is possibly corrupt."
+#define TOKEN_BYTES 6
+#define PROCESSING_LIMIT 200
+                                  
 typedef struct ORDERED_ITEM_LIST OrderedItemList;
 struct ORDERED_ITEM_LIST {
   Item *item;
@@ -344,6 +347,10 @@ void free_feed(Feed * feed) {
  * ItemCache functions
  ******************************************************************************/
 
+/******************************************************************************
+ * Static functions local to this source file.
+ ******************************************************************************/
+
 static int get_user_version(ItemCache *item_cache) {
   int rc = CLASSIFIER_OK;
   sqlite3_stmt *stmt;
@@ -386,6 +393,362 @@ static int create_prepared_statements(ItemCache *item_cache) {
 
   return rc;
 }
+
+static int check_user_version(ItemCache * item_cache) {
+  int rc = CLASSIFIER_OK;
+  if (CLASSIFIER_OK == get_user_version(item_cache)) {
+    if (item_cache->user_version != CURRENT_USER_VERSION) {
+      item_cache->version_mismatch = 1;
+      rc = CLASSIFIER_FAIL;
+    }
+  } else {
+    rc = CLASSIFIER_FAIL;
+  }
+
+  return rc;
+}
+
+static int item_cache_open_database(ItemCache *item_cache) {
+  int rc = CLASSIFIER_OK;
+  char path[MAXPATHLEN];
+  if (MAXPATHLEN < snprintf(path, MAXPATHLEN, "%s/catalog.db", item_cache->cache_directory)) {
+    fatal("Path to catalog.db too long: %s", item_cache->cache_directory);
+    exit(1);
+  }
+
+  info("Attempting to open item cache catalog file at %s", path);
+  if (SQLITE_OK != sqlite3_open_v2(path, &item_cache->db, SQLITE_OPEN_READWRITE, NULL)) {
+      rc = CLASSIFIER_FAIL;
+  } else {
+    if (CLASSIFIER_OK == (rc = check_user_version(item_cache))) {
+      sqlite3_busy_timeout(item_cache->db, 1000);
+      rc = create_prepared_statements(item_cache);
+    }
+  }
+
+  return rc;
+}
+
+static int get_file_size(FILE *file, const char * path) {
+  int file_size = -1;
+  
+  if (fseek(file, 0, SEEK_END) || (file_size = ftell(file)) < 0) {
+    file_size = -1;
+  } else if (fseek(file, 0, SEEK_SET)) {
+    file_size = -1;
+  }
+  
+  return file_size;
+}
+
+static int read_tokens(const char * path, Item * item) {
+  int tokens_read = 0;
+  FILE *token_file = fopen(path, "rb");
+      
+  if (!token_file) {    
+    error("Could not open token file at %s: %s", path, strerror(errno));
+    return 0;
+  }
+  
+  int file_size = get_file_size(token_file, path);
+  debug("File size for %s is %i", path, file_size);
+
+  if (file_size < 0) {
+    error("Could not get file size for %s: %s", path, strerror(errno));
+  } else if (0 != (file_size % TOKEN_BYTES)) {
+    error(CORRUPT_TOKEN_FILE, path, TOKEN_BYTES, file_size);
+  } else {
+    int i, num_tokens = file_size / TOKEN_BYTES;
+    
+    for (i = 0; i < num_tokens; i++) {
+      int token;
+      short frequency;
+      int token_read = fread(&token    , 4, 1, token_file);
+      int frequ_read = fread(&frequency, 2, 1, token_file);
+      
+      if (!token_read || !frequ_read) {
+        error("Unable to read token from %s, not enough data.", path);
+        tokens_read = -1;
+        break;
+      } else {
+        /* Tokens are stored in network byte order so switch them to host byte order */        
+        item_add_token(item, ntohl(token), ntohs(frequency));
+        tokens_read++;
+      }
+    }
+  }
+
+  fclose(token_file);
+  
+  return tokens_read;
+}
+
+/* Fetches the tokens for the given item.
+ *
+ * NOTE: The caller must hold the db_access_mutex.
+ *
+ * @returns the number of tokens fetched for the the item.
+ */
+static int fetch_tokens_for(ItemCache * item_cache, Item * item) {
+  int tokens_loaded = 0;
+
+  if (item_cache && item) {
+  	char path[MAXPATHLEN];
+    if (MAXPATHLEN < snprintf(path, MAXPATHLEN, "%s/tokens/%i.tokens", item_cache->cache_directory, item->key)) {
+      error("Path too long %s/tokens/%i.tokens", item_cache->cache_directory, item->key);      
+    } else {      
+      tokens_loaded = read_tokens(path, item);
+    }
+  }
+
+  return tokens_loaded;
+}
+
+static Item * fetch_item_from_catalog(ItemCache * item_cache, const char * id) {
+	Item *item = NULL;
+	pthread_mutex_lock(&item_cache->db_access_mutex);
+	trace("thread(%p) has locked db_access_mutex to fetch %s", pthread_self(), id);
+
+	int sqlite3_rc = sqlite3_bind_text(item_cache->fetch_item_stmt, 1, id, -1, NULL);
+	if (SQLITE_OK != sqlite3_rc) {
+		fatal("fetch_item_stmt bind error = %s", item_cache_errmsg(item_cache));
+		item = NULL;
+	} else {
+		sqlite3_rc = sqlite3_step(item_cache->fetch_item_stmt);
+
+		if (SQLITE_ROW == sqlite3_rc) {
+			item = create_item(sqlite3_column_text(item_cache->fetch_item_stmt, 0));
+			if (NULL != item) {
+        item->key = sqlite3_column_int(item_cache->fetch_item_stmt, 1);
+				item->time = (time_t) sqlite3_column_int64(item_cache->fetch_item_stmt, 2);
+			}
+		} else if (SQLITE_DONE != sqlite3_rc) {
+			error("Error fetching item %d: %s", id, item_cache_errmsg(item_cache));
+		}
+	}
+
+	sqlite3_clear_bindings(item_cache->fetch_item_stmt);
+	sqlite3_reset(item_cache->fetch_item_stmt);
+	pthread_mutex_unlock(&item_cache->db_access_mutex);
+	trace("thread(%p) has unlocked db_access_mutex after fetching %s", pthread_self(), id);
+
+	return item;
+}
+
+static Item * fetch_item_from_cache(ItemCache * item_cache, const unsigned char * id) {
+	Item *item = NULL;
+
+	pthread_rwlock_rdlock(&item_cache->cache_lock);
+	PWord_t item_pointer;
+	JSLG(item_pointer, item_cache->items_by_id, id);
+	if (NULL != item_pointer) {
+		item = (Item*)(*item_pointer);
+	}
+	pthread_rwlock_unlock(&item_cache->cache_lock);
+
+	return item;
+}
+
+/* This will also update the entry's id. But side-effecty I guess */
+static int _is_new_entry(ItemCache * item_cache, ItemCacheEntry * entry) {
+  int is_new_entry = true;
+  
+  sqlite3_bind_text(item_cache->fetch_item_stmt, 1, entry->full_id, -1, NULL);
+  if (SQLITE_ROW == sqlite3_step(item_cache->fetch_item_stmt)) {
+    is_new_entry = false;
+    entry->id = sqlite3_column_int(item_cache->fetch_item_stmt, 1);
+  }
+
+  sqlite3_clear_bindings(item_cache->fetch_item_stmt);
+  sqlite3_reset(item_cache->fetch_item_stmt);
+  return is_new_entry;
+}
+
+static int save_entry_xml(ItemCache *item_cache, ItemCacheEntry *entry) {
+  int rc = CLASSIFIER_OK;
+  
+  if (entry->atom && entry->id > 0) {
+    char path[MAXPATHLEN];
+    snprintf(path, MAXPATHLEN, "%s/items/%i.atom", item_cache->cache_directory, entry->id);
+    FILE *file = fopen(path, "w+");
+    if (file) {
+      if (fprintf(file, entry->atom) < 0) {
+        error("Error writing to file %s: %s", path, strerror(errno));
+      }
+      fclose(file);
+    } else {
+      error("Could not open file at %s: %s", path, strerror(errno));
+      rc = CLASSIFIER_FAIL;
+    }
+  } else {
+    error("No xml or id for entry %s (%i)", entry->full_id, entry->id);
+    rc = CLASSIFIER_FAIL;
+  }
+  
+  return rc;
+}
+
+static int insert_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
+  int rc = CLASSIFIER_OK;
+  
+  if (SQLITE_OK != sqlite3_bind_text(item_cache->insert_entry_stmt, 1, entry->full_id, -1, NULL)) {
+    error("Error binding %s to parameter %i", entry->full_id, 1);
+    rc = CLASSIFIER_FAIL;
+  } else {
+    sqlite3_bind_double(item_cache->insert_entry_stmt, 2, entry->updated);
+    if (entry->feed_id > 0) sqlite3_bind_int(item_cache->insert_entry_stmt, 3, entry->feed_id);
+    sqlite3_bind_double(item_cache->insert_entry_stmt, 4, entry->created_at);
+
+    if (SQLITE_DONE != sqlite3_step(item_cache->insert_entry_stmt)) {
+      error("Error inserting item %s: %s", entry->full_id, item_cache_errmsg(item_cache));
+      rc = CLASSIFIER_FAIL;
+    } else {
+      entry->id = sqlite3_last_insert_rowid(item_cache->db);
+    }
+  }
+
+  sqlite3_clear_bindings(item_cache->insert_entry_stmt);
+  sqlite3_reset(item_cache->insert_entry_stmt);
+  return rc;
+}
+
+static int update_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
+  int rc = CLASSIFIER_OK;
+  sqlite3_bind_double(item_cache->update_entry_stmt, 7, entry->updated);
+
+  if (SQLITE_DONE != sqlite3_step(item_cache->update_entry_stmt)) {
+    error("Error update item %s: %s", entry->full_id, item_cache_errmsg(item_cache));
+    rc = CLASSIFIER_FAIL;
+  }
+
+  sqlite3_clear_bindings(item_cache->update_entry_stmt);
+  sqlite3_reset(item_cache->update_entry_stmt);
+  return rc;
+}
+
+static int entry_has_tokens(ItemCache *item_cache, ItemCacheEntry *entry) {
+  int has_tokens = false;
+  char path[MAXPATHLEN];
+  snprintf(path, MAXPATHLEN, "%s/tokens/%i.tokens", item_cache->cache_directory, entry->id);
+
+  FILE *file = fopen(path, "r");
+  if (file) {
+    has_tokens = true;
+    fclose(file);
+  } 
+  
+  return has_tokens;
+}
+
+static time_t get_purge_time(void) {
+  time_t now = time(NULL);
+  struct tm purge_time_tm;
+  gmtime_r(&now, &purge_time_tm);
+  purge_time_tm.tm_mon--;
+  purge_time_tm.tm_mday--;
+  return timegm(&purge_time_tm);
+}
+
+static void * item_cache_purge_thread_func(void *memo) {
+  ItemCache *item_cache = (ItemCache *) memo;
+
+  while (true) {
+    sleep(item_cache->purge_interval);
+    item_cache_purge_old_items(item_cache);
+  }
+}
+
+/** The cache updating thread.
+ *
+ * This is one of the hairier functions in the Item cache.  It is responsible
+ * for saving new tokenized items in the database and adding new tokenized items
+ * into the in-memory cache that is used for classification.
+ *
+ * UpdateJob are first placed into the update_queue by the feature extraction thread.
+ * The updating thread then gets the jobs of the queue. The jobs contain an item that
+ * is to be saved into the database and, if that is successful, it is saved into the
+ * in-memory cache.  We use a write lock on the in-memory cache to ensure that
+ * nothing is reading or writing to the in-memory cache at this time.  The lock is around
+ * the smallest possible section, the item_cache_add_item function, to ensure we hold
+ * the lock for as short a time as possible.
+ *
+ * One particularly trick aspect to this is that new classification jobs are triggered
+ * by the addition of new items to the cache. This is handled by the calling of the
+ * update_callback when new items are added.  However item can come in spurts and we
+ * don't want to be creating a new classification job for every item if we are getting
+ * say 100-200 items at a rate of one every second or so, this will flood the classifier
+ * with thousands of small jobs that each classify a single item and then end.
+ *
+ * So what we want to try and do here is to add as many items as we can before calling
+ * the callback, but we also want to make sure the callback is called fairly regularly
+ * and you do don't have a small number of items waiting a long time to be classified.
+ * To do this we keep track of the number of items processed in a "run", when that reaches
+ * PROCESSING_LIMIT (default: 200) the callback is called and we continue processing new
+ * items.  Before that limit is reached we will try an get another item off the queue,
+ * if there are no items we wait 1 second, if there are still no items we then call the callback.
+ *
+ * So we have a couple of parameters that might need tuning:
+ *
+ *   PROCESSING_LIMIT: The number of items that will be processed before the update_callback is triggered.
+ *   QUEUE_WAIT: The time we wait for a new item in the queue before the update_callback is triggered.
+ */
+static void * cache_updating_func(void *memo) {
+  ItemCache *item_cache = (ItemCache*) memo;
+
+  while (true) {
+    UpdateJob *job = q_dequeue_or_wait(item_cache->update_queue, item_cache->cache_update_wait_time);
+    int items_added = 0;
+
+    if (job) {
+      do {
+        switch (job->type) {
+          case ADD:
+            job->item->time = time(NULL);
+            if (CLASSIFIER_OK == item_cache_save_item(item_cache, job->item)) {
+              if (CLASSIFIER_OK == item_cache_add_item(item_cache, job->item)) {
+                items_added++;
+              } else {
+                debug("No enough tokens to add to the classification item cache: %i", job->item->id);
+                free_item(job->item);
+              }
+            }
+            break;
+          default:
+            fatal("Got unknown cache updating job type");
+            break;
+        }
+
+        free(job);
+
+        /* When we have added 200 items to the queue
+         * skip to calling the callback. Otherwise
+         * try an get another job, possibly waiting
+         * one second for it to arrive.
+         */
+        if (items_added >= PROCESSING_LIMIT) {
+          debug("Hit PROCESSING_LIMIT(%i)", PROCESSING_LIMIT);
+          break;
+        } else {
+          job = q_dequeue_or_wait(item_cache->update_queue, item_cache->cache_update_wait_time);
+        }
+
+        /* We keep doing this until we don't get any more jobs after a 1 second wait. */
+        /* Is one second long enough? This might need to be a parameter. */
+      } while (job != NULL);
+
+      if (item_cache->update_callback && items_added > 0) {
+        debug("Trigger update callback for %i items", items_added);
+        item_cache->update_callback(item_cache, item_cache->update_callback_memo);
+      }
+    }
+  }
+
+  return NULL;
+}
+
+/*****************************************************************************
+ * External API functions for the item cache.
+ *****************************************************************************/
 
 /** Initialize an SQLite database with the ItemCache schema.
  *
@@ -436,41 +799,6 @@ int item_cache_initialize(const char *db_file, char * error) {
     }
 
     sqlite3_close(db);
-  }
-
-  return rc;
-}
-
-static int check_user_version(ItemCache * item_cache) {
-  int rc = CLASSIFIER_OK;
-  if (CLASSIFIER_OK == get_user_version(item_cache)) {
-    if (item_cache->user_version != CURRENT_USER_VERSION) {
-      item_cache->version_mismatch = 1;
-      rc = CLASSIFIER_FAIL;
-    }
-  } else {
-    rc = CLASSIFIER_FAIL;
-  }
-
-  return rc;
-}
-
-static int item_cache_open_database(ItemCache *item_cache) {
-  int rc = CLASSIFIER_OK;
-  char path[MAXPATHLEN];
-  if (MAXPATHLEN < snprintf(path, MAXPATHLEN, "%s/catalog.db", item_cache->cache_directory)) {
-    fatal("Path to catalog.db too long: %s", item_cache->cache_directory);
-    exit(1);
-  }
-
-  info("Attempting to open item cache catalog file at %s", path);
-  if (SQLITE_OK != sqlite3_open_v2(path, &item_cache->db, SQLITE_OPEN_READWRITE, NULL)) {
-      rc = CLASSIFIER_FAIL;
-  } else {
-    if (CLASSIFIER_OK == (rc = check_user_version(item_cache))) {
-      sqlite3_busy_timeout(item_cache->db, 1000);
-      rc = create_prepared_statements(item_cache);
-    }
   }
 
   return rc;
@@ -599,84 +927,6 @@ const char * item_cache_errmsg(const ItemCache *item_cache) {
   }
 
   return msg;
-}
-
-static int get_file_size(FILE *file, const char * path) {
-  int file_size = -1;
-  
-  if (fseek(file, 0, SEEK_END) || (file_size = ftell(file)) < 0) {
-    file_size = -1;
-  } else if (fseek(file, 0, SEEK_SET)) {
-    file_size = -1;
-  }
-  
-  return file_size;
-}
-
-#define CORRUPT_TOKEN_FILE "Token file %s did not have a multiple of %i bytes, it has %i bytes and is possibly corrupt."
-#define TOKEN_BYTES 6
-
-static int read_tokens(const char * path, Item * item) {
-  int tokens_read = 0;
-  FILE *token_file = fopen(path, "rb");
-      
-  if (!token_file) {    
-    error("Could not open token file at %s: %s", path, strerror(errno));
-    return 0;
-  }
-  
-  int file_size = get_file_size(token_file, path);
-  debug("File size for %s is %i", path, file_size);
-
-  if (file_size < 0) {
-    error("Could not get file size for %s: %s", path, strerror(errno));
-  } else if (0 != (file_size % TOKEN_BYTES)) {
-    error(CORRUPT_TOKEN_FILE, path, TOKEN_BYTES, file_size);
-  } else {
-    int i, num_tokens = file_size / TOKEN_BYTES;
-    
-    for (i = 0; i < num_tokens; i++) {
-      int token;
-      short frequency;
-      int token_read = fread(&token    , 4, 1, token_file);
-      int frequ_read = fread(&frequency, 2, 1, token_file);
-      
-      if (!token_read || !frequ_read) {
-        error("Unable to read token from %s, not enough data.", path);
-        tokens_read = -1;
-        break;
-      } else {
-        /* Tokens are stored in network byte order so switch them to host byte order */        
-        item_add_token(item, ntohl(token), ntohs(frequency));
-        tokens_read++;
-      }
-    }
-  }
-
-  fclose(token_file);
-  
-  return tokens_read;
-}
-
-/* Fetches the tokens for the given item.
- *
- * NOTE: The caller must hold the db_access_mutex.
- *
- * @returns the number of tokens fetched for the the item.
- */
-static int fetch_tokens_for(ItemCache * item_cache, Item * item) {
-  int tokens_loaded = 0;
-
-  if (item_cache && item) {
-  	char path[MAXPATHLEN];
-    if (MAXPATHLEN < snprintf(path, MAXPATHLEN, "%s/tokens/%i.tokens", item_cache->cache_directory, item->key)) {
-      error("Path too long %s/tokens/%i.tokens", item_cache->cache_directory, item->key);      
-    } else {      
-      tokens_loaded = read_tokens(path, item);
-    }
-  }
-
-  return tokens_loaded;
 }
 
 /** Load the items from the database into an in-memory cache.
@@ -855,51 +1105,6 @@ int item_cache_loaded(const ItemCache *item_cache) {
   return item_cache->loaded;
 }
 
-static Item * fetch_item_from_catalog(ItemCache * item_cache, const char * id) {
-	Item *item = NULL;
-	pthread_mutex_lock(&item_cache->db_access_mutex);
-	trace("thread(%p) has locked db_access_mutex to fetch %s", pthread_self(), id);
-
-	int sqlite3_rc = sqlite3_bind_text(item_cache->fetch_item_stmt, 1, id, -1, NULL);
-	if (SQLITE_OK != sqlite3_rc) {
-		fatal("fetch_item_stmt bind error = %s", item_cache_errmsg(item_cache));
-		item = NULL;
-	} else {
-		sqlite3_rc = sqlite3_step(item_cache->fetch_item_stmt);
-
-		if (SQLITE_ROW == sqlite3_rc) {
-			item = create_item(sqlite3_column_text(item_cache->fetch_item_stmt, 0));
-			if (NULL != item) {
-        item->key = sqlite3_column_int(item_cache->fetch_item_stmt, 1);
-				item->time = (time_t) sqlite3_column_int64(item_cache->fetch_item_stmt, 2);
-			}
-		} else if (SQLITE_DONE != sqlite3_rc) {
-			error("Error fetching item %d: %s", id, item_cache_errmsg(item_cache));
-		}
-	}
-
-	sqlite3_clear_bindings(item_cache->fetch_item_stmt);
-	sqlite3_reset(item_cache->fetch_item_stmt);
-	pthread_mutex_unlock(&item_cache->db_access_mutex);
-	trace("thread(%p) has unlocked db_access_mutex after fetching %s", pthread_self(), id);
-
-	return item;
-}
-
-static Item * fetch_item_from_cache(ItemCache * item_cache, const unsigned char * id) {
-	Item *item = NULL;
-
-	pthread_rwlock_rdlock(&item_cache->cache_lock);
-	PWord_t item_pointer;
-	JSLG(item_pointer, item_cache->items_by_id, id);
-	if (NULL != item_pointer) {
-		item = (Item*)(*item_pointer);
-	}
-	pthread_rwlock_unlock(&item_cache->cache_lock);
-
-	return item;
-}
-
 /** Fetch an item from the cache.
  *
  * @param item_cache The ItemCache to get the item from.
@@ -978,107 +1183,6 @@ const Pool * item_cache_random_background(ItemCache * item_cache)  {
   return random_background;
 }
 
-#define BIND_TEXT(stmt, txt, pos) if (txt) {               \
-  if (SQLITE_OK != sqlite3_bind_text(stmt, pos, txt, -1, NULL)) {     \
-    error("Error binding %s to parameter %i", txt, pos);              \
-    rc = CLASSIFIER_FAIL;                                             \
-    sqlite3_clear_bindings(stmt);                                     \
-    sqlite3_reset(stmt);                                              \
-    goto end;                                                         \
-  }                                                                   \
-}
-
-/* This will also update the entry's id. But side-effecty I guess */
-static int _is_new_entry(ItemCache * item_cache, ItemCacheEntry * entry) {
-  int is_new_entry = true;
-  
-  sqlite3_bind_text(item_cache->fetch_item_stmt, 1, entry->full_id, -1, NULL);
-  if (SQLITE_ROW == sqlite3_step(item_cache->fetch_item_stmt)) {
-    is_new_entry = false;
-    entry->id = sqlite3_column_int(item_cache->fetch_item_stmt, 1);
-  }
-
-  sqlite3_clear_bindings(item_cache->fetch_item_stmt);
-  sqlite3_reset(item_cache->fetch_item_stmt);
-  return is_new_entry;
-}
-
-static int save_entry_xml(ItemCache *item_cache, ItemCacheEntry *entry) {
-  int rc = CLASSIFIER_OK;
-  
-  if (entry->atom && entry->id > 0) {
-    char path[MAXPATHLEN];
-    snprintf(path, MAXPATHLEN, "%s/items/%i.atom", item_cache->cache_directory, entry->id);
-    FILE *file = fopen(path, "w+");
-    if (file) {
-      if (fprintf(file, entry->atom) < 0) {
-        error("Error writing to file %s: %s", path, strerror(errno));
-      }
-      fclose(file);
-    } else {
-      error("Could not open file at %s: %s", path, strerror(errno));
-      rc = CLASSIFIER_FAIL;
-    }
-  } else {
-    error("No xml or id for entry %s (%i)", entry->full_id, entry->id);
-    rc = CLASSIFIER_FAIL;
-  }
-  
-  return rc;
-}
-
-static int insert_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
-  int rc = CLASSIFIER_OK;
-  
-  if (SQLITE_OK != sqlite3_bind_text(item_cache->insert_entry_stmt, 1, entry->full_id, -1, NULL)) {
-    error("Error binding %s to parameter %i", entry->full_id, 1);
-    rc = CLASSIFIER_FAIL;
-  } else {
-    sqlite3_bind_double(item_cache->insert_entry_stmt, 2, entry->updated);
-    if (entry->feed_id > 0) sqlite3_bind_int(item_cache->insert_entry_stmt, 3, entry->feed_id);
-    sqlite3_bind_double(item_cache->insert_entry_stmt, 4, entry->created_at);
-
-    if (SQLITE_DONE != sqlite3_step(item_cache->insert_entry_stmt)) {
-      error("Error inserting item %s: %s", entry->full_id, item_cache_errmsg(item_cache));
-      rc = CLASSIFIER_FAIL;
-    } else {
-      entry->id = sqlite3_last_insert_rowid(item_cache->db);
-    }
-  }
-
-  sqlite3_clear_bindings(item_cache->insert_entry_stmt);
-  sqlite3_reset(item_cache->insert_entry_stmt);
-  return rc;
-}
-
-static int update_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
-  int rc = CLASSIFIER_OK;
-  sqlite3_bind_double(item_cache->update_entry_stmt, 7, entry->updated);
-
-  if (SQLITE_DONE != sqlite3_step(item_cache->update_entry_stmt)) {
-    error("Error update item %s: %s", entry->full_id, item_cache_errmsg(item_cache));
-    rc = CLASSIFIER_FAIL;
-  }
-
-  sqlite3_clear_bindings(item_cache->update_entry_stmt);
-  sqlite3_reset(item_cache->update_entry_stmt);
-  return rc;
-}
-
-static int entry_has_tokens(ItemCache *item_cache, ItemCacheEntry *entry) {
-  int has_tokens = false;
-  char path[MAXPATHLEN];
-  snprintf(path, MAXPATHLEN, "%s/tokens/%i.tokens", item_cache->cache_directory, entry->id);
-
-  FILE *file = fopen(path, "r");
-  if (file) {
-    has_tokens = true;
-    fclose(file);
-  } 
-  
-  return has_tokens;
-}
-
 /** Adds an entry to the item cache.
  *
  * This immediately stores the item in the database.
@@ -1115,7 +1219,6 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
       }
     }
 
-  end:
     pthread_mutex_unlock(&item_cache->db_access_mutex);
   }
 
@@ -1175,10 +1278,11 @@ int item_cache_add_feed(ItemCache *item_cache, Feed * feed) {
   if (item_cache && feed) {
     pthread_mutex_lock(&item_cache->db_access_mutex);
     sqlite3_bind_int(item_cache->insert_feed_stmt, 1, feed->id);
-    BIND_TEXT(item_cache->insert_feed_stmt, feed->title, 2);
-
-    if (SQLITE_DONE != sqlite3_step(item_cache->insert_feed_stmt)) {
-      error("Error inserting feed '%s' into item cache", feed->title, item_cache_errmsg(item_cache));
+    if (SQLITE_OK != sqlite3_bind_text(item_cache->insert_feed_stmt, 2, feed->title, -1, NULL)) {
+      error("Error binding feed title: %s: %s", feed->title, item_cache_errmsg(item_cache));
+      rc = CLASSIFIER_FAIL;
+    } else if (SQLITE_DONE != sqlite3_step(item_cache->insert_feed_stmt)) {
+      error("Error inserting feed '%s' into item cache: %s", feed->title, item_cache_errmsg(item_cache));
       rc = CLASSIFIER_FAIL;
     } else {
       info("Inserted feed '%s' into item cache", feed->title);
@@ -1187,7 +1291,6 @@ int item_cache_add_feed(ItemCache *item_cache, Feed * feed) {
     sqlite3_clear_bindings(item_cache->insert_feed_stmt);
     sqlite3_reset(item_cache->insert_feed_stmt);
 
-  end:
     pthread_mutex_unlock(&item_cache->db_access_mutex);
   }
 
@@ -1337,15 +1440,6 @@ int item_cache_save_item(ItemCache * item_cache, Item *item) {
   return rc;
 }
 
-static time_t get_purge_time(void) {
-  time_t now = time(NULL);
-  struct tm purge_time_tm;
-  gmtime_r(&now, &purge_time_tm);
-  purge_time_tm.tm_mon--;
-  purge_time_tm.tm_mday--;
-  return timegm(&purge_time_tm);
-}
-
 int item_cache_purge_old_items(ItemCache *item_cache) {
   info("Starting purge_old_items");
   int rc = CLASSIFIER_OK;
@@ -1388,16 +1482,6 @@ int item_cache_purge_old_items(ItemCache *item_cache) {
   }
 
   return rc;
-}
-
-
-static void * item_cache_purge_thread_func(void *memo) {
-  ItemCache *item_cache = (ItemCache *) memo;
-
-  while (true) {
-    sleep(item_cache->purge_interval);
-    item_cache_purge_old_items(item_cache);
-  }
 }
 
 int item_cache_start_purger(ItemCache * item_cache, int purge_interval) {
@@ -1498,96 +1582,6 @@ int item_cache_update_queue_size(const ItemCache * item_cache) {
   return size;
 }
 
-#define PROCESSING_LIMIT 200
-
-/** The cache updating thread.
- *
- * This is one of the hairier functions in the Item cache.  It is responsible
- * for saving new tokenized items in the database and adding new tokenized items
- * into the in-memory cache that is used for classification.
- *
- * UpdateJob are first placed into the update_queue by the feature extraction thread.
- * The updating thread then gets the jobs of the queue. The jobs contain an item that
- * is to be saved into the database and, if that is successful, it is saved into the
- * in-memory cache.  We use a write lock on the in-memory cache to ensure that
- * nothing is reading or writing to the in-memory cache at this time.  The lock is around
- * the smallest possible section, the item_cache_add_item function, to ensure we hold
- * the lock for as short a time as possible.
- *
- * One particularly trick aspect to this is that new classification jobs are triggered
- * by the addition of new items to the cache. This is handled by the calling of the
- * update_callback when new items are added.  However item can come in spurts and we
- * don't want to be creating a new classification job for every item if we are getting
- * say 100-200 items at a rate of one every second or so, this will flood the classifier
- * with thousands of small jobs that each classify a single item and then end.
- *
- * So what we want to try and do here is to add as many items as we can before calling
- * the callback, but we also want to make sure the callback is called fairly regularly
- * and you do don't have a small number of items waiting a long time to be classified.
- * To do this we keep track of the number of items processed in a "run", when that reaches
- * PROCESSING_LIMIT (default: 200) the callback is called and we continue processing new
- * items.  Before that limit is reached we will try an get another item off the queue,
- * if there are no items we wait 1 second, if there are still no items we then call the callback.
- *
- * So we have a couple of parameters that might need tuning:
- *
- *   PROCESSING_LIMIT: The number of items that will be processed before the update_callback is triggered.
- *   QUEUE_WAIT: The time we wait for a new item in the queue before the update_callback is triggered.
- */
-void * cache_updating_func(void *memo) {
-  ItemCache *item_cache = (ItemCache*) memo;
-
-  while (true) {
-    UpdateJob *job = q_dequeue_or_wait(item_cache->update_queue, item_cache->cache_update_wait_time);
-    int items_added = 0;
-
-    if (job) {
-      do {
-        switch (job->type) {
-          case ADD:
-            job->item->time = time(NULL);
-            if (CLASSIFIER_OK == item_cache_save_item(item_cache, job->item)) {
-              if (CLASSIFIER_OK == item_cache_add_item(item_cache, job->item)) {
-                items_added++;
-              } else {
-                debug("No enough tokens to add to the classification item cache: %i", job->item->id);
-                free_item(job->item);
-              }
-            }
-            break;
-          default:
-            fatal("Got unknown cache updating job type");
-            break;
-        }
-
-        free(job);
-
-        /* When we have added 200 items to the queue
-         * skip to calling the callback. Otherwise
-         * try an get another job, possibly waiting
-         * one second for it to arrive.
-         */
-        if (items_added >= PROCESSING_LIMIT) {
-          debug("Hit PROCESSING_LIMIT(%i)", PROCESSING_LIMIT);
-          break;
-        } else {
-          job = q_dequeue_or_wait(item_cache->update_queue, item_cache->cache_update_wait_time);
-        }
-
-        /* We keep doing this until we don't get any more jobs after a 1 second wait. */
-        /* Is one second long enough? This might need to be a parameter. */
-      } while (job != NULL);
-
-      if (item_cache->update_callback && items_added > 0) {
-        debug("Trigger update callback for %i items", items_added);
-        item_cache->update_callback(item_cache, item_cache->update_callback_memo);
-      }
-    }
-  }
-
-  return NULL;
-}
-
 int item_cache_start_cache_updater(ItemCache * item_cache) {
   int rc = CLASSIFIER_OK;
 
@@ -1684,6 +1678,26 @@ char * item_cache_globalize(ItemCache * item_cache, int atom) {
 }
 
 /******************************************************************************
+ * Static item functions
+ ******************************************************************************/
+
+static int load_tokens_from_array(Item *item, int tokens[][2], int num_tokens) {
+  int i;
+  int return_code = 0;
+  for (i = 0; i < num_tokens; i++) {
+    int token_id = tokens[i][0];
+    int token_frequency = tokens[i][1];
+    
+    if (item_add_token(item, token_id, token_frequency)) {
+      return_code = 1;
+      break;
+    }      
+  }
+  
+  return return_code;
+}
+
+/******************************************************************************
  * Item creation functions
  ******************************************************************************/
 
@@ -1770,21 +1784,6 @@ Item * item_from_xml(ItemCache * item_cache, const char * xml) {
   return item;
 }
 
-static int load_tokens_from_array(Item *item, int tokens[][2], int num_tokens) {
-  int i;
-  int return_code = 0;
-  for (i = 0; i < num_tokens; i++) {
-    int token_id = tokens[i][0];
-    int token_frequency = tokens[i][1];
-
-    if (item_add_token(item, token_id, token_frequency)) {
-      return_code = 1;
-      break;
-    }
-  }
-
-  return return_code;
-}
 
 /** Create an item from an array of tokens.
  *
@@ -1898,8 +1897,6 @@ void free_item(Item *item) {
   }
 }
 
-
-
 int item_add_token(Item *item, int id, int token_frequency) {
   int return_code = 0;
   Word_t token_id;
@@ -1918,4 +1915,3 @@ int item_add_token(Item *item, int id, int token_frequency) {
 
   return return_code;
 }
-
