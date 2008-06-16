@@ -456,6 +456,7 @@ START_TEST (test_adding_existing_entry_doesnt_tokenize_if_the_entry_is_tokenized
 } END_TEST
 
 #include <sched.h>
+#include <sys/unistd.h>
 int tokens[][2] = {1, 2, 3, 4, 5, 6, 7, 8};
 Item *item;
 
@@ -465,8 +466,8 @@ static void setup_loaded_modification(void) {
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   //item_cache_set_feature_extractor(item_cache, NULL);
   item_cache_load(item_cache);
-
-  item = create_item_with_tokens_and_time((unsigned char*) "id#9", tokens, 4, (time_t) 1178683198L);
+  entry_document = read_document("fixtures/entry.atom");
+  item = create_item_with_tokens_and_time((unsigned char*) "urn:peerworks.org:entry#1", tokens, 4, (time_t) 1178683198L);
 }
 
 static void teardown_loaded_modification(void) {
@@ -499,7 +500,7 @@ START_TEST (test_add_item_to_in_memory_arrays_adds_an_item) {
 
 START_TEST (test_add_item_makes_it_fetchable) {
   item_cache_add_item(item_cache, item);
-  assert_equal(item, item_cache_fetch_item(item_cache, (unsigned char*) "id#9", &free_when_done));
+  assert_equal(item, item_cache_fetch_item(item_cache, (unsigned char*) "urn:peerworks.org:entry#1", &free_when_done));
 } END_TEST
 
 static int adding_item_iterator(const Item *iter_item, void *memo) {
@@ -552,6 +553,23 @@ START_TEST (test_add_item_puts_it_in_the_right_position_at_end) {
   assert_equal(11, position);
 } END_TEST
 
+static int get_entry_id(char *db_file, char *full_id) {
+  int id = -1;
+  
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2(db_file, &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select id from entries where full_id = ?", -1, &stmt, NULL);
+  sqlite3_bind_text(stmt, 1, full_id, -1, NULL);
+  int rc = sqlite3_step(stmt);
+  assert_equal(SQLITE_ROW, rc);
+  id = sqlite3_column_int(stmt, 0);
+  sqlite3_finalize(stmt);
+  sqlite3_close(db);
+  
+  return id;
+}
+
 START_TEST (test_save_item_stores_it_in_the_database) {
   // Need a corresponding entry
   ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
@@ -562,32 +580,41 @@ START_TEST (test_save_item_stores_it_in_the_database) {
   rc = item_cache_save_item(item_cache, item);
   assert_equal(CLASSIFIER_OK, rc);
 
-  sqlite3 *db;
-  sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy", &db, SQLITE_OPEN_READONLY, NULL);
-  sqlite3_prepare_v2(db, "select count(*) from entry_tokens where entry_id = (select id from entries where full_id = 'id#9')", -1, &stmt, NULL);
-  sqlite3_bind_int(stmt, 1, item_cache_entry_id(entry));
-  rc = sqlite3_step(stmt);
-  assert_equal(SQLITE_ROW, rc);
-  assert_equal(4, sqlite3_column_int(stmt, 0));
-  sqlite3_finalize(stmt);
-  sqlite3_close(db);
+  int id = get_entry_id("/tmp/valid-copy/catalog.db", "urn:peerworks.org:entry#1");
+  
+  char path[1024];
+  snprintf(path, 1024, "/tmp/valid-copy/tokens/%i.tokens", id);
+  FILE *file = fopen(path, "r");
+  fail_unless(file != NULL, "%s doesn't exist", path);
+  fseek(file, 0, SEEK_END);
+  int size = ftell(file);  
+  fclose(file);
+  assert_equal(4 * 6 /* num tokens * TOKEN_BYTES */, size);
+} END_TEST
+
+START_TEST (test_save_item_stores_the_correct_tokens) {
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
+
+  int rc = item_cache_add_entry(item_cache, entry);
+  assert_equal(CLASSIFIER_OK, rc);
+
+  rc = item_cache_save_item(item_cache, item);
+  assert_equal(CLASSIFIER_OK, rc);
+
+  int freeit;
+  Item *new_item = item_cache_fetch_item(item_cache, "urn:peerworks.org:entry#1", &freeit);
+  assert_not_null(new_item);
+  assert_true(freeit);
+  assert_equal(2, item_get_token_frequency(new_item, 1));
+  assert_equal(4, item_get_token_frequency(new_item, 3));
+  assert_equal(6, item_get_token_frequency(new_item, 5));
+  assert_equal(8, item_get_token_frequency(new_item, 7));
 } END_TEST
 
 
 START_TEST (test_save_item_without_an_entry_wont_store_it_in_the_database) {
   int rc = item_cache_save_item(item_cache, item);
   assert_equal(CLASSIFIER_FAIL, rc);
-
-  sqlite3 *db;
-  sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy", &db, SQLITE_OPEN_READONLY, NULL);
-  sqlite3_prepare_v2(db, "select count(*) from entry_tokens where entry_id = 890807", -1, &stmt, NULL);
-  rc = sqlite3_step(stmt);
-  assert_equal(SQLITE_ROW, rc);
-  assert_equal(0, sqlite3_column_int(stmt, 0));
-  sqlite3_finalize(stmt);
-  sqlite3_close(db);
 } END_TEST
 
 /* Feature Extraction tests */
@@ -1067,6 +1094,7 @@ item_cache_suite(void) {
   tcase_add_test(loaded_modification, test_add_item_puts_it_in_the_right_position_at_end);
   tcase_add_test(loaded_modification, test_save_item_stores_it_in_the_database);
   tcase_add_test(loaded_modification, test_save_item_without_an_entry_wont_store_it_in_the_database);
+  tcase_add_test(loaded_modification, test_save_item_stores_the_correct_tokens);
 
   TCase *feature_extraction = tcase_create("feature extraction");
   tcase_add_checked_fixture(feature_extraction, setup_feature_extraction, teardown_feature_extraction);
@@ -1121,7 +1149,7 @@ item_cache_suite(void) {
   suite_add_tcase(s, iteration);
   suite_add_tcase(s, rndbg);
   suite_add_tcase(s, modification);
-//  suite_add_tcase(s, loaded_modification);
+  suite_add_tcase(s, loaded_modification);
 //  suite_add_tcase(s, feature_extraction);
 //  suite_add_tcase(s, null_feature_extraction);
 //  suite_add_tcase(s, full_update);

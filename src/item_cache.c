@@ -429,6 +429,24 @@ static int item_cache_open_database(ItemCache *item_cache) {
   return rc;
 }
 
+static int build_token_path(const char *cache_directory, int key, char * buffer, size_t size) {
+  int rc = CLASSIFIER_OK;
+  if (size < snprintf(buffer, size, "%s/tokens/%i.tokens", cache_directory, key)) {
+    error("Path too long %s/tokens/%i.tokens", cache_directory, key);
+    rc = CLASSIFIER_FAIL;
+  }
+  return rc;
+}
+
+static int build_item_path(const char *cache_directory, int key, char * buffer, size_t size) {
+  int rc = CLASSIFIER_OK;
+  if (size < snprintf(buffer, size, "%s/items/%i.atom", cache_directory, key)) {
+    error("Path too long %s/tokens/%i.tokens", cache_directory, key);
+    rc = CLASSIFIER_FAIL;
+  }
+  return rc;
+}
+
 static int get_file_size(FILE *file, const char * path) {
   int file_size = -1;
   
@@ -483,6 +501,39 @@ static int read_tokens(const char * path, Item * item) {
   return tokens_read;
 }
 
+static int write_tokens(Item * item, const char * path) {
+  int rc = CLASSIFIER_OK;  
+  FILE *file;
+  
+  if (!(file = fopen(path, "w+"))) {
+    error("Could not open token file at %s: %s", path, strerror(errno));
+    rc = CLASSIFIER_FAIL;
+  } else {
+    int token = 0;
+    short frequency = 0;
+    
+    while (item_next_token(item, &token, &frequency)) {
+      /* Always write the tokens out in network byte order. */
+      int out_token = htonl(token);
+      short out_frequency = htons(frequency);
+      
+      if (!fwrite(&out_token, 4, 1, file) || !fwrite(&out_frequency, 2, 1, file)) {
+        error("Error writing tokens to file: %s: %s", path, strerror(errno));
+        rc = CLASSIFIER_FAIL;
+        break;
+      }
+    }
+    
+    fclose(file);
+    
+    if (CLASSIFIER_FAIL == rc) {
+      unlink(path);
+    }
+  }
+  
+  return rc;
+}
+
 /* Fetches the tokens for the given item.
  *
  * NOTE: The caller must hold the db_access_mutex.
@@ -494,9 +545,7 @@ static int fetch_tokens_for(ItemCache * item_cache, Item * item) {
 
   if (item_cache && item) {
   	char path[MAXPATHLEN];
-    if (MAXPATHLEN < snprintf(path, MAXPATHLEN, "%s/tokens/%i.tokens", item_cache->cache_directory, item->key)) {
-      error("Path too long %s/tokens/%i.tokens", item_cache->cache_directory, item->key);      
-    } else {      
+    if (!build_token_path(item_cache->cache_directory, item->key, path, MAXPATHLEN)) {
       tokens_loaded = read_tokens(path, item);
     }
   }
@@ -549,6 +598,25 @@ static Item * fetch_item_from_cache(ItemCache * item_cache, const unsigned char 
 	return item;
 }
 
+static int get_entry_key(ItemCache * item_cache, const char * entry_id) {
+  int entry_key = -1;
+  
+  if (item_cache && entry_id) {
+    if (SQLITE_OK != sqlite3_bind_text(item_cache->fetch_item_stmt, 1, entry_id, -1, NULL)) {
+      error("Unable to bind %s to fetch_item_stmt: %s", entry_id, item_cache_errmsg(item_cache));      
+    } else if (SQLITE_ROW != sqlite3_step(item_cache->fetch_item_stmt)) {
+      error("Entry does not exist: %s", entry_id);
+    } else {
+      entry_key = sqlite3_column_int(item_cache->fetch_item_stmt, 1);
+    }
+    
+    sqlite3_clear_bindings(item_cache->fetch_item_stmt);
+    sqlite3_reset(item_cache->fetch_item_stmt);
+  }
+  
+  return entry_key;
+}
+
 /* This will also update the entry's id. But side-effecty I guess */
 static int _is_new_entry(ItemCache * item_cache, ItemCacheEntry * entry) {
   int is_new_entry = true;
@@ -567,23 +635,25 @@ static int _is_new_entry(ItemCache * item_cache, ItemCacheEntry * entry) {
 static int save_entry_xml(ItemCache *item_cache, ItemCacheEntry *entry) {
   int rc = CLASSIFIER_OK;
   
-  if (entry->atom && entry->id > 0) {
+  if (!(entry->atom && entry->id > 0)) {
+    error("No xml or id for entry %s (%i)", entry->full_id, entry->id);
+    rc = CLASSIFIER_FAIL;
+  } else {
     char path[MAXPATHLEN];
-    snprintf(path, MAXPATHLEN, "%s/items/%i.atom", item_cache->cache_directory, entry->id);
-    FILE *file = fopen(path, "w+");
-    if (file) {
+    FILE *file;
+    
+    if (build_item_path(item_cache->cache_directory, entry->id, path, MAXPATHLEN)) {
+      rc = CLASSIFIER_FAIL;
+    } else if (!(file = fopen(path, "w+"))) {
+      error("Could not open file at %s: %s", path, strerror(errno));
+      rc = CLASSIFIER_FAIL;
+    } else {
       if (fprintf(file, entry->atom) < 0) {
         error("Error writing to file %s: %s", path, strerror(errno));
       }
       fclose(file);
-    } else {
-      error("Could not open file at %s: %s", path, strerror(errno));
-      rc = CLASSIFIER_FAIL;
-    }
-  } else {
-    error("No xml or id for entry %s (%i)", entry->full_id, entry->id);
-    rc = CLASSIFIER_FAIL;
-  }
+    }  
+  } 
   
   return rc;
 }
@@ -1396,45 +1466,19 @@ int item_cache_save_item(ItemCache * item_cache, Item *item) {
   if (item_cache && item) {
     debug("Saving item %i", item->id);
     pthread_mutex_lock(&item_cache->db_access_mutex);
-    char *err;
-
-    if (SQLITE_OK != sqlite3_exec(item_cache->db, "begin immediate transaction", NULL, NULL, &err)) {
-      error("Could not start transaction to save item: %s", err);
-      sqlite3_free(err);
+    int entry_key = get_entry_key(item_cache, item->id);
+    pthread_mutex_unlock(&item_cache->db_access_mutex);
+    
+    if (entry_key <= 0) {
       rc = CLASSIFIER_FAIL;
     } else {
-      Token token;
-      token.id = 0;
-
-      while(item_next_token(item, &token)) {
-//        debug("save token %i", token.id);
-//        int stmt_rc;
-//        sqlite3_bind_text(item_cache->insert_entry_token_stmt, 1, (char *) item->id, -1, NULL);
-//        sqlite3_bind_int(item_cache->insert_entry_token_stmt, 2, token.id);
-//        sqlite3_bind_int(item_cache->insert_entry_token_stmt, 3, token.frequency);
-//
-//        stmt_rc = sqlite3_step(item_cache->insert_entry_token_stmt);
-//        sqlite3_clear_bindings(item_cache->insert_entry_token_stmt);
-//        sqlite3_reset(item_cache->insert_entry_token_stmt);
-//
-//        if (SQLITE_DONE != stmt_rc) {
-//          error("Error inserting entry token: (%s, %i, %i), %s",
-//                item->id, token.id, token.frequency, item_cache_errmsg(item_cache));
-//          rc = CLASSIFIER_FAIL;
-//          break;
-//        }
-      }
-
-      if (CLASSIFIER_FAIL == rc) {
-        sqlite3_exec(item_cache->db, "rollback transaction", NULL, NULL, NULL);
-      } else if (SQLITE_OK != sqlite3_exec(item_cache->db, "commit transaction", NULL, NULL, &err)) {
-        error("Error commiting save item: %s", err);
+      char path[MAXPATHLEN];
+      if (build_token_path(item_cache->cache_directory, entry_key, path, MAXPATHLEN)) {
         rc = CLASSIFIER_FAIL;
-        sqlite3_free(err);
-      }
-    }
-
-    pthread_mutex_unlock(&item_cache->db_access_mutex);
+      } else {
+        rc = write_tokens(item, path);
+      }      
+    } 
   }
 
   return rc;
