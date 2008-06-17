@@ -471,7 +471,6 @@ static int read_tokens(const char * path, Item * item) {
   }
   
   int file_size = get_file_size(token_file, path);
-  debug("File size for %s is %i", path, file_size);
 
   if (file_size < 0) {
     error("Could not get file size for %s: %s", path, strerror(errno));
@@ -1088,6 +1087,7 @@ int item_cache_load(ItemCache *item_cache) {
   sqlite3_reset(item_cache->fetch_all_items_stmt);
 
   /* Now load the tokens */
+  int tokens_loaded = 0;
   OrderedItemList *current = ordered_list;
   OrderedItemList *previous = NULL;
 
@@ -1111,6 +1111,12 @@ int item_cache_load(ItemCache *item_cache) {
     } else {
       previous = current;
       current = current->next;
+    }
+    
+    tokens_loaded++;
+    
+    if (tokens_loaded % 1000 == 0) {
+      info("Loaded %i items", tokens_loaded);
     }
   }
 
