@@ -61,7 +61,7 @@ static int load_tag_document(const char * tag_training_url, time_t last_updated,
 static void setup(void) {
   setup_fixture_path();
   document = read_document("fixtures/complete_tag.atom");
-  system("rm -Rf /tmp/valid-copy && cp -Rf fixtures/valid /tmp/valid-copy");
+  system("rm -Rf /tmp/valid-copy && cp -Rf fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   load_tag_document_called = 0;
   tagger_cache = create_tagger_cache(item_cache, options);
@@ -72,7 +72,7 @@ static void setup_for_incomplete(void) {
   setup_fixture_path();
   document = read_document("fixtures/incomplete_tag.atom");
 
-  system("rm -Rf /tmp/valid-copy && cp -Rf fixtures/valid /tmp/valid-copy");
+  system("rm -Rf /tmp/valid-copy && cp -Rf fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   load_tag_document_called = 0;
   tagger_cache = create_tagger_cache(item_cache, options);
@@ -228,7 +228,7 @@ static void setup_for_updated(void) {
   setup_fixture_path();
   document = read_document("fixtures/complete_tag.atom");
   updated_document = read_document("fixtures/updated_complete_tag.atom");
-  system("rm -Rf /tmp/valid-copy && cp -Rf fixtures/valid /tmp/valid-copy");
+  system("rm -Rf /tmp/valid-copy && cp -Rf fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   load_tag_document_called = 0;
   tagger_cache = create_tagger_cache(item_cache, options);

@@ -51,7 +51,7 @@ int free_when_done;
 
 static void setup_cache(void) {
   setup_fixture_path();
-  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy");
+  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
 }
 
@@ -245,7 +245,7 @@ static char *entry_document;
 
 static void setup_modification(void) {
   setup_fixture_path();
-  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy");
+  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   entry_document = read_document("fixtures/entry.atom");
 }
@@ -462,7 +462,7 @@ Item *item;
 
 static void setup_loaded_modification(void) {
   setup_fixture_path();
-  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy");
+  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   //item_cache_set_feature_extractor(item_cache, NULL);
   item_cache_load(item_cache);
@@ -628,7 +628,7 @@ static Item * mock_feature_extractor(ItemCache * item_cache, const ItemCacheEntr
 
 static void setup_feature_extraction(void) {
   setup_fixture_path();
-  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy");
+  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   item_cache_set_feature_extractor(item_cache, mock_feature_extractor, NULL);
   item_cache_load(item_cache);
@@ -665,7 +665,7 @@ static Item * null_feature_extractor(ItemCache *item_cache, const ItemCacheEntry
 
 static void setup_null_feature_extraction(void) {
   setup_fixture_path();
-  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy");
+  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   item_cache_set_feature_extractor(item_cache, null_feature_extractor, NULL);
   item_cache_load(item_cache);
@@ -696,7 +696,7 @@ static Item * mock_feature_extractor2(ItemCache *item_cache, const ItemCacheEntr
 
 static void setup_full_update(void) {
   setup_fixture_path();
-  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy");
+  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   item_cache_set_feature_extractor(item_cache, mock_feature_extractor2, NULL);
   item_cache_load(item_cache);
@@ -778,7 +778,7 @@ time_t purge_time;
 
 static void setup_purging(void) {
   setup_fixture_path();
-  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy");
+  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
 
   time_t now = time(NULL);

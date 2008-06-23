@@ -11,7 +11,7 @@ check_PROGRAMS = check_classifier check_pool check_queue check_item_cache \
                  check_tagger_builder check_train_tagger check_precompute_tagger \
                  check_classify check_get_tagger check_tag_index
 
-shared_SOURCES = assertions.h mock_items.h fixtures.h
+shared_SOURCES = assertions.h mock_items.h fixtures.h read_document.h
 check_classifier_SOURCES = check_classifier.c $(top_builddir)/src/classifier.h $(shared_SOURCES)
 check_pool_SOURCES       = check_pool.c $(shared_SOURCES)
 check_queue_SOURCES      = check_queue.c $(shared_SOURCES)
