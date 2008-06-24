@@ -632,7 +632,9 @@ static int save_entry_xml(ItemCache *item_cache, ItemCacheEntry *entry) {
       error("Could not open file at %s: %s", path, strerror(errno));
       rc = CLASSIFIER_FAIL;
     } else {
-      if (fprintf(file, entry->atom) < 0) {
+      int size = strlen(entry->atom);
+      
+      if (size > fwrite(entry->atom, sizeof(char), size, file)) {
         error("Error writing to file %s: %s", path, strerror(errno));
       }
       fclose(file);
