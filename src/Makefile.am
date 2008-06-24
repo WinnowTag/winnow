@@ -48,7 +48,7 @@ classifier_SOURCES = git_revision.h main.c
 classifier_LDADD = libclassifier.la ../microhttpd/src/daemon/libmicrohttpd.la ../judy/src/obj/libJudy.la ../json-c/libjson.la
 
 classify_SOURCES = git_revision.h classify.c 
-classify_LDADD = libclassifier.la ../judy/src/obj/libJudy.la
+classify_LDADD = libclassifier.la ../microhttpd/src/daemon/libmicrohttpd.la ../judy/src/obj/libJudy.la ../json-c/libjson.la
 
 #cls_bench_SOURCES = bench.c
 #cls_bench_LDADD = libclassifier.la
