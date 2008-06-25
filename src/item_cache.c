@@ -116,6 +116,12 @@ struct ITEM_CACHE {
   sqlite3_stmt *find_atom_stmt;
   sqlite3_stmt *insert_atom_stmt;
 
+  /* Mutex for database access.
+   *
+   * To prevent deadlocks, this should only be locked in the public API functions,
+   * all static functions that require the lock to be held should expect the lock
+   * to be acquired in the caller.
+   */
   pthread_mutex_t db_access_mutex;
 
   int user_version;
@@ -166,7 +172,12 @@ struct ITEM_CACHE {
   /* Thread which handles the cache updating */
   pthread_t *cache_updating_thread;
 
-  /* R/W lock for accessing the in-memory item cache. */
+  /* R/W lock for accessing the in-memory item cache. 
+   *
+   * To prevent deadlocks, this should only be locked in the public API functions,
+   * all static functions that require the lock to be held should expect the lock
+   * to be acquired in the caller.
+   */
   pthread_rwlock_t cache_lock;
   
   /* Callback for updates to the item cache */
@@ -552,10 +563,10 @@ static int fetch_tokens_for(ItemCache * item_cache, Item * item) {
 
 /* Fetches the item metadata from the catalog database.
  *
+ * Caller must hold the db_access_mutex.
  */
 static Item * fetch_item_from_catalog(ItemCache * item_cache, const char * id) {
 	Item *item = NULL;
-	pthread_mutex_lock(&item_cache->db_access_mutex);
 	trace("thread(%p) has locked db_access_mutex to fetch %s", pthread_self(), id);
 
 	int sqlite3_rc = sqlite3_bind_text(item_cache->fetch_item_stmt, 1, id, -1, NULL);
@@ -576,7 +587,7 @@ static Item * fetch_item_from_catalog(ItemCache * item_cache, const char * id) {
 
 	sqlite3_clear_bindings(item_cache->fetch_item_stmt);
 	sqlite3_reset(item_cache->fetch_item_stmt);
-	pthread_mutex_unlock(&item_cache->db_access_mutex);
+  
 	trace("thread(%p) has unlocked db_access_mutex after fetching %s", pthread_self(), id);
 
 	return item;
@@ -805,10 +816,13 @@ static void * cache_updating_func(void *memo) {
   return NULL;
 }
 
+/* Insert an item in the items by id cache.
+ *
+ * Caller must hold a write lock on the cache.
+ */
 static int items_by_id_insert(ItemCache * item_cache, Item * item) {
   int rc = CLASSIFIER_OK;
-  
-  pthread_rwlock_wrlock(&item_cache->cache_lock);
+    
   PWord_t item_pointer;
   JSLI(item_pointer, item_cache->items_by_id, item->id);
   if (NULL != item_pointer) {
@@ -818,22 +832,18 @@ static int items_by_id_insert(ItemCache * item_cache, Item * item) {
     fatal("Error malloc'ing item by id");
     rc = CLASSIFIER_FAIL;
   }
-  
-  pthread_rwlock_unlock(&item_cache->cache_lock);
-  
+    
   return rc;
 }
 
 static Item * items_by_id_get(ItemCache * item_cache, const unsigned char * id) {
 	Item *item = NULL;
 
-	pthread_rwlock_rdlock(&item_cache->cache_lock);
 	PWord_t item_pointer;
 	JSLG(item_pointer, item_cache->items_by_id, id);
 	if (NULL != item_pointer) {
 		item = (Item*)(*item_pointer);
 	}
-	pthread_rwlock_unlock(&item_cache->cache_lock);
 
 	return item;
 }
@@ -841,10 +851,7 @@ static Item * items_by_id_get(ItemCache * item_cache, const unsigned char * id) 
 static int items_by_id_remove(ItemCache * item_cache, Item * item) {
   int judyrc;  
   
-  pthread_rwlock_wrlock(&item_cache->cache_lock);
-  JSLD(judyrc, item_cache->items_by_id, item->id);
-  pthread_rwlock_unlock(&item_cache->cache_lock);
-
+  JSLD(judyrc, item_cache->items_by_id, item->id);  
   if (judyrc) {
     item_cache->cached_size--;
   }
@@ -929,11 +936,14 @@ static OrderedItemList * ordered_item_list_split(OrderedItemList * list, time_t 
   return leftovers;
 }
 
+/* Loads all the items into the cache.
+ *
+ * Caller must hold the db_access mutex and a write lock on the cache.
+ */
 static int load_all_items(ItemCache * item_cache) {
   int rc = CLASSIFIER_OK;
   OrderedItemList * last = item_cache->items_in_order;
 
-  pthread_mutex_lock(&item_cache->db_access_mutex);
   sqlite3_bind_int(item_cache->fetch_all_items_stmt, 1, item_cache->load_items_since);
 
   /* Load the item ids and timestamp indexing and order them by each. */
@@ -971,7 +981,6 @@ static int load_all_items(ItemCache * item_cache) {
 
   sqlite3_clear_bindings(item_cache->fetch_all_items_stmt);
   sqlite3_reset(item_cache->fetch_all_items_stmt);
-  pthread_mutex_unlock(&item_cache->db_access_mutex);
   
   return rc;
 }
@@ -979,7 +988,6 @@ static int load_all_items(ItemCache * item_cache) {
 static int load_random_background(ItemCache * item_cache) {
   int rndbg_item_count = 0;
   item_cache->random_background = new_pool();
-  pthread_mutex_lock(&item_cache->db_access_mutex);
   
   while (SQLITE_ROW == sqlite3_step(item_cache->random_background_stmt)) {
     const unsigned char * id = sqlite3_column_text(item_cache->random_background_stmt, 0);
@@ -997,8 +1005,7 @@ static int load_random_background(ItemCache * item_cache) {
       error("Could not create item: %s (%i)", id, key);
     }    
   }
-  sqlite3_reset(item_cache->random_background_stmt);  
-  pthread_mutex_unlock(&item_cache->db_access_mutex);
+  sqlite3_reset(item_cache->random_background_stmt);
   info("Randombackground contains %i items", rndbg_item_count);
   
   return CLASSIFIER_OK;
@@ -1217,14 +1224,17 @@ int item_cache_load(ItemCache *item_cache) {
   info("item_cache_load from %i days ago", item_cache->load_items_since);
   time_t start_time = time(NULL);
  
-  pthread_rwlock_wrlock(&item_cache->cache_lock);
-  int rc = load_all_items(item_cache);
+  pthread_rwlock_wrlock(&item_cache->cache_lock);  
+  pthread_mutex_lock(&item_cache->db_access_mutex);
+  
+  int rc = load_all_items(item_cache);  
  
   if (CLASSIFIER_OK == rc) {
     rc = load_random_background(item_cache);
   }
     
   item_cache->loaded = true;  
+  pthread_mutex_unlock(&item_cache->db_access_mutex);
   pthread_rwlock_unlock(&item_cache->cache_lock);
   time_t end_time = time(NULL);
 
@@ -1280,12 +1290,16 @@ Item * item_cache_fetch_item(ItemCache *item_cache, const unsigned char * id, in
     return item;
   }
 
+  pthread_rwlock_rdlock(&item_cache->cache_lock);
   item = items_by_id_get(item_cache, id);
+  pthread_rwlock_unlock(&item_cache->cache_lock);
 
   if (NULL == item) {
     *free_when_done = true;
+    pthread_mutex_lock(&item_cache->db_access_mutex);
     item = fetch_item_from_catalog(item_cache, (char *) id);
-
+    pthread_mutex_unlock(&item_cache->db_access_mutex);
+    
     if (item && fetch_tokens_for(item_cache, item) <= 0) {
     	free_item(item);
     	item = NULL;
