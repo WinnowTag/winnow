@@ -1,3 +1,8 @@
+=== 1.4.2 (25 June 2008)
+
+* Fixed deadlock when adding items.
+* Fixed long wait on shutdown.
+
 === 1.4.1 (24 June 2008) 
 
 * Changed writing of atom documents to use frwite so we don't need to deal with char encoding.
