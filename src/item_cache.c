@@ -1130,14 +1130,17 @@ void free_item_cache(ItemCache *item_cache) {
     item_cache->shutting_down = 1;
     
     if (item_cache->feature_extraction_thread) {
+      info("Stopping feature extractor");
       pthread_join(*item_cache->feature_extraction_thread, NULL);
     }
     
     if (item_cache->cache_updating_thread) {
-      pthread_join(*item_cache->cache_updating_thread, NULL);
+      info("Stopping cache updater");
+      pthread_cancel(*item_cache->cache_updating_thread);
     }
     
     if (item_cache->purge_thread) {
+      info("Stopping cache purger");
       pthread_cancel(*item_cache->purge_thread);
     }
     
