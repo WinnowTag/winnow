@@ -2,10 +2,84 @@ Copyright (c) 2007, The Kaphan Foundation.
 
 This file contains instructions for running and configuring the Peerworks Classification Engine.
 
-Running the Engine
+For information on building and installing the engine see the INSTALL file.
+
+Classifier Tools
+============================================
+
+You will probably also want to install the classifier-tools Ruby gem. This package contains
+scripts for working with item caches, such as importing, tokenizing, pruning and verifying.
+It also includes a tokenizer that can be used by the classifier to tokenize new items as they
+are added to the cache.
+
+The classifier-tools package can be gotten via git from git@github.com:seangeo/classifier-tools.git. Once downloaded,
+running "rake install_gem" will build and install the latest gem version of the package.
+
+The rest of these instructions assume you have the classifier-tools installed.
+
+Obtaining an item cache
+============================================
+
+TODO: These instructions are probably only relevant for Winnow development.  We should generalize it for others.
+
+With the classifier-tools package it is possible to build an item cache using a collector install as a source.
+This is done using the classifier-import script, like so:
+
+  classifier-import --url http://collector.wizztag.org/service --out item_cache_dir --since 10.days
+
+This will download all items fetched in the last 10 days and build and item cache out of them.  The downside
+is that this can take quite a while since it is involves lots of HTTP requests that add quite a bit of latency
+to the process if it is running over the Internet.  A better and faster solution is to obtain a recent copy
+of the item cache and use that.  There will be a relatively up-to-date copy available on S3 at the following URL:
+
+  https://s3.amazonaws.com:443/classifier_db/item_cache.tar.gz
+
+You can download and extract that file and you will have a pre-built and tokenized item cache that you can start using straight
+away.
+
+Warning: The above item cache is quite large, about 4GB when uncompressed.  If needed I will provide a smaller version.
+
+Starting a Tokenizer
+============================================
+
+Most of the time you will want a tokenizer running at the same time as the classifier. The tokenizer will be used to convert
+raw items into the form that the classifier can use.  It runs as a HTTP server which accepts POST raw item content in Atom format
+and returns a tokenized version of the item in XML.
+
+The classifier-tools package includes a tokenize that can be used for this. 
+
+To start the tokenizer on port 8009 run the following command:
+
+tokenizer -p 8009
+
+Once running the tokenizer will be accepting HTTP requests on port 8009. Tokenization requests should be sent to the 
+/tokenize path.
+
+Running the Classifier
 ============================================
 
 The classifier can be run using the "classifier" executable. If you performed the "make install"
 of the build instructions this is likely in your PATH.
 
 Run "classifier -h" to see a list of supported arguments.
+
+A typical usage will be to start the classifier on a specified port, using a given tokenizer URL and item cache directory
+and a positive cutoff threshold of 0.9. You probably also want a log file to be generated. This will be enough for most development cases.  
+
+This can be done using the following command:
+
+ classifier --db <item_cache_dir> --tokenizer-url http://localhost:8009/tokenize --port 8008 -t 0.9 --log-file classifier.log
+
+You can then tail -f classifier.log to see the log messages the classifier produces. Once a message appears in the log saying
+the classifier has completed initialization you can then access it's http server on port 8008.  Initialization can sometimes
+take a few minutes depending on the size of the item cache and whether the file system has cached item cache file access.
+
+Once things are up and running Winnow will be able to talk to the classifier using the standard classifier UI elements.  You can
+also do a simple test by entering http://localhost:8009/classifier.xml into a web browser to make sure everything is working.
+
+Shutting it down
+=============================================
+
+The classifier is shutdown by sending it a SIGTERM signal. This can be done using CTRL-C or kill <pid>.
+
+
