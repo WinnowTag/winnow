@@ -12,6 +12,7 @@
 #include <sys/time.h>
 #include <Judy.h>
 #include <string.h>
+#include <unistd.h>
 #include "classification_engine.h"
 #include "uuid.h"
 #include "classifier.h"
@@ -94,6 +95,7 @@ struct CLASSIFICATION_ENGINE {
 
 static void ce_record_classification_job_timings(ClassificationEngine *ce, const ClassificationJob *job);
 static void *classification_worker_func(void *engine_vp);
+static void *purge_old_jobs_thread(void *);
 static void item_cache_updated_hook(ItemCache * item_cache, void * memo);
 
 /********************************************************************************
@@ -243,6 +245,7 @@ static int handle_not_found(ClassificationJob *job) {
 	}
 	job->state = CJOB_STATE_ERROR;
 	job->error = CJOB_ERROR_NO_SUCH_TAG;
+  NOW(job->completed_at);
 	return CLASSIFIER_FAIL;
 }
 
@@ -257,6 +260,7 @@ static int handle_pending_item_addition(ClassificationJob *job, int missing_item
 	if (job->first_time_tried > 0 && (now - job->first_time_tried) > missing_item_timeout) {
 		job->state = CJOB_STATE_ERROR;
 		job->error = CJOB_ERROR_MISSING_ITEM_TIMEOUT;
+    NOW(job->completed_at);
 		rc = CLASSIFIER_FAIL;
 	} else if (job->first_time_tried < 0) {
 		job->first_time_tried = time(NULL);
@@ -268,6 +272,7 @@ static int handle_pending_item_addition(ClassificationJob *job, int missing_item
 static int handle_checked_out(ClassificationJob *job) {
 	job->state = CJOB_STATE_ERROR;
 	job->error = CJOB_ERROR_CHECKED_OUT;
+  NOW(job->completed_at);
 	return CLASSIFIER_FAIL;
 }
 
@@ -565,6 +570,11 @@ int ce_start(ClassificationEngine * engine) {
         exit(1);
       }
     }
+    
+    if (pthread_create(&(engine->flusher), NULL, purge_old_jobs_thread, engine)) {
+      fatal("Error created purge thread");
+      exit(1);
+    }
   }
 
   return success;
@@ -587,6 +597,8 @@ int ce_stop(ClassificationEngine * engine) {
       pthread_join(engine->classification_worker_threads[i], NULL);
     }
     debug("Returned from cw join");
+    
+    pthread_cancel(engine->flusher);
   }
 
   return success;
@@ -773,6 +785,41 @@ void *classification_worker_func(void *engine_vp) {
 
   info("classification_worker %i ending", pthread_self());
 
+  return EXIT_SUCCESS;
+}
+
+static void purge_old_jobs(ClassificationEngine *ce) {
+  pthread_mutex_lock(ce->classification_jobs_mutex);
+  time_t purge_time = time(NULL) - (60 * 60);
+  PWord_t job_pointer = NULL;
+  uint8_t index[JOB_ID_SIZE + 1];
+  strcpy((char*) index, "");
+  
+  JSLF(job_pointer, ce->classification_jobs, index);
+  while(job_pointer != NULL) {
+    ClassificationJob *job = (ClassificationJob*) (*job_pointer);
+    if (job->state == CJOB_STATE_COMPLETE || job->state == CJOB_STATE_ERROR) {
+      if (job->completed_at.tv_sec < purge_time) {
+        debug("Purging %s", index);
+        ce_remove_classification_job(ce, job, false);
+      }
+    }
+    
+    JSLN(job_pointer, ce->classification_jobs, index);
+  }
+  
+  pthread_mutex_unlock(ce->classification_jobs_mutex);
+}
+
+void * purge_old_jobs_thread(void *engine_vp) {
+  ClassificationEngine *ce = (ClassificationEngine*) engine_vp;
+  
+  while (ce->is_running) {
+    sleep(60 * 60); // Runs every hour
+    info("Purging old classification jobs");
+    purge_old_jobs(ce);    
+  }
+  
   return EXIT_SUCCESS;
 }
 
