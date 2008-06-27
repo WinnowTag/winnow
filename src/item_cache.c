@@ -13,6 +13,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <unistd.h>
+#include <arpa/inet.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
