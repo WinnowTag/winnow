@@ -802,6 +802,7 @@ static void purge_old_jobs(ClassificationEngine *ce) {
       if (job->completed_at.tv_sec < purge_time) {
         debug("Purging %s", index);
         ce_remove_classification_job(ce, job, false);
+        free_classification_job(job);
       }
     }
     
