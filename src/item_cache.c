@@ -32,7 +32,7 @@
 #include "uri.h"
 #include "array.h"
 
-#define CURRENT_USER_VERSION 2
+#define CURRENT_USER_VERSION 3
 #define FETCH_ITEM_SQL "select full_id, id, strftime('%s', updated) from entries where full_id = ?"
 #define FETCH_ALL_ITEMS_SQL "select full_id, id, strftime('%s', updated) from entries where updated > (julianday('now') - ?) order by updated desc"
 #define FETCH_RANDOM_BACKGROUND "select full_id, id from entries where id in (select entry_id from random_backgrounds)"
