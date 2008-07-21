@@ -31,11 +31,11 @@ static void print_help() {
 
 #define SHORT_OPTS "hv:"
 
-static ItemCacheOptions item_cache_options = {60, 1000, 50};
+static ItemCacheOptions item_cache_options = {60, 1000, 0};
 static ItemCache *item_cache;
 static TaggerCacheOptions tagger_cache_options;
 static TaggerCache *tagger_cache;
-static ClassificationEngineOptions ce_options = {1, 0.0, 10, NULL};
+static ClassificationEngineOptions ce_options = {4, 0.9, 10, NULL};
 static ClassificationEngine *engine;
 
 static int is_url(const char *path) {
