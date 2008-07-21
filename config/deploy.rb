@@ -77,12 +77,13 @@ namespace :deploy do
     require 'aws/s3'
     require 'pp'
     AWS::S3::Base.establish_connection!(
-     :access_key_id     => ENV['AMAZON_ACCESS_KEY_ID'],
-     :secret_access_key => ENV['AMAZON_SECRET_ACCESS_KEY']
+     :access_key_id     => ENV['AWS_ACCESS_KEY_ID'],
+     :secret_access_key => ENV['AWS_SECRET_ACCESS_KEY']
     )
-    AWS::S3::Bucket.find('classifier') rescue AWS::S3::Bucket.create('classifier')
-    AWS::S3::S3Object.store('classifier.tar.gz', open(tarball_name), 'classifier')
-    obj = AWS::S3::S3Object.find('classifier.tar.gz', 'classifier')
+    bucket = "classifier_#{ENV['env']}_code"
+    AWS::S3::Bucket.find(bucket)
+    AWS::S3::S3Object.store('classifier.tar.gz', open(tarball_name), bucket)
+    obj = AWS::S3::S3Object.find('classifier.tar.gz', bucket)
     puts "Classifer uploaded to S3"
     pp obj.about
   end
