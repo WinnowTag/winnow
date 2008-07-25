@@ -4,18 +4,18 @@ set :repository,  "set your repository location here"
 # If you aren't deploying to /u/apps/#{application} on the target
 # servers (which is the default), you can specify the actual location
 # via the :deploy_to variable:
-set :deploy_to, "/home/winnow/classifier.build"
-set :user, "winnow"
+set :deploy_to, "/home/mindloom/classifier.build"
+set :user, "mindloom"
 
-ssh_options[:port] = 65000
+#ssh_options[:port] = 65000
 
 if ENV['dest'] == 'all'
   role :app, "mindloom.org"
   role :app, "wizztag.org"
 elsif ENV['dest'] == 'beta'
-  role :app, "mindloom.org"
+  role :app, "ds468-1.blueboxgrid.com"
 else
-  role :app, "wizztag.org"
+  role :app, "ds400-1.blueboxgrid.com"
 end
 
 namespace :deploy do
