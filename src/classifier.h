@@ -49,8 +49,11 @@
 // 
 #define MAX_CLUES_RATIO 0.5
 
+/* Represents a token in a pool for the purpose of calculating it's probability. */
 typedef struct PROB_TOKEN {
+  /* The number of occurences of the token in the pool */
   int token_count;
+  /* The size of the pool, in terms of total number of tokens. */
   int pool_size;
 } ProbToken;
 

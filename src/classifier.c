@@ -130,6 +130,12 @@
  * when building a tag and the adjustment to the computation of 'n' in the bayesian adjustment balances out the
  * size differences between the positive and negative examples and the large random background.
  *
+ *
+ * == Some Definitions ==
+ *
+ * Pool: The aggregate of token-frequency pairs for a set of documents (or items).
+ * Foreground: The positive pool for the classifier.
+ * Background: The combination of the negative training and the random sample of the corpus.
  */
  
  
@@ -446,6 +452,13 @@ static double chi2_combine(const Clue **clues, int num_clues) {
 /** This function is used to provide a hook to calculate the probability for a token given
  *  a positive, negative and random background pool.  This function fulfils the interface
  *  defined by the Tagger module.
+ *
+ *  A Pool is an aggregation of token-frequency pairs for a set of documents.  The positive_pool
+ *  represents the positive training for the tag, the negative pool represents the negative training
+ *  and the random_bg is the random sample of the corpus.
+ *
+ *  token_id is the id of the token that the function will calculate a probability for across all pools.
+ *  bias is a bias factor applied to the probability < 1 makes it more negative > 1 more positive.
  */
 double naive_bayes_probability(const Pool * positive_pool, const Pool * negative_pool, const Pool * random_bg, int token_id, double bias) {
   ProbToken positive_token   = {pool_token_frequency(positive_pool, token_id), pool_total_tokens(positive_pool) / bias};
@@ -460,7 +473,14 @@ double naive_bayes_probability(const Pool * positive_pool, const Pool * negative
   return probability(foregrounds, 1, backgrounds, 2, fg_total_tokens, bg_total_tokens);
 }
 
-/** Classifies the item using the given classifier.
+/** Classifies the item using the given ClueList.
+ *
+ *  The ClueList provides a list of token - probability pairs where the probability
+ *  represents the probability that the token is within foreground of the classifier,
+ *  i.e. the probability that the token is in the tag represented by the classifier.
+ *
+ *  This function will get all the matching clues for the Item from the ClueList
+ *  and combine the probabilities using chi2_combine.
  *
  * Returns the probability (0..1) that the item is in 
  * the tag represented by the classifier.
