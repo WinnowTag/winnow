@@ -87,6 +87,16 @@ START_TEST (test_canonical_string_should_build_the_correct_string_when_some_elem
   free(str);
 } END_TEST
 
+START_TEST (test_build_signature_returns_the_correct_signature) {
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append(headers, "Date: Thu, 10 Jul 2008 03:29:56 GMT");
+  headers = curl_slist_append(headers, "Content-Type: text/plain");
+  headers = curl_slist_append(headers, "Content-MD5: blahblah");
+  char *signature = build_signature(PUT, "/path/to/put", headers, "secret");
+  assert_equal_s("71wAJM4IIu/3o6lcqx/tw7XnAJs=", signature);
+  free(signature);
+} END_TEST
+
 Suite *
 hmac_shared_suite(void) {
   Suite *s = suite_create("HMAC Shared");  
@@ -104,8 +114,12 @@ hmac_shared_suite(void) {
   tcase_add_test(canonical, test_canonical_string_should_build_the_correct_string);
   tcase_add_test(canonical, test_canonical_string_should_build_the_correct_string_when_some_elements_are_missing);
 // END_TESTS
+  
+  TCase *signature = tcase_create("Build Signature");
+  tcase_add_test(signature, test_build_signature_returns_the_correct_signature);
 
   suite_add_tcase(s, canonical);
+  suite_add_tcase(s, signature);
   return s;
 }
 
