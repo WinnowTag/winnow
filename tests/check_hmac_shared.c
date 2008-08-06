@@ -45,20 +45,67 @@ START_TEST (test_canonical_string_should_include_path_at_the_end) {
   free(str);
 } END_TEST
 
+START_TEST (test_canonical_string_should_include_the_content_type) {
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append(headers, "Content-Type: application/xml");
+  char * str = canonical_string(POST, "/path/to/thing", headers);
+  assert_match("\napplication/xml\n", str);
+  free(str);
+} END_TEST
+
+START_TEST (test_canonical_string_should_include_the_content_md5) {
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append(headers, "Content-MD5: asdfasdf");
+  char * str = canonical_string(POST, "/path/to/thing", headers);
+  assert_match("\nasdfasdf\n", str);
+  free(str);
+} END_TEST
+
+START_TEST (test_canonical_string_should_include_the_date) {
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append(headers, "Date: Thu, 10 Jul 2008 03:29:56 GMT");
+  char * str = canonical_string(POST, "/path/to/thing", headers);
+  assert_match("\nThu, 10 Jul 2008 03:29:56 GMT\n", str);
+  free(str);
+} END_TEST
+
+START_TEST (test_canonical_string_should_build_the_correct_string) {
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append(headers, "Date: Thu, 10 Jul 2008 03:29:56 GMT");
+  headers = curl_slist_append(headers, "Content-Type: application/xml");
+  headers = curl_slist_append(headers, "Content-MD5: asdfasdf");
+  char * str = canonical_string(POST, "/path/to/thing", headers);
+  assert_equal_s("POST\napplication/xml\nasdfasdf\nThu, 10 Jul 2008 03:29:56 GMT\n/path/to/thing", str);
+  free(str);
+} END_TEST
+
+START_TEST (test_canonical_string_should_build_the_correct_string_when_some_elements_are_missing) {
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append(headers, "Date: Thu, 10 Jul 2008 03:29:56 GMT");
+  char * str = canonical_string(POST, "/path/to/thing", headers);
+  assert_equal_s("POST\n\n\nThu, 10 Jul 2008 03:29:56 GMT\n/path/to/thing", str);
+  free(str);
+} END_TEST
+
 Suite *
 hmac_shared_suite(void) {
   Suite *s = suite_create("HMAC Shared");  
-  TCase *tc_case = tcase_create("CanonicalString");
+  TCase *canonical = tcase_create("CanonicalString");
 
 // START_TESTS
-  tcase_add_test(tc_case, test_canonical_string_should_include_http_verb_when_GET);
-  tcase_add_test(tc_case, test_canonical_string_should_include_http_verb_when_PUT);
-  tcase_add_test(tc_case, test_canonical_string_should_include_http_verb_when_POST);
-  tcase_add_test(tc_case, test_canonical_string_should_include_http_verb_when_DELETE);
-  tcase_add_test(tc_case, test_canonical_string_should_include_path_at_the_end);
+  tcase_add_test(canonical, test_canonical_string_should_include_http_verb_when_GET);
+  tcase_add_test(canonical, test_canonical_string_should_include_http_verb_when_PUT);
+  tcase_add_test(canonical, test_canonical_string_should_include_http_verb_when_POST);
+  tcase_add_test(canonical, test_canonical_string_should_include_http_verb_when_DELETE);
+  tcase_add_test(canonical, test_canonical_string_should_include_path_at_the_end);
+  tcase_add_test(canonical, test_canonical_string_should_include_the_content_type);
+  tcase_add_test(canonical, test_canonical_string_should_include_the_content_md5);
+  tcase_add_test(canonical, test_canonical_string_should_include_the_date);
+  tcase_add_test(canonical, test_canonical_string_should_build_the_correct_string);
+  tcase_add_test(canonical, test_canonical_string_should_build_the_correct_string_when_some_elements_are_missing);
 // END_TESTS
 
-  suite_add_tcase(s, tc_case);
+  suite_add_tcase(s, canonical);
   return s;
 }
 
