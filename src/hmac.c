@@ -13,6 +13,7 @@
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <time.h>
+#include <regex.h>
 #include "logging.h"
 #include "hmac_internal.h"
 
@@ -20,6 +21,11 @@ struct buffer {
   char *buf;
   int capacity;
   int length;
+};
+
+struct auth_data {
+  char *access_id;
+  char *signature;
 };
 
 static struct buffer * new_buffer(int size) {
@@ -148,6 +154,43 @@ static char * build_auth_header(char * access_id, char * signature) {
   return return_header;
 }
 
+static char * extract_match(const regmatch_t * match, char * source) {
+  char *s = calloc(match->rm_eo - match->rm_so + 1, sizeof(char));
+  strncpy(s, &source[match->rm_so], match->rm_eo - match->rm_so);
+  return s;
+}
+
+static int extract_authentication_data(struct curl_slist *headers, struct auth_data * data) {
+  int found_data = 0;
+  char *authorization_header = NULL;
+  int keysize = strlen("Authorization:");
+  
+  if ((authorization_header = get_header(headers, "Authorization:", keysize))) {
+    regex_t regex;
+    regmatch_t matches[3];
+
+    if (regcomp(&regex, "AuthHMAC ([^:]+):([A-Za-z0-9+/=]+)$", REG_EXTENDED)) {
+      fatal("Error compiling regex");
+      return -1;
+    }
+
+    if (0 == regexec(&regex, authorization_header, 3, matches, 0)) {
+      char * access_id = extract_match(&matches[1], authorization_header);
+      char * signature = extract_match(&matches[2], authorization_header);
+      
+      if (access_id && signature) {
+        data->access_id = access_id;
+        data->signature = signature;
+        found_data = 1;
+      }
+    }
+
+    regfree(&regex);
+  }
+  
+  return found_data;
+}
+
 char * canonical_string(const char * method, const char * path, const struct curl_slist *headers) {
   // TOOD handle this
   struct buffer *canon_s = new_buffer(256);
@@ -190,4 +233,17 @@ struct curl_slist * hmac_sign(const char * method, const char * path, struct cur
   free(auth_header);
   
   return headers;
+}
+
+int hmac_auth(const char * method, const char * path, struct curl_slist *headers, const char * access_id, const char * secret) {
+  int authenticated = 0;
+  struct auth_data auth;
+  memset(&auth, 0, sizeof(auth));
+  
+  if (extract_authentication_data(headers, &auth)) {
+    char * computed_signature = build_signature(method, path, headers, secret);
+    authenticated = strcmp(auth.access_id, access_id) == 0 && strcmp(auth.signature, computed_signature) == 0;    
+  }
+  
+  return authenticated;
 }

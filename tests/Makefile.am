@@ -1,7 +1,7 @@
 #TESTS =  check_tagger_builder check_train_tagger check_precompute_tagger  check_tag_index \
 #         check_classifier check_pool check_queue check_url_fetching check_clue \
 #         check_classify check_get_tagger check_item_cache check_classification_engine specs 
-TESTS =  check_hmac_sign check_hmac_shared
+TESTS =  check_hmac_sign check_hmac_shared check_hmac_authenticate
 CLEANFILES = http_test.log http_test_data.log test.log
 
 LDFLAGS = -static @SQLITE3_LDFLAGS@ @CHECK_LIBS@
@@ -10,7 +10,8 @@ LDADD =  $(top_builddir)/src/libclassifier.la $(top_builddir)/judy/src/obj/libJu
 check_PROGRAMS = check_classifier check_pool check_queue check_item_cache \
                  check_classification_engine check_clue check_url_fetching  \
                  check_tagger_builder check_train_tagger check_precompute_tagger \
-                 check_classify check_get_tagger check_tag_index check_hmac_sign check_hmac_shared
+                 check_classify check_get_tagger check_tag_index check_hmac_sign check_hmac_shared \
+                 check_hmac_authenticate
 
 shared_SOURCES = assertions.h mock_items.h fixtures.h read_document.h
 check_classifier_SOURCES = check_classifier.c $(top_builddir)/src/classifier.h $(shared_SOURCES)
@@ -26,8 +27,10 @@ check_precompute_tagger_SOURCE = check_precompute_tagger.c $(top_builddir)/src/t
 check_classify_SOURCE = check_classify.c $(top_builddir)/src/tagger.h $(top_builddir)/src/classifier.h $(shared_SOURCES)
 check_get_tagger_SOURCE = check_get_tagger.c $(top_builddir)/src/tagger.h $(top_builddir)/src/classifier.h $(shared_SOURCES)
 check_tag_index_SOURCE = check_tag_index.c $(top_builddir)/src/tagger.h $(shared_SOURCES)
-check_hmac_sign_SOURCE = check_hmac_sign.c $(top_builddir)/src/hmac.h $(shared_SOURCES)
-check_hmac_shared_SOURCE = check_hmac_shared.c $(top_builddir)/src/hmac.h $(shared_SOURCES)
+check_hmac_sign_SOURCE = check_hmac_sign.c $(shared_SOURCES)
+check_hmac_shared_SOURCE = check_hmac_shared.c $(shared_SOURCES)
+check_hmac_authenticate_SOURCE = check_hmac_authenticate.c $(shared_SOURCES)
+
 
 dist_check_DATA = fixtures conf spec.opts
 dist_check_SCRIPTS = specs about_spec.rb  \
