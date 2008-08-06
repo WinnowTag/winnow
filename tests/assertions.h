@@ -32,7 +32,7 @@
 #endif
 
 #ifndef assert_equal_s
-#define assert_equal_s(e, a) fail_unless(strcmp(e,a) == 0, "expected %s but got %s", e, a)
+#define assert_equal_s(e, a) fail_unless(strcmp(e,a) == 0, "expected '%s' but got '%s'", e, a)
 #endif
 
 #ifndef assert_equal_f

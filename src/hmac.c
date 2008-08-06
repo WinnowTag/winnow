@@ -134,6 +134,20 @@ static char * hmac(const char * secret, const char * data, int * length) {
   return signature;
 }
 
+static char * build_auth_header(char * access_id, char * signature) {
+  struct buffer *auth_header = new_buffer(64);
+  buffer_in(auth_header, "Authorization: AuthHMAC ", strlen("Authorization: AuthHMAC "));
+  buffer_in(auth_header, access_id, strlen(access_id));
+  buffer_in(auth_header, ":", 1);
+  buffer_in(auth_header, signature, strlen(signature));
+  buffer_in(auth_header, "\0", 1);
+  
+  char * return_header = auth_header->buf;
+  free(auth_header);
+  
+  return return_header;
+}
+
 char * canonical_string(const char * method, const char * path, const struct curl_slist *headers) {
   // TOOD handle this
   struct buffer *canon_s = new_buffer(256);
@@ -167,6 +181,13 @@ char * build_signature(const char * method, const char * path, const struct curl
 struct curl_slist * hmac_sign(const char * method, const char * path, struct curl_slist *headers, const char * access_id, const char * secret) {
   // Add the date header if it is missing
   headers = add_date_header_if_missing(headers);
+  char * signature = build_signature(method, path, headers, secret);
+  char * auth_header = build_auth_header(access_id, signature);  
+  
+  curl_slist_append(headers, auth_header);
+  
+  free(signature);
+  free(auth_header);
   
   return headers;
 }

@@ -25,19 +25,43 @@ START_TEST (test_signing_with_hmac_adds_date_header_if_missing) {
 } END_TEST
 
 START_TEST (test_signing_with_hmac_adds_authorization_header) {
-  fail("Not implemented");
+  struct curl_slist *headers = NULL;
+  headers = hmac_sign(GET, "/path", headers, "access_id", "secret");
+  assert_not_null(headers->next);
+  assert_match("^Authorization: ", headers->next->data);
+  curl_slist_free_all(headers);
 } END_TEST
 
 START_TEST (test_signing_with_hmac_prefixes_the_authorization_header_with_AuthHMAC) {
-  fail("Not implemented");
+    struct curl_slist *headers = NULL;
+  headers = hmac_sign(GET, "/path", headers, "access_id", "secret");
+  assert_not_null(headers->next);
+  assert_match("^Authorization: AuthHMAC ", headers->next->data);
+  curl_slist_free_all(headers);
 } END_TEST
 
 START_TEST (test_signing_with_hmac_includes_the_access_id_as_the_first_part_of_the_signature) {
-  fail("Not implemented");
+  struct curl_slist *headers = NULL;
+  headers = hmac_sign(GET, "/path", headers, "access_id", "secret");
+  assert_not_null(headers->next);
+  assert_match("^Authorization: AuthHMAC access_id:", headers->next->data);
+  curl_slist_free_all(headers);
 } END_TEST
 
 START_TEST (test_signing_with_hmac_creates_a_complete_key) {
-  fail("Not implemented");
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append(headers, "Content-Type: text/plain");
+  headers = curl_slist_append(headers, "Content-MD5: blahblah");
+  headers = curl_slist_append(headers, "Date: Thu, 10 Jul 2008 03:29:56 GMT");
+  headers = hmac_sign(PUT, "/path/to/put", headers, "access_id", "secret");
+  
+  struct curl_slist *last = headers;
+  while(last->next) { last = last->next; }
+  assert_not_null(last);
+  
+  assert_equal_s("Authorization: AuthHMAC access_id:71wAJM4IIu/3o6lcqx/tw7XnAJs=", last->data);
+  curl_slist_free_all(headers);
+  
 } END_TEST        
 
 Suite *
@@ -47,6 +71,7 @@ hmac_sign_suite(void) {
 
 // START_TESTS
   tcase_add_test(tc_case, test_signing_with_hmac_adds_date_header_if_missing);
+  tcase_add_test(tc_case, test_signing_with_hmac_adds_authorization_header);
   tcase_add_test(tc_case, test_signing_with_hmac_prefixes_the_authorization_header_with_AuthHMAC);
   tcase_add_test(tc_case, test_signing_with_hmac_includes_the_access_id_as_the_first_part_of_the_signature);
   tcase_add_test(tc_case, test_signing_with_hmac_creates_a_complete_key);
