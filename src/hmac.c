@@ -41,6 +41,8 @@ char * canonical_string(const char * method, const char * path, const struct cur
   buffer_in(canon_s, "\n", 1);
   
   
+  buffer_in(canon_s, path, strlen(path));
+  
   buffer_in(canon_s, "\0", 1);
   char * return_string = canon_s->buf;
   free(canon_s);

@@ -39,6 +39,12 @@ START_TEST (test_canonical_string_should_include_http_verb_when_DELETE) {
   free(str);
 } END_TEST
 
+START_TEST (test_canonical_string_should_include_path_at_the_end) {
+  char *str = canonical_string(GET, "/path/to/thing", NULL);
+  assert_match("/path/to/thing$", str);
+  free(str);
+} END_TEST
+
 Suite *
 hmac_shared_suite(void) {
   Suite *s = suite_create("HMAC Shared");  
@@ -49,6 +55,7 @@ hmac_shared_suite(void) {
   tcase_add_test(tc_case, test_canonical_string_should_include_http_verb_when_PUT);
   tcase_add_test(tc_case, test_canonical_string_should_include_http_verb_when_POST);
   tcase_add_test(tc_case, test_canonical_string_should_include_http_verb_when_DELETE);
+  tcase_add_test(tc_case, test_canonical_string_should_include_path_at_the_end);
 // END_TESTS
 
   suite_add_tcase(s, tc_case);
