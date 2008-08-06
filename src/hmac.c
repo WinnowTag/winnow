@@ -12,6 +12,7 @@
 #include <openssl/hmac.h>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
+#include <time.h>
 #include "logging.h"
 #include "hmac_internal.h"
 
@@ -82,6 +83,25 @@ static void append_header(struct buffer *canon_s, const struct curl_slist *heade
   buffer_in(canon_s, "\n", 1);
 }
 
+static void http_date(char * s, int size) {
+  time_t now = time(NULL);
+  struct tm now_gm;
+  gmtime_r(&now, &now_gm);
+  strftime(s, size, "%a, %d %b %Y %H:%M:%S GMT", &now_gm);
+}
+
+static struct curl_slist * add_date_header_if_missing(struct curl_slist * headers) {
+  if (!get_header(headers, "Date:", 5)) {
+    char dateheader[36];
+    memset(dateheader, 0, sizeof(dateheader));
+    strcpy(dateheader, "Date: ");
+    http_date(&dateheader[6], 30);
+    headers = curl_slist_append(headers, dateheader);
+  }
+  
+  return headers;
+}
+
 /* Encode some data into Base64 using OpenSSL.
  *
  * Sample code from http://www.ioncannon.net/cc/34/howto-base64-encode-with-cc-and-openssl/
@@ -142,4 +162,11 @@ char * build_signature(const char * method, const char * path, const struct curl
   free(signature);
   
   return base64_sig;
+}
+
+struct curl_slist * hmac_sign(const char * method, const char * path, struct curl_slist *headers, const char * access_id, const char * secret) {
+  // Add the date header if it is missing
+  headers = add_date_header_if_missing(headers);
+  
+  return headers;
 }
