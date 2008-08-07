@@ -13,12 +13,13 @@ extern "C" {
 #endif
 
 #include <curl/curl.h>
+#include "hmac_credentials.h"  
+
   
 extern struct curl_slist * hmac_sign(const char * method, 
                                      const char * path, 
                                      struct curl_slist *headers, 
-                                     const char * access_id, 
-                                     const char * secret);
+                                     const Credentials * credentials);
 
 #ifdef	__cplusplus
 }

@@ -46,14 +46,15 @@
 #define TAG_INDEX_VAL 520
 #define MISSING_ITEM_TIMEOUT_VAL 521
 
-#define SHORT_OPTS "hvdo:t:n:p:a:"
+#define SHORT_OPTS "hvdo:t:n:p:a:c:"
 #define USAGE "Usage: classifier [-dvh] [-o LOGFILE] [--db DATABASE_FILE] [--pid PIDFILE] [-t tokenizer_url] [--create-db]\n"
 
 static ItemCacheOptions item_cache_options;
 static ItemCache *item_cache;
-static TaggerCacheOptions tagger_cache_options;
+static Credentials classifier_credentials = {"classifier_id", "classifier_secret"};
+static TaggerCacheOptions tagger_cache_options = {"", &classifier_credentials};
 static TaggerCache *tagger_cache;
-static ClassificationEngineOptions ce_options = {1, 0.0, DEFAULT_MISSING_ITEM_TIMEOUT, NULL};
+static ClassificationEngineOptions ce_options = {1, 0.0, DEFAULT_MISSING_ITEM_TIMEOUT, NULL, &classifier_credentials};
 static ClassificationEngine *engine;
 static Httpd *httpd;
 static HttpConfig http_config = {8080, NULL};
@@ -249,6 +250,8 @@ int main(int argc, char **argv) {
 
       {"port", required_argument, 0, 'p'},
       {"allowed_ip", required_argument, 0, 'a'},
+      
+      {"credentials", required_argument, 0, 'c'},
 
       {"tag-index", required_argument, 0, TAG_INDEX_VAL},
 
@@ -307,6 +310,9 @@ int main(int argc, char **argv) {
         break;
       case 'a':
         http_config.allowed_ip = optarg;
+        break;
+        
+      case 'c':
         break;
 
       /* Tagger Cache options */

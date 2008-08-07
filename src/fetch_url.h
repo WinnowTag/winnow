@@ -13,6 +13,8 @@
 #include <time.h>
 #include "curl_response.h"
 #include "logging.h"
+#include "hmac_sign.h"
+#include <libxml/uri.h>
 
 #define URL_OK 0
 #define URL_FAIL 1
@@ -21,7 +23,7 @@
  *
  *  Should support file and http at least.
  */
-static int fetch_url(const char * url, time_t if_modified_since, char ** data, char ** errmsg) {
+static int fetch_url(const char * url, time_t if_modified_since, const Credentials * credentials, char ** data, char ** errmsg) {
   debug("fetching %s", url);
   int rc;
   char curlerr[CURL_ERROR_SIZE];
@@ -29,8 +31,19 @@ static int fetch_url(const char * url, time_t if_modified_since, char ** data, c
   response.size = 0;
   response.data = NULL;
   
+  char * path = "";
+  xmlURIPtr uri = xmlParseURI(url);
+  if (uri) {
+    path = uri->path;
+  }
+  
   struct curl_slist *http_headers = NULL;
   http_headers = curl_slist_append(http_headers, "Accept: application/atom+xml");
+  
+  if (credentials) {
+    debug("Signing request with %s:XXXXX", credentials->access_id);
+    http_headers = hmac_sign("GET", path, http_headers, credentials);
+  }
   
   CURL *curl = curl_easy_init();
   curl_easy_setopt(curl, CURLOPT_URL, url);
@@ -60,6 +73,9 @@ static int fetch_url(const char * url, time_t if_modified_since, char ** data, c
   
   curl_slist_free_all(http_headers);
   curl_easy_cleanup(curl);
+  if (uri) {
+    xmlFreeURI(uri);
+  }
 
   debug("fetching complete");
   return rc;

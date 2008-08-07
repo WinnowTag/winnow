@@ -16,9 +16,11 @@
 #include "assertions.h"
 #include "fixtures.h"
 
+static Credentials credentials = {"access_id", "secret"};
+
 START_TEST (test_signing_with_hmac_adds_date_header_if_missing) {
   struct curl_slist *headers = NULL;
-  headers = hmac_sign(GET, "/path", headers, "access_id", "secret");
+  headers = hmac_sign(GET, "/path", headers, &credentials);
   assert_not_null(headers);
   assert_match("^Date: [[:alpha:]]{3}, [[:digit:]]{2} [[:alpha:]]{3} [[:digit:]]{4} [[:digit:]]{2}:[[:digit:]]{2}:[[:digit:]]{2} GMT$", headers->data);
   curl_slist_free_all(headers);
@@ -26,7 +28,7 @@ START_TEST (test_signing_with_hmac_adds_date_header_if_missing) {
 
 START_TEST (test_signing_with_hmac_adds_authorization_header) {
   struct curl_slist *headers = NULL;
-  headers = hmac_sign(GET, "/path", headers, "access_id", "secret");
+  headers = hmac_sign(GET, "/path", headers, &credentials);
   assert_not_null(headers->next);
   assert_match("^Authorization: ", headers->next->data);
   curl_slist_free_all(headers);
@@ -34,7 +36,7 @@ START_TEST (test_signing_with_hmac_adds_authorization_header) {
 
 START_TEST (test_signing_with_hmac_prefixes_the_authorization_header_with_AuthHMAC) {
     struct curl_slist *headers = NULL;
-  headers = hmac_sign(GET, "/path", headers, "access_id", "secret");
+  headers = hmac_sign(GET, "/path", headers, &credentials);
   assert_not_null(headers->next);
   assert_match("^Authorization: AuthHMAC ", headers->next->data);
   curl_slist_free_all(headers);
@@ -42,7 +44,7 @@ START_TEST (test_signing_with_hmac_prefixes_the_authorization_header_with_AuthHM
 
 START_TEST (test_signing_with_hmac_includes_the_access_id_as_the_first_part_of_the_signature) {
   struct curl_slist *headers = NULL;
-  headers = hmac_sign(GET, "/path", headers, "access_id", "secret");
+  headers = hmac_sign(GET, "/path", headers, &credentials);
   assert_not_null(headers->next);
   assert_match("^Authorization: AuthHMAC access_id:", headers->next->data);
   curl_slist_free_all(headers);
@@ -53,7 +55,7 @@ START_TEST (test_signing_with_hmac_creates_a_complete_key) {
   headers = curl_slist_append(headers, "Content-Type: text/plain");
   headers = curl_slist_append(headers, "Content-MD5: blahblah");
   headers = curl_slist_append(headers, "Date: Thu, 10 Jul 2008 03:29:56 GMT");
-  headers = hmac_sign(PUT, "/path/to/put", headers, "access_id", "secret");
+  headers = hmac_sign(PUT, "/path/to/put", headers, &credentials);
   
   struct curl_slist *last = headers;
   while(last->next) { last = last->next; }

@@ -16,6 +16,7 @@
 #include <regex.h>
 #include "logging.h"
 #include "hmac_internal.h"
+#include "hmac_credentials.h"
 
 struct buffer {
   char *buf;
@@ -221,11 +222,10 @@ char * build_signature(const char * method, const char * path, const struct curl
   return base64_sig;
 }
 
-struct curl_slist * hmac_sign(const char * method, const char * path, struct curl_slist *headers, const char * access_id, const char * secret) {
-  // Add the date header if it is missing
+struct curl_slist * hmac_sign(const char * method, const char * path, struct curl_slist *headers, const Credentials * credentials) {
   headers = add_date_header_if_missing(headers);
-  char * signature = build_signature(method, path, headers, secret);
-  char * auth_header = build_auth_header(access_id, signature);  
+  char * signature = build_signature(method, path, headers, credentials->secret_key);
+  char * auth_header = build_auth_header(credentials->access_id, signature);  
   
   curl_slist_append(headers, auth_header);
   
@@ -235,14 +235,14 @@ struct curl_slist * hmac_sign(const char * method, const char * path, struct cur
   return headers;
 }
 
-int hmac_auth(const char * method, const char * path, struct curl_slist *headers, const char * access_id, const char * secret) {
+int hmac_auth(const char * method, const char * path, struct curl_slist *headers, const Credentials * credentials) {
   int authenticated = 0;
   struct auth_data auth;
   memset(&auth, 0, sizeof(auth));
   
   if (extract_authentication_data(headers, &auth)) {
-    char * computed_signature = build_signature(method, path, headers, secret);
-    authenticated = strcmp(auth.access_id, access_id) == 0 && strcmp(auth.signature, computed_signature) == 0;    
+    char * computed_signature = build_signature(method, path, headers, credentials->secret_key);
+    authenticated = strcmp(auth.access_id, credentials->access_id) == 0 && strcmp(auth.signature, computed_signature) == 0;    
   }
   
   return authenticated;

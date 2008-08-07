@@ -211,6 +211,7 @@ struct JobStuff {
   Tagger *tagger;
   Array *taggings;
   double threshold;
+  Credentials * credentials;
 };
 
 static int classify_item_cb(const Item *item, void *memo) {
@@ -292,9 +293,9 @@ static int do_classification(struct JobStuff *job_stuff, ItemCache *item_cache) 
 	job_stuff->job->state = CJOB_STATE_INSERTING;
 
 	if (job_stuff->job->item_scope == ITEM_SCOPE_NEW) {
-		update_taggings(job_stuff->tagger, job_stuff->taggings, &(job_stuff->job->errmsg));
+		update_taggings(job_stuff->tagger, job_stuff->taggings, job_stuff->credentials, &(job_stuff->job->errmsg));
 	} else {
-		replace_taggings(job_stuff->tagger, job_stuff->taggings, &(job_stuff->job->errmsg));
+		replace_taggings(job_stuff->tagger, job_stuff->taggings, job_stuff->credentials, &(job_stuff->job->errmsg));
 	}
 
 	free_array(job_stuff->taggings);
@@ -311,6 +312,7 @@ static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache
   struct JobStuff job_stuff;
   job_stuff.job = job;
   job_stuff.threshold = opts->positive_threshold;
+  job_stuff.credentials = opts->credentials;
   job_stuff.taggings = NULL;
 
   /* If the job is cancelled bail out before doing anything */

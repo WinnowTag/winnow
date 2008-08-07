@@ -13,8 +13,9 @@ extern "C" {
 #endif
 
 #include <curl/curl.h>
+#include "hmac_credentials.h"
 
-extern int hmac_auth(const char * method, const char * path, struct curl_slist * headers, const char * access_id, const char * secret);
+extern int hmac_auth(const char * method, const char * path, struct curl_slist * headers, const Credentials * credentials);
 
 #ifdef	__cplusplus
 }

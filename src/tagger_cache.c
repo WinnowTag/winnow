@@ -28,7 +28,12 @@ TaggerCache * create_tagger_cache(ItemCache * item_cache, TaggerCacheOptions *op
   
   if (tagger_cache) {
     tagger_cache->item_cache = item_cache;
-    tagger_cache->options = opts;
+    
+    if (opts) {
+      tagger_cache->tag_index_url = opts->tag_index_url;
+      tagger_cache->credentials = opts->credentials;
+    }
+    
     tagger_cache->tag_urls = NULL;
     tagger_cache->failed_tags = NULL;
     tagger_cache->taggers = NULL;
@@ -63,17 +68,20 @@ static void setup_classification_functions(Tagger *tagger) {
  * @param tag_retriever This is how the tag is actually fetched.
  * @param tag_training_url The URL of the tag document.
  * @param if_modified_since We only return the tagger if it has been modified since this date.
+ * @param access_id The HMAC access id. Can be NULL.
+ * @param secret_key The HMAC secret key. Can be NULL.
  * @param errmsg Any errors will be put in here.
  * @return The fetched tagger or NULL if it couldn't be found or wasn't modified.
  */
-static Tagger * fetch_tagger(TagRetriever tag_retriever, const char * tag_training_url, time_t if_modified_since, char ** errmsg) {
+static Tagger * fetch_tagger(TagRetriever tag_retriever, const char * tag_training_url, 
+                             time_t if_modified_since, const Credentials * credentials, char ** errmsg) {
   Tagger *tagger = NULL;
   
   if (tag_retriever == NULL) {
     fatal("tagger_cache->tag_retriever not set");
   } else {
     char *tag_document = NULL;
-    int fetch_rc = tag_retriever(tag_training_url, if_modified_since, &tag_document, errmsg);
+    int fetch_rc = tag_retriever(tag_training_url, if_modified_since, credentials, &tag_document, errmsg);
 
     if (fetch_rc == URL_OK && tag_document != NULL) {
       tagger = build_tagger(tag_document);
@@ -271,16 +279,16 @@ int determine_return_state(Tagger *tagger, char ** errmsg) {
 
 /* This will fetch ori update the tagger, depending on whether tagger is NULL or not.
  */
-static int fetch_or_update_tagger(TagRetriever tag_retriever, const char *tag_url, Tagger **tagger, char ** errmsg) {
+static int fetch_or_update_tagger(TaggerCache * tagger_cache, const char *tag_url, Tagger **tagger, char ** errmsg) {
   int updated = 0;
   
-  if (!(*tagger) && (*tagger = fetch_tagger(tag_retriever, tag_url, -1, errmsg))) {
+  if (!(*tagger) && (*tagger = fetch_tagger(tagger_cache->tag_retriever, tag_url, -1, tagger_cache->credentials, errmsg))) {
     updated = 1;
   } else if (*tagger && (*tagger)->state != TAGGER_PARTIALLY_TRAINED) {
     /* The tagger is cached, so we need to see if it has been updated, but only if it has no pending items. */
     Tagger *updated_tagger = NULL;
     
-    if ((updated_tagger = fetch_tagger(tag_retriever, tag_url, (*tagger)->updated, errmsg))) {
+    if ((updated_tagger = fetch_tagger(tagger_cache->tag_retriever, tag_url, (*tagger)->updated, tagger_cache->credentials, errmsg))) {
       updated = 1;
       *tagger = updated_tagger;          
     } else {
@@ -353,7 +361,7 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
       if (errmsg) *errmsg = strdup(CHECKED_OUT_MSG);        
       rc = cache_rc;
     } else {
-      tagger_is_new = fetch_or_update_tagger(tagger_cache->tag_retriever, tag_training_url, &temp_tagger, errmsg);
+      tagger_is_new = fetch_or_update_tagger(tagger_cache, tag_training_url, &temp_tagger, errmsg);
             
       if (temp_tagger) {
         prepare_tagger(temp_tagger, tagger_cache->item_cache);
@@ -481,10 +489,13 @@ int fetch_tagger_in_background(TaggerCache *cache, const char * tag) {
 int fetch_tags(TaggerCache * tagger_cache, Array ** a, char ** errmsg) {
   int rc = TAG_INDEX_OK;
   
-  if (tagger_cache && tagger_cache->options->tag_index_url && a) {
+  if (tagger_cache && tagger_cache->tag_index_url && a) {
     char *tag_document = NULL;
     
-    int urlrc = tagger_cache->tag_index_retriever(tagger_cache->options->tag_index_url, tagger_cache->tag_urls_last_updated, &tag_document, errmsg);
+    int urlrc = tagger_cache->tag_index_retriever(tagger_cache->tag_index_url, 
+                                                  tagger_cache->tag_urls_last_updated, 
+                                                  tagger_cache->credentials,
+                                                  &tag_document, errmsg);
     
     if (urlrc == URL_OK && tag_document) {
       /* Tag Index updated or fetched for the first time */

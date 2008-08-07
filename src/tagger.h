@@ -15,6 +15,7 @@
 #include "item_cache.h"
 #include "clue.h"
 #include "array.h"
+#include "hmac_credentials.h"
 
 typedef enum TAGGER_STATE {
   TAGGER_LOADED,
@@ -123,12 +124,17 @@ typedef struct TAGGER {
 typedef struct TAGGER_CACHE_OPTIONS {
   /* URL for the index of tags which will be handled by the classifier. */
   const char * tag_index_url;
+  const Credentials * credentials;
 } TaggerCacheOptions;
 
-typedef int (*TagRetriever)(const char * tag_training_url, time_t last_updated, char ** tag_document, char ** errmsg);
+typedef int (*TagRetriever)(const char * tag_training_url, time_t last_updated, 
+                            const Credentials * credentials, 
+                            char ** tag_document, char ** errmsg);
 
 typedef struct TAGGER_CACHE {
-  TaggerCacheOptions *options;
+  /* URL for the index of tags which will be handled by the classifier. */
+  const char * tag_index_url;
+  const Credentials * credentials;
   
   /* Tagger cache mutex.  Only one thread can access the internal arrays of the tagger cache at one time. */
   pthread_mutex_t mutex;
@@ -140,7 +146,9 @@ typedef struct TAGGER_CACHE {
   TagRetriever tag_retriever;
   
   /* Function used to fetch tag index documents. This is really just a function pointer to help testing. */
-  int (*tag_index_retriever)(const char * tag_index_url, time_t last_updated, char ** tag_index_document, char ** errmsg);
+  int (*tag_index_retriever)(const char * tag_training_url, time_t last_updated, 
+                            const Credentials * credentials, 
+                            char ** tag_document, char ** errmsg);
     
   /* Array of tag urls fetched from the tag index */
   Array *tag_urls;
@@ -166,8 +174,8 @@ extern TaggerState   precompute_tagger   (Tagger * tagger, const Pool * random_b
 extern TaggerState   prepare_tagger      (Tagger * tagger, ItemCache * item_cache);
 extern int           classify_item       (const Tagger * tagger, const Item * item, double * probability);
 extern Clue **       get_clues           (const Tagger * tagger, const Item * item, int * num);
-extern int           update_taggings     (const Tagger * tagger, Array *list, char ** errmsg);
-extern int           replace_taggings    (const Tagger * tagger, Array *list, char ** errmsg);
+extern int           update_taggings     (const Tagger * tagger, Array *list, const Credentials * credentials, char ** errmsg);
+extern int           replace_taggings    (const Tagger * tagger, Array *list, const Credentials * credentials, char ** errmsg);
 extern int           get_missing_entries (Tagger * tagger, ItemCacheEntry ** entries);
 extern void          free_tagger         (Tagger * tagger);
 

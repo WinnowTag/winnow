@@ -17,53 +17,57 @@
 #include "assertions.h"
 #include "fixtures.h"
 
+static Credentials credentials = {"access_id", "secret"};
+
 START_TEST (test_auth_should_return_false_when_there_is_no_authorization_header) {
   struct curl_slist *headers = NULL;
-  int authenticated = hmac_auth("GET", "/path", headers, "access_id", "secret");
+  int authenticated = hmac_auth("GET", "/path", headers, &credentials);
   assert_false(authenticated);
 } END_TEST
 
 START_TEST (test_auth_should_return_false_when_the_authorization_header_isnt_prefixed_with_AuthHMAC) {
   struct curl_slist *headers = NULL;
   headers = curl_slist_append(headers, "Authorization: blahblah");
-  int authenticated = hmac_auth("GET", "/path", headers, "access_id", "secret");
+  int authenticated = hmac_auth("GET", "/path", headers, &credentials);
   assert_false(authenticated);
 } END_TEST
 
 START_TEST (test_auth_should_return_false_when_the_signature_is_missing_a_colon) {
   struct curl_slist *headers = NULL;
   headers = curl_slist_append(headers, "Authorization: AuthHMAC blahblah");
-  int authenticated = hmac_auth("GET", "/path", headers, "access_id", "secret");
+  int authenticated = hmac_auth("GET", "/path", headers, &credentials);
   assert_false(authenticated);
 } END_TEST
 
 START_TEST (test_auth_should_return_false_when_there_is_no_hmac) {
   struct curl_slist *headers = NULL;
   headers = curl_slist_append(headers, "Authorization: AuthHMAC blahblah:");
-  int authenticated = hmac_auth("GET", "/path", headers, "access_id", "secret");
+  int authenticated = hmac_auth("GET", "/path", headers, &credentials);
   assert_false(authenticated);
 } END_TEST
 
 START_TEST (test_auth_should_return_false_when_access_id_doesnt_match_the_credentials) {
   struct curl_slist *headers = NULL;
-  headers = hmac_sign("GET", "/path", headers, "access_id", "secret");
+  headers = hmac_sign("GET", "/path", headers, &credentials);
   
-  int authenticated = hmac_auth("GET", "/path", headers, "other_access_id", "secret");
+  Credentials other = {"other_access_id", "secret"};
+  
+  int authenticated = hmac_auth("GET", "/path", headers, &other);
   assert_false(authenticated);
 } END_TEST
 
 START_TEST (test_auth_should_return_false_when_signature_doesnt_match_the_credentials) {
   struct curl_slist *headers = NULL;
   headers = curl_slist_append(headers, "Authorization: AuthHMAC access_id:blahblah");
-  int authenticated = hmac_auth("GET", "/path", headers, "access_id", "secret");
+  int authenticated = hmac_auth("GET", "/path", headers, &credentials);
   assert_false(authenticated);
 } END_TEST
 
 START_TEST (test_auth_should_return_true_when_everything_matches) {
   struct curl_slist *headers = NULL;
-  headers = hmac_sign("GET", "/path", headers, "access_id", "secret");
+  headers = hmac_sign("GET", "/path", headers, &credentials);
   
-  int authenticated = hmac_auth("GET", "/path", headers, "access_id", "secret");
+  int authenticated = hmac_auth("GET", "/path", headers, &credentials);
   assert_true(authenticated);
 } END_TEST
 
