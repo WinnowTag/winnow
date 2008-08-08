@@ -21,7 +21,8 @@ typedef struct BUFFER {
 
 extern Buffer * new_buffer(int size);
 extern void buffer_in(Buffer *b, const char * data, int in_size);
-        
+extern void free_buffer(Buffer *b);
+
 #ifdef	__cplusplus
 }
 #endif

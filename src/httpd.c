@@ -6,6 +6,9 @@
  * Please contact info@peerworks.org for further information.
  */
 
+#include "buffer.h"
+
+
 #include "hmac_auth.h"
 
 
@@ -587,9 +590,13 @@ struct SLIST_CONTAINER {
 
 int header_iterator(void *memo, enum MHD_ValueKind kind, const char *key, const char *value) {
   struct SLIST_CONTAINER *slist = (struct SLIST_CONTAINER*) memo;
-  char header[512]; // TODO fix this to use a growable buffer
-  snprintf(header, 512, "%s: %s", key, value);
-  slist->header = curl_slist_append(slist->header, header);
+  Buffer *buffer = new_buffer(256);
+  buffer_in(buffer, key, strlen(key));
+  buffer_in(buffer, ": ", 2);
+  buffer_in(buffer, value, strlen(value));
+  buffer_in(buffer, "\0", 1);
+  slist->header = curl_slist_append(slist->header, buffer->buf);
+  free_buffer(buffer);
   return MHD_YES;
 }
 
