@@ -17,35 +17,12 @@
 #include "logging.h"
 #include "hmac_internal.h"
 #include "hmac_credentials.h"
-
-struct buffer {
-  char *buf;
-  int capacity;
-  int length;
-};
+#include "buffer.h"
 
 struct auth_data {
   char *access_id;
   char *signature;
 };
-
-static struct buffer * new_buffer(int size) {
-  struct buffer *b = malloc(sizeof(struct buffer));
-  b->buf = calloc(size, sizeof(char));
-  b->capacity = size;
-  b->length = 0;
-  return b;
-}
-
-static void buffer_in(struct buffer *b, const char * data, int in_size) {
-  if (b->capacity - b->length <= in_size) {
-    b->buf = realloc(b->buf, b->capacity + (2 * in_size));
-    b->capacity += 2*in_size;
-  }
-  
-  memcpy((b->buf) + (b->length), data, in_size);
-  b->length += in_size;
-}
 
 static int prefix_of(const char * prefix, const char *string, int prefix_size) {
   int length = strlen(string);
@@ -80,7 +57,7 @@ char * get_header(const struct curl_slist *header, const char * prefix, int pref
   return return_header;
 }
 
-static void append_header(struct buffer *canon_s, const struct curl_slist *headers, const char * header) {
+static void append_header(Buffer *canon_s, const struct curl_slist *headers, const char * header) {
   int header_key_length = strlen(header);
   char *found_header = get_header(headers, header, header_key_length);
   
@@ -143,7 +120,7 @@ static char * hmac(const char * secret, const char * data, int * length) {
 }
 
 static char * build_auth_header(char * access_id, char * signature) {
-  struct buffer *auth_header = new_buffer(64);
+  Buffer *auth_header = new_buffer(64);
   buffer_in(auth_header, "Authorization: AuthHMAC ", strlen("Authorization: AuthHMAC "));
   buffer_in(auth_header, access_id, strlen(access_id));
   buffer_in(auth_header, ":", 1);
@@ -195,7 +172,7 @@ static int extract_authentication_data(struct curl_slist *headers, struct auth_d
 
 char * canonical_string(const char * method, const char * path, const struct curl_slist *headers) {
   // TOOD handle this
-  struct buffer *canon_s = new_buffer(256);
+  Buffer *canon_s = new_buffer(256);
   buffer_in(canon_s, method, strlen(method));
   buffer_in(canon_s, "\n", 1);
   
