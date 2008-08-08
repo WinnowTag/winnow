@@ -47,7 +47,7 @@ char * get_header(const struct curl_slist *header, const char * prefix, int pref
   char * return_header = NULL;
   
   for (; header; header = header->next) {
-    debug("Trying: %s\n", header->data);
+    debug("Trying: %s", header->data);
     if (prefix_of(prefix, header->data, prefix_size)) {
       return_header = header->data;
       break;
@@ -191,6 +191,7 @@ char * canonical_string(const char * method, const char * path, const struct cur
 char * build_signature(const char * method, const char * path, const struct curl_slist *headers, const char * secret) {
   int signature_length = 0;
   char * data = canonical_string(method, path, headers);
+  debug("cs = '%s'", data);
   char *signature = hmac(secret, data, &signature_length);
   char *base64_sig = base64(signature, signature_length);
   
@@ -220,6 +221,7 @@ int hmac_auth(const char * method, const char * path, struct curl_slist *headers
     
   if (extract_authentication_data(headers, &auth)) {
     char * computed_signature = build_signature(method, path, headers, credentials->secret_key);
+    debug("computed = '%s'", computed_signature);
     authenticated = strcmp(auth.access_id, credentials->access_id) == 0 && strcmp(auth.signature, computed_signature) == 0;    
   } else {
     debug("No authentication data");

@@ -13,6 +13,8 @@ rescue LoadError
   require 'spec'
 end
 
+gem 'auth-hmac'
+require 'auth-hmac'
 gem 'ratom'
 require 'atom'
 require 'atom/pub'
@@ -28,6 +30,7 @@ require 'active_record'
 require 'active_resource'
 class Tagging < ActiveRecord::Base; end
 class Job < ActiveResource::Base 
+  with_auth_hmac("winnow_id", "winnow_secret")
   self.site = CLASSIFIER_URL + "/classifier"
 end
 
