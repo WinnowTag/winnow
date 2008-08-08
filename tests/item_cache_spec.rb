@@ -184,7 +184,7 @@ describe "Item Cache Authentication" do
     lambda { create_entry }.should raise_error
   end
   
-  it "should allow authenticated create feed requests" do
+  it "should allow authenticated create entry requests" do
     lambda { create_entry(:access_id => 'collector_id', :secret => 'collector_secret') }.should_not raise_error
   end
 end

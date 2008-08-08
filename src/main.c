@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <json.h>
 #include "logging.h"
 #include "classification_engine.h"
 #include "httpd.h"
@@ -52,12 +53,48 @@
 static ItemCacheOptions item_cache_options;
 static ItemCache *item_cache;
 static Credentials classifier_credentials = {"classifier_id", "classifier_secret"};
+static Credentials item_cache_credentials = {NULL, NULL};
+static Credentials winnow_credentials = {NULL, NULL};
 static TaggerCacheOptions tagger_cache_options = {"", &classifier_credentials};
 static TaggerCache *tagger_cache;
 static ClassificationEngineOptions ce_options = {1, 0.0, DEFAULT_MISSING_ITEM_TIMEOUT, NULL, &classifier_credentials};
 static ClassificationEngine *engine;
 static Httpd *httpd;
-static HttpConfig http_config = {8080, NULL};
+static HttpConfig http_config = {8080, NULL, &item_cache_credentials, &winnow_credentials};
+
+static void parse_credential(struct json_object * credentials, Credentials * target, const char * role) {
+  struct json_object *role_credentials = NULL;
+    
+  if ((role_credentials = json_object_object_get(credentials, role))) {
+    struct json_object * access_id_json = json_object_object_get(role_credentials, "access_id");
+    struct json_object * secret_json = json_object_object_get(role_credentials, "secret_key");
+
+    if (access_id_json && secret_json && 
+            json_object_is_type(access_id_json, json_type_string) && 
+            json_object_is_type(secret_json, json_type_string)) {
+      target->access_id = strdup(json_object_get_string(access_id_json));
+      target->secret_key = strdup(json_object_get_string(secret_json));
+      info("Credentials '%s:XXXX' supplied for role %s", target->access_id, role);
+    } else {
+      fprintf(stderr, "Bad credentials format for %s. 'access_id' and 'secret_key' properties required\n");
+      exit(1);
+    }
+  } else {
+    info("No credentials supplied for role '%s'.", role);
+  }
+}
+
+static void parse_credentials(const char * credentials_file) {
+  struct json_object *credentials_json = json_object_from_file(credentials_file);
+  
+  if (is_error(credentials_json)) {
+    fprintf(stderr, "Error parsing json credentials in %s", credentials_file);
+    exit(1);
+  } else {
+    parse_credential(credentials_json, &item_cache_credentials, "item_cache");
+    json_object_put(credentials_json);
+  }
+}
 
 static void printHelp(void) {
   printf("This is the Peerwork classifier.\n\n");
@@ -221,8 +258,10 @@ int main(int argc, char **argv) {
   char *log_file = DEFAULT_LOG_FILE;
   char *pid_file = DEFAULT_PID_FILE;
   char *db_file = DEFAULT_DB_FILE;
+  char *credentials_file = NULL;
   char real_log_file[MAXPATHLEN];
   char real_db_file[MAXPATHLEN];
+  char real_credentials_file[MAXPATHLEN];
   item_cache_options.cache_update_wait_time = DEFAULT_CACHE_UPDATE_WAIT_TIME;
   item_cache_options.load_items_since = DEFAULT_LOAD_ITEMS_SINCE;
   item_cache_options.min_tokens = DEFAULT_MIN_TOKENS;
@@ -313,6 +352,7 @@ int main(int argc, char **argv) {
         break;
         
       case 'c':
+        credentials_file = optarg;
         break;
 
       /* Tagger Cache options */
@@ -362,6 +402,11 @@ int main(int argc, char **argv) {
       exit(EXIT_FAILURE);
     }
 
+    if (credentials_file && NULL == realpath(credentials_file, real_credentials_file)) {
+      fprintf(stderr, "Could not find %s: %s\n", real_credentials_file, strerror(errno));
+      exit(EXIT_FAILURE);
+    }
+    
     if (daemonize) {
       _daemonize(pid_file);
     }
@@ -371,6 +416,11 @@ int main(int argc, char **argv) {
     if (signal(SIGTERM, termination_handler) == SIG_IGN) signal(SIGTERM, SIG_IGN);
 
     initialize_logging(real_log_file);
+    
+    if (credentials_file) {
+      parse_credentials(real_credentials_file);
+    }
+    
     rc = start_classifier(real_db_file, tokenizer_url);
   }
 

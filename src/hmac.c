@@ -70,6 +70,7 @@ char * get_header(const struct curl_slist *header, const char * prefix, int pref
   char * return_header = NULL;
   
   for (; header; header = header->next) {
+    debug("Trying: %s\n", header->data);
     if (prefix_of(prefix, header->data, prefix_size)) {
       return_header = header->data;
       break;
@@ -239,10 +240,12 @@ int hmac_auth(const char * method, const char * path, struct curl_slist *headers
   int authenticated = 0;
   struct auth_data auth;
   memset(&auth, 0, sizeof(auth));
-  
+    
   if (extract_authentication_data(headers, &auth)) {
     char * computed_signature = build_signature(method, path, headers, credentials->secret_key);
     authenticated = strcmp(auth.access_id, credentials->access_id) == 0 && strcmp(auth.signature, computed_signature) == 0;    
+  } else {
+    debug("No authentication data");
   }
   
   return authenticated;

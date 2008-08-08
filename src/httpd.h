@@ -10,12 +10,15 @@
 #define HTTPD_H_
 
 #include "classification_engine.h"
+#include "hmac_credentials.h"
 
 typedef struct HTTPD Httpd;
 
 typedef struct HTTP_CONFIG {
   int port;
   const char *allowed_ip;
+  const Credentials *item_cache_credentials;
+  const Credentials *classification_credentials;
 } HttpConfig;
 
 extern Httpd * httpd_start(HttpConfig *config, ClassificationEngine *ce, ItemCache *item_cache, TaggerCache * tagger_cache);

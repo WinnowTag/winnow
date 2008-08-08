@@ -6,6 +6,9 @@
  * Please contact info@peerworks.org for further information.
  */
 
+#include "hmac_auth.h"
+
+
 #include "tagger.h"
 
 
@@ -41,37 +44,8 @@
 
 #include "xml.h"
 #include "uri.h"
-
-#define HTTP_NOT_FOUND(response)         \
-  response->code = 404;                  \
-  response->content = NOT_FOUND;         \
-  response->content_type = CONTENT_TYPE;
-
-#define HTTP_BAD_XML(response) \
-  response->code = MHD_HTTP_BAD_REQUEST; \
-  response->content = BAD_XML; \
-  response->content_type = CONTENT_TYPE;
-
-#define HTTP_BAD_FEED(response) \
-  response->code = MHD_HTTP_UNPROCESSABLE_ENTITY; \
-  response->content = "Bad Feed"; \
-  response->content_type = "text/plain";
-
-#define HTTP_BAD_ENTRY(response) \
-  response->code = MHD_HTTP_UNPROCESSABLE_ENTITY; \
-  response->content = "<error>Bad Entry</error>"; \
-  response->content_type = CONTENT_TYPE;
-
-#define HTTP_ITEM_CACHE_ERROR(response, item_cache) \
-  response->code = MHD_HTTP_INTERNAL_SERVER_ERROR; \
-  response->content = (char*) item_cache_errmsg(item_cache); \
-  response->content_type = "text/plain";
-
-#define HTTP_ISE(response) \
-  response->code = MHD_HTTP_INTERNAL_SERVER_ERROR; \
-  response->content = "Internal Server Error"; \
-  response->content_type = "text/plain";
-
+#include "microhttpd/src/include/microhttpd.h"
+#include "http_responses.h"
 
 typedef enum HTTP_METHOD {
   GET,
@@ -102,6 +76,7 @@ typedef struct posted_data {
 
 typedef struct HTTP_REQUEST {
   HTTPMethod method;
+  char * method_string;
   char *path;
   PostedData *data;
   struct MHD_Connection *connection;
@@ -181,7 +156,7 @@ static char * extract_job_id(const char * url) {
   return job_id;
 }
 
-static xmlChar * xml_for_about(const ClassificationEngine *ce) {
+static xmlChar * xml_for_about(void) {
   xmlChar *buffer = NULL;
   int buffersize;
 
@@ -201,6 +176,9 @@ static xmlChar * xml_for_about(const ClassificationEngine *ce) {
 /********************************************************************************
  * HTTP Interface Handlers
  ********************************************************************************/
+
+typedef int (*RequestHandler)(const HTTPRequest * request, HTTPResponse * response);
+
 static HTTPMethod get_method(const char *method) {
   if (!strcmp(MHD_HTTP_METHOD_POST, method)) {
     return POST;
@@ -242,6 +220,14 @@ static int get_entry_id(const char * path) {
 
 static int get_feed_id(const char * path) {
   return get_path_id("^/feeds/([0-9]+)", path);
+}
+
+static int about_handler(const HTTPRequest * request, HTTPResponse * response) {
+  response->code = MHD_HTTP_OK;
+  response->content_type = CONTENT_TYPE;
+  response->content = (char*) xml_for_about();
+  response->free_content = MHD_YES;
+  return 1;
 }
 
 static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
@@ -595,27 +581,64 @@ static int job_handler(const HTTPRequest * request, HTTPResponse * response) {
   return ret;
 }
 
-static int handle_request(const Httpd * httpd, const HTTPRequest * request, HTTPResponse * response) {
+struct SLIST_CONTAINER {
+  struct curl_slist *header;
+};
 
-  if (0 == regexec(&httpd->start_job_regex, request->path, 0, NULL, 0)) {
-    start_job(request, response);
-  } else if (0 == regexec(&httpd->job_status_regex, request->path, 0, NULL, 0)) {
-    job_handler(request, response);
-  } else if (0 == regexec(&httpd->about_regex, request->path, 0, NULL, 0)) {
-    response->code = MHD_HTTP_OK;
-    response->content_type = CONTENT_TYPE;
-    response->content = (char*) xml_for_about(httpd->ce);
-    response->free_content = MHD_YES;
-  } else if (0 == regexec(&httpd->item_cache_feeds_regex, request->path, 0, NULL, 0)) {
-    feed_handler(request, response);
+int header_iterator(void *memo, enum MHD_ValueKind kind, const char *key, const char *value) {
+  struct SLIST_CONTAINER *slist = (struct SLIST_CONTAINER*) memo;
+  char header[512]; // TODO fix this to use a growable buffer
+  snprintf(header, 512, "%s: %s", key, value);
+  slist->header = curl_slist_append(slist->header, header);
+  return MHD_YES;
+}
+
+static struct curl_slist * convert_headers_to_slist(HTTPRequest * request) {
+  struct SLIST_CONTAINER slist;
+  slist.header = NULL;
+  MHD_get_connection_values(request->connection, MHD_HEADER_KIND, header_iterator, &slist);  
+  return slist.header;
+}
+
+static int authenticated(const Credentials * credentials, const HTTPRequest * request) {
+  struct curl_slist *curl_headers = convert_headers_to_slist(request);
+  int authenticated =  hmac_auth(request->method_string, request->path, curl_headers, credentials);
+  curl_slist_free_all(curl_headers);
+  return authenticated;
+}
+
+static int handle_request(const Httpd * httpd, const HTTPRequest * request, HTTPResponse * response) {
+  const Credentials * credentials = NULL;
+  RequestHandler handler = NULL;
+  
+  if (0 == regexec(&httpd->start_job_regex,                           request->path, 0, NULL, 0)) {
+    credentials = httpd->config->classification_credentials;
+    handler = &start_job;
+  } else if (0 == regexec(&httpd->job_status_regex,                   request->path, 0, NULL, 0)) {
+    credentials = httpd->config->classification_credentials;
+    handler = &job_handler;
+  } else if (0 == regexec(&httpd->about_regex,                        request->path, 0, NULL, 0)) {
+    handler = &about_handler;
+  } else if (0 == regexec(&httpd->item_cache_feeds_regex,             request->path, 0, NULL, 0)) {
+    credentials = httpd->config->item_cache_credentials;
+    handler = &feed_handler;
   } else if (0 == regexec(&httpd->item_cache_create_feed_items_regex, request->path, 0, NULL, 0)) {
-    add_entry(request, response);
-  } else if (0 == regexec(&httpd->item_cache_feed_items_regex, request->path, 0, NULL, 0)) {
-    entry_handler(request, response);
-  } else if (0 == regexec(&httpd->get_clues_regex, request->path, 0, NULL, 0)) {
-    get_clues_handler(request, response);
-  } else {
+    credentials = httpd->config->item_cache_credentials;
+    handler = &add_entry;
+  } else if (0 == regexec(&httpd->item_cache_feed_items_regex,        request->path, 0, NULL, 0)) {
+    credentials = httpd->config->item_cache_credentials;
+    handler = &entry_handler;
+  } else if (0 == regexec(&httpd->get_clues_regex,                    request->path, 0, NULL, 0)) {
+    credentials = httpd->config->classification_credentials;
+    handler = &get_clues_handler;
+  } 
+  
+  if (handler == NULL) {
     HTTP_NOT_FOUND(response);
+  } else if (valid_credentials(credentials) && !authenticated(credentials, request)) {
+    HTTP_UNAUTHORIZED(response);
+  } else {
+    handler(request, response);
   }
 
   return 1;
@@ -638,11 +661,12 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     new_request = true;
     request = calloc(1, sizeof(HTTPRequest));
     request->method = get_method(method);
+    request->method_string = method;
     request->connection = connection;
     request->ce = httpd->ce;
     request->item_cache = httpd->item_cache;
     request->tagger_cache = httpd->tagger_cache;
-    request->path = strdup(raw_url);
+    request->path = raw_url;
     gettimeofday(&request->start_time, NULL);
 
     if (request->method == PUT || request->method == POST) {
@@ -680,6 +704,8 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     response.free_content = false;
     handle_request(httpd, request, &response);
 
+    // TODO This whole response handling bit is pretty messy, maybe it would be better to have some functions
+    // that build the MHD_Response object directly and put it in the HTTPResponse.
     struct MHD_Response *mhd_response = MHD_create_response_from_data(strlen(response.content), response.content, response.free_content, MHD_NO);
     MHD_add_response_header(mhd_response, MHD_HTTP_HEADER_CONTENT_TYPE, response.content_type);
 
@@ -701,7 +727,6 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     gettimeofday(&end_time, NULL);
     info("%s %s %i %.7fs %i", method, raw_url, response.code, tdiff(request->start_time, end_time), strlen(response.content));
 
-    free(request->path);
     if (request->data) {
       if (request->data->buffer) free(request->data->buffer);
       free(request->data);

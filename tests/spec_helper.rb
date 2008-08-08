@@ -37,7 +37,7 @@ def create_feed(opts = {})
   hmac_secret = opts.delete(:secret)
   collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feeds')
   feed_entry = Atom::Entry.new(opts)
-  collection.publish(feed_entry, :hmac_access_id => hmac_access_id, :hmac_secret => hmac_secret)
+  collection.publish(feed_entry, :hmac_access_id => hmac_access_id, :hmac_secret_key => hmac_secret)
 end
 
 def create_entry(opts = {})
@@ -52,7 +52,7 @@ def create_entry(opts = {})
     entry.content = Atom::Content::Html.new(opts[:content])
   end
   
-  collection.publish(entry, :hmac_access_id => opts[:access_id], :hmac_secret => opts[:secret])
+  collection.publish(entry, :hmac_access_id => opts[:access_id], :hmac_secret_key => opts[:secret])
 end
 
 def create_empty_entry(opts = {})
