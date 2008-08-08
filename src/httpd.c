@@ -72,16 +72,11 @@ struct HTTPD {
   regex_t get_clues_regex;
 };
 
-typedef struct posted_data {
-  int size;
-  char *buffer;
-} PostedData;
-
 typedef struct HTTP_REQUEST {
   HTTPMethod method;
   char * method_string;
   char *path;
-  PostedData *data;
+  Buffer *data;
   struct MHD_Connection *connection;
   ClassificationEngine *ce;
   ItemCache *item_cache;
@@ -243,8 +238,8 @@ static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
   } else if (NULL == request->data) {
     info("NO DATA");
     HTTP_BAD_XML(response);
-  } else if (NULL == (doc = xmlReadMemory(request->data->buffer, request->data->size, "", NULL, XML_PARSE_COMPACT))) {
-    info("BAD DATA: %s", request->data->buffer);
+  } else if (NULL == (doc = xmlReadMemory(request->data->buf, request->data->length, "", NULL, XML_PARSE_COMPACT))) {
+    info("BAD DATA: %s", request->data->buf);
     HTTP_BAD_XML(response);
   } else {
     int feed_id = get_feed_id(request->path);
@@ -252,13 +247,13 @@ static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
     if (feed_id <= 0) {
       HTTP_BAD_ENTRY(response);
     } else {
-      ItemCacheEntry *entry = create_entry_from_atom_xml_document(feed_id, doc, request->data->buffer);
+      ItemCacheEntry *entry = create_entry_from_atom_xml_document(feed_id, doc, request->data->buf);
 
       if (!entry) {
         HTTP_BAD_ENTRY(response);
       } else if (CLASSIFIER_OK == item_cache_add_entry(request->item_cache, entry)) {
         response->code = MHD_HTTP_CREATED;
-        response->content = strdup(request->data->buffer);
+        response->content = strdup(request->data->buf);
         response->content_type = CONTENT_TYPE;
         response->location = calloc(64, sizeof(char));
         response->free_content = true;
@@ -317,8 +312,8 @@ static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
 
     if (NULL == request->data) {
       HTTP_BAD_XML(response);
-    } else if (NULL == (doc = xmlReadMemory(request->data->buffer, request->data->size, "", NULL, XML_PARSE_COMPACT))) {
-      error("Bad xml for feed: %s", request->data->buffer);
+    } else if (NULL == (doc = xmlReadMemory(request->data->buf, request->data->length, "", NULL, XML_PARSE_COMPACT))) {
+      error("Bad xml for feed: %s", request->data->buf);
       HTTP_BAD_XML(response);
     } else {
       xmlXPathContextPtr context = xmlXPathNewContext(doc);
@@ -327,19 +322,19 @@ static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
       char *id = get_element_value(context, "/atom:entry/atom:id/text()");
 
       if (!id) {
-        error("Missing id for feed: %s", request->data->buffer);
+        error("Missing id for feed: %s", request->data->buf);
         HTTP_BAD_FEED(response);
       } else {
         int feed_id = uri_fragment_id(id);
 
         if (feed_id <= 0) {
           HTTP_BAD_FEED(response);
-          error("Missing id for feed: %s", request->data->buffer);
+          error("Missing id for feed: %s", request->data->buf);
         } else {
           Feed *feed = create_feed(feed_id, title);
           if (CLASSIFIER_OK == item_cache_add_feed(request->item_cache, feed)) {
             response->code = MHD_HTTP_CREATED;
-            response->content = strdup(request->data->buffer);
+            response->content = strdup(request->data->buf);
             response->content_type = CONTENT_TYPE;
             response->free_content = MHD_YES;
             response->location = calloc(48, sizeof(char));
@@ -415,12 +410,12 @@ static int start_job(const HTTPRequest * request, HTTPResponse * response) {
     response->code = MHD_HTTP_METHOD_NOT_ALLOWED;
     response->content = METHOD_NOT_ALLOWED;
     response->content_type = CONTENT_TYPE;
-  } else if (!request->data || request->data->size <= 0) {
+  } else if (!request->data || request->data->length <= 1) { // account for \0 in empty string
     response->code = MHD_HTTP_UNSUPPORTED_MEDIA_TYPE;
     response->content = BAD_XML;
     response->content_type = CONTENT_TYPE;
   } else {
-    xmlDocPtr doc = xmlReadMemory(request->data->buffer, request->data->size, "", NULL, XML_PARSE_COMPACT);
+    xmlDocPtr doc = xmlReadMemory(request->data->buf, request->data->length, "", NULL, XML_PARSE_COMPACT);
 
     if (doc == NULL) {
       HTTP_BAD_XML(response);
@@ -677,38 +672,24 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     gettimeofday(&request->start_time, NULL);
 
     if (request->method == PUT || request->method == POST) {
-      request->data = calloc(1, sizeof(PostedData));
+      request->data = new_buffer(*upload_data_size);
     }
 
     *memo = request;
   }
 
-  if (*upload_data_size > 0 && request->data->size == 0) {
-    request->data->buffer = malloc(*upload_data_size + 1);
-    memcpy(request->data->buffer, upload_data, *upload_data_size);
-    request->data->buffer[*upload_data_size] = '\0';
-    request->data->size = *upload_data_size;
+  if (*upload_data_size > 0) {
+    buffer_in(request->data, upload_data, *upload_data_size);
     *upload_data_size = 0;
     ret = MHD_YES;
   } else if (new_request && *upload_data_size == 0 && request->data) {
     // Data hasn't arrived yet
     ret = MHD_YES;
-  } else if (*upload_data_size > 0 && request->data->size > 0) {
-    request->data->buffer = realloc(request->data->buffer, (*upload_data_size + request->data->size + 1) * sizeof(char));
-    if (!request->data->buffer) {
-      fatal("Could not realloc buffer");
-    }
-
-    memcpy(&request->data->buffer[request->data->size], upload_data, *upload_data_size);
-    request->data->size += *upload_data_size;
-    request->data->buffer[request->data->size] = '\0';
-
-    *upload_data_size = 0;
-    ret = MHD_YES;
-  } else if (*upload_data_size == 0) {
+  } else if (*upload_data_size == 0) {    
+    if (request->data) buffer_in(request->data, "\0", 1);
     HTTPResponse response;
     memset(&response, 0, sizeof(HTTPResponse));
-    response.free_content = false;
+    response.free_content = false;    
     handle_request(httpd, request, &response);
 
     // TODO This whole response handling bit is pretty messy, maybe it would be better to have some functions
@@ -734,10 +715,7 @@ static int process_request(void * httpd_vp, struct MHD_Connection * connection,
     gettimeofday(&end_time, NULL);
     info("%s %s %i %.7fs %i", method, raw_url, response.code, tdiff(request->start_time, end_time), strlen(response.content));
 
-    if (request->data) {
-      if (request->data->buffer) free(request->data->buffer);
-      free(request->data);
-    }
+    free_buffer(request->data);
     free(request);
   }
 
