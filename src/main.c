@@ -52,7 +52,7 @@
 
 static ItemCacheOptions item_cache_options;
 static ItemCache *item_cache;
-static Credentials classifier_credentials = {"classifier_id", "classifier_secret"};
+static Credentials classifier_credentials = {NULL, NULL};
 static Credentials item_cache_credentials = {NULL, NULL};
 static Credentials classification_credentials = {NULL, NULL};
 static TaggerCacheOptions tagger_cache_options = {"", &classifier_credentials};
@@ -93,6 +93,7 @@ static void parse_credentials(const char * credentials_file) {
   } else {
     parse_credential(credentials_json, &item_cache_credentials, "item_cache");
     parse_credential(credentials_json, &classification_credentials, "classification");
+    parse_credential(credentials_json, &classifier_credentials, "classifier");
     json_object_put(credentials_json);
   }
 }

@@ -40,7 +40,7 @@ static int fetch_url(const char * url, time_t if_modified_since, const Credentia
   struct curl_slist *http_headers = NULL;
   http_headers = curl_slist_append(http_headers, "Accept: application/atom+xml");
   
-  if (credentials) {
+  if (valid_credentials(credentials)) {
     debug("Signing request with %s:XXXXX", credentials->access_id);
     http_headers = hmac_sign("GET", path, http_headers, credentials);
   }

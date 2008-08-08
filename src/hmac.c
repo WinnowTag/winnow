@@ -202,14 +202,16 @@ char * build_signature(const char * method, const char * path, const struct curl
 }
 
 struct curl_slist * hmac_sign(const char * method, const char * path, struct curl_slist *headers, const Credentials * credentials) {
-  headers = add_date_header_if_missing(headers);
-  char * signature = build_signature(method, path, headers, credentials->secret_key);
-  char * auth_header = build_auth_header(credentials->access_id, signature);  
-  
-  curl_slist_append(headers, auth_header);
-  
-  free(signature);
-  free(auth_header);
+  if (valid_credentials(credentials)) {
+    headers = add_date_header_if_missing(headers);
+    char * signature = build_signature(method, path, headers, credentials->secret_key);
+    char * auth_header = build_auth_header(credentials->access_id, signature);  
+
+    curl_slist_append(headers, auth_header);
+
+    free(signature);
+    free(auth_header);
+  }
   
   return headers;
 }
