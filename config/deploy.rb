@@ -10,8 +10,8 @@ set :user, "mindloom"
 #ssh_options[:port] = 65000
 
 if ENV['dest'] == 'all'
-  role :app, "mindloom.org"
-  role :app, "wizztag.org"
+  role :app, "ds468-1.blueboxgrid.com"
+  role :app, "ds400-1.blueboxgrid.com"
 elsif ENV['dest'] == 'beta'
   role :app, "ds468-1.blueboxgrid.com"
 else
