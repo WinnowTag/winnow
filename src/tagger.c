@@ -436,7 +436,7 @@ static int save_taggings(const Tagger *tagger, Array *taggings, int method, cons
     
     if (valid_credentials(credentials)) {
       char *method_s = method == PUT ? "PUT" : method == POST ? "POST" : "";
-      xmlURIPtr uri = xmlParseURI(tagger->classifier_taggings_url);
+      xmlURIPtr uri = xmlParseURIRaw(tagger->classifier_taggings_url, 1);
       if (uri) {
         http_headers = hmac_sign(method_s, uri->path, http_headers, credentials);
         xmlFreeURI(uri);

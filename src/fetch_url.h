@@ -32,7 +32,7 @@ static int fetch_url(const char * url, time_t if_modified_since, const Credentia
   response.data = NULL;
   
   char * path = "";
-  xmlURIPtr uri = xmlParseURI(url);
+  xmlURIPtr uri = xmlParseURIRaw(url, 1);
   if (uri) {
     path = uri->path;
   }

@@ -405,6 +405,17 @@ describe 'Job Processing with authentication' do
     @http.should have_received_requests
   end
   
+  it "should send correct authorization header when getting the tag with a space in the name" do
+    @http.should_receive do
+      request("/mytag training.atom") do |req, res|
+        AuthHMAC.new('classifier_id' => 'classifier_secret').authenticated?(req).should be_true
+      end
+    end
+    
+    job = create_job('http://localhost:8888/mytag%20training.atom')
+    @http.should have_received_requests
+  end
+  
   it "should send the Authorization header with the results" do
     job_results do |req, res|
       @authhmac.authenticated?(req).should be_true
