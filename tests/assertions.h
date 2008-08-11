@@ -32,7 +32,7 @@
 #endif
 
 #ifndef assert_equal_s
-#define assert_equal_s(e, a) fail_unless(strcmp(e,a) == 0, "expected %s but got %s", e, a)
+#define assert_equal_s(e, a) fail_unless(strcmp(e,a) == 0, "expected '%s' but got '%s'", e, a)
 #endif
 
 #ifndef assert_equal_f
@@ -140,3 +140,22 @@
     curl_easy_cleanup(curl);                                              \
 }
 #endif
+
+#include <regex.h>
+
+static int assert_match(const char * pattern, const char * s) {
+  regex_t regex;
+
+  if (regcomp(&regex, pattern, REG_EXTENDED)) {
+    fail("Error compiling regex");
+    return -1;
+  }
+
+  if (regexec(&regex, s, 0, NULL, 0)) {
+    fail("Pattern '%s' did not match string '%s'", pattern, s);
+  }
+
+  regfree(&regex);
+  
+  return 0;
+}

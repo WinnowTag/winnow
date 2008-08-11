@@ -13,6 +13,8 @@ rescue LoadError
   require 'spec'
 end
 
+gem 'auth-hmac'
+require 'auth-hmac'
 gem 'ratom'
 require 'atom'
 require 'atom/pub'
@@ -28,13 +30,17 @@ require 'active_record'
 require 'active_resource'
 class Tagging < ActiveRecord::Base; end
 class Job < ActiveResource::Base 
+  with_auth_hmac("winnow_id", "winnow_secret")
   self.site = CLASSIFIER_URL + "/classifier"
 end
 
-def create_feed(opts = {:title => 'My new feed', :id => 'urn:peerworks.org:feeds#1337'})
+def create_feed(opts = {})
+  opts = {:title => 'My new feed', :id => 'urn:peerworks.org:feeds#1337'}.merge(opts)
+  hmac_access_id = opts.delete(:access_id)
+  hmac_secret = opts.delete(:secret)
   collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feeds')
   feed_entry = Atom::Entry.new(opts)
-  collection.publish(feed_entry)
+  collection.publish(feed_entry, :hmac_access_id => hmac_access_id, :hmac_secret_key => hmac_secret)
 end
 
 def create_entry(opts = {})
@@ -49,7 +55,7 @@ def create_entry(opts = {})
     entry.content = Atom::Content::Html.new(opts[:content])
   end
   
-  collection.publish(entry)
+  collection.publish(entry, :hmac_access_id => opts[:access_id], :hmac_secret_key => opts[:secret])
 end
 
 def create_empty_entry(opts = {})
@@ -138,6 +144,7 @@ def start_classifier(opts = {})
   classifier = File.join(ROOT, "../src/classifier")
   
   tag_index = "--tag-index #{opts[:tag_index]}" if opts[:tag_index]
+  credentials = "--credentials #{opts[:credentials]}" if opts[:credentials]
   
   if ENV['srcdir']
     classifier = File.join(ENV['PWD'], '../src/classifier')
@@ -152,10 +159,8 @@ def start_classifier(opts = {})
                                      "--min-tokens #{options[:min_tokens] or 0} " +
                                      "--positive-threshold #{options[:positive_threshold] or 0} " +
                                      "--missing-item-timeout #{options[:missing_item_timeout] or 60} " +
-                                     "--db #{Database} #{tag_index}" 
-                                     
-  
-  
+                                     "--db #{Database} #{tag_index} #{credentials}"
+                                       
   if options[:malloc_log]
     @classifier_pid = fork do
        STDERR.close

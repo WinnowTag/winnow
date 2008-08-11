@@ -40,7 +40,7 @@ static char * read_document(const char * filename) {
   return out;
 }
 
-static int load_tag_document(const char * tag_training_url, time_t last_updated, char ** tag_document, char ** errmsg) {
+static int load_tag_document(const char * tag_training_url, time_t last_updated, const Credentials * ignore, char ** tag_document, char ** errmsg) {
   load_tag_document_called++;
   last_updated_called = last_updated;
 
@@ -209,7 +209,7 @@ START_TEST (test_get_tagger_with_missing_items_should_add_the_items_to_the_item_
 /********** Tests for updating a tag ********/
 char *updated_document;
 
-static int updating_tag_document(const char * tag_training_url, time_t last_updated, char ** tag_document, char ** errmsg) {
+static int updating_tag_document(const char * tag_training_url, time_t last_updated, const Credentials * c, char ** tag_document, char ** errmsg) {
   load_tag_document_called++;
   last_updated_called = last_updated;
 

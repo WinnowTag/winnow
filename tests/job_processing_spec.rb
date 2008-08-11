@@ -11,6 +11,9 @@ require File.dirname(__FILE__) + "/test_http_server.rb"
 gem 'ratom'
 require 'atom'
 
+gem 'auth-hmac'
+require 'auth-hmac'
+
 describe "Classifier Job Processing" do
   before(:each) do
     system("rm -f /tmp/perf.log")   
@@ -375,6 +378,48 @@ describe 'Job Processing using files' do
       times.should < 10
     end
     File.exist?("/tmp/taggings.atom").should be_true
+  end
+end
+
+describe 'Job Processing with authentication' do
+  before(:each) do
+    system("rm -f /tmp/perf.log")   
+    start_classifier(:credentials => File.join(ROOT, 'fixtures', 'credentials.js'))
+    @http = TestHttpServer.new(:port => 8888)
+    @authhmac = AuthHMAC.new('classifier_id' => 'classifier_secret')
+  end
+  
+  after(:each) do
+    stop_classifier
+    @http.shutdown
+  end
+  
+  it "should send an authorization header when getting the tag" do
+    @http.should_receive do
+      request("/mytag-training.atom") do |req, res|
+        AuthHMAC.new('classifier_id' => 'classifier_secret').authenticated?(req).should be_true
+      end
+    end
+    
+    job = create_job('http://localhost:8888/mytag-training.atom')
+    @http.should have_received_requests
+  end
+  
+  it "should send correct authorization header when getting the tag with a space in the name" do
+    @http.should_receive do
+      request("/mytag training.atom") do |req, res|
+        AuthHMAC.new('classifier_id' => 'classifier_secret').authenticated?(req).should be_true
+      end
+    end
+    
+    job = create_job('http://localhost:8888/mytag%20training.atom')
+    @http.should have_received_requests
+  end
+  
+  it "should send the Authorization header with the results" do
+    job_results do |req, res|
+      @authhmac.authenticated?(req).should be_true
+    end    
   end
 end
     

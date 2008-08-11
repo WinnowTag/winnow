@@ -37,7 +37,9 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            array.h array.c \
                            fetch_url.h \
                            xml_error_functions.h \
-                           curl_response.h
+                           curl_response.h \
+                           hmac.c hmac_internal.h hmac_sign.h hmac_auth.h \
+                           buffer.c buffer.h
 
 libclassifier_la_LIBADD = @LTLIBOBJS@
        

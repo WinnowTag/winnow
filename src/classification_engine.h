@@ -11,6 +11,7 @@
 
 #include "item_cache.h"
 #include "tagger.h"
+#include "hmac_credentials.h"
 
 typedef struct CLASSIFICATION_ENGINE ClassificationEngine;
 
@@ -19,6 +20,7 @@ typedef struct CLASSIFICATION_ENGINE_OPTIONS {
   double positive_threshold;
   int missing_item_timeout;
   char *performance_log;
+  Credentials *credentials;
 } ClassificationEngineOptions;
 
 typedef enum CLASSIFICATION_JOB_STATE {

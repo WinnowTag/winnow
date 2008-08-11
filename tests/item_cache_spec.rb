@@ -161,3 +161,30 @@ describe "The Classifier's Item Cache" do
     end
   end  
 end
+
+describe "Item Cache Authentication" do
+  before(:each) do
+    system("rm /tmp/perf.log")   
+    start_classifier(:credentials => File.join(ROOT, 'fixtures', 'credentials.js'))
+  end
+  
+  after(:each) do
+    stop_classifier
+  end
+  
+  it "should reject unauthenticated create feed requests" do
+    lambda { create_feed }.should raise_error
+  end
+  
+  it "should allow authenticated create feed requests" do
+    lambda { create_feed(:access_id => 'collector_id', :secret => 'collector_secret') }.should_not raise_error
+  end
+  
+  it "should reject unauthenticated create entry requests" do
+    lambda { create_entry }.should raise_error
+  end
+  
+  it "should allow authenticated create entry requests" do
+    lambda { create_entry(:access_id => 'collector_id', :secret => 'collector_secret') }.should_not raise_error
+  end
+end

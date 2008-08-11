@@ -7,6 +7,9 @@
 
 require File.dirname(__FILE__) + "/spec_helper.rb"
 
+gem 'auth-hmac'
+require 'auth-hmac'
+
 describe "Classifier Job Control" do
   before(:each) do
     system("rm /tmp/perf.log")   
@@ -116,4 +119,30 @@ describe "Classifier Job Control" do
       @job.error_message.should == "Tag could not be retrieved: couldn't connect to host"
     end
   end
+end
+
+
+describe "Item Cache Authentication" do
+  before(:each) do
+    system("rm /tmp/perf.log")   
+    start_classifier(:credentials => File.join(ROOT, 'fixtures', 'credentials.js'))
+  end
+  
+  after(:each) do
+    stop_classifier
+  end
+  
+  it "should reject unauthenticated create job requests" do
+    classifier_http do |http|
+      http.request_post("/classifier/jobs", "blahblah").code.should == "401"
+    end
+  end
+  
+  it "should allow authenticated create job requests" do
+    classifier_http do |http|
+      request = Net::HTTP::Post.new("/classifier/jobs", 'Content-Type' => 'application/xml')
+      AuthHMAC.new("winnow_id" => "winnow_secret").sign!(request, 'winnow_id')
+      http.request(request, "blah").code.should == "400"
+    end
+  end  
 end

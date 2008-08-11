@@ -6,6 +6,9 @@
  * Please contact info@peerworks.org for further information.
  */
 
+#include "hmac_sign.h"
+
+
 #include "tagger.h"
 
 #include <config.h>
@@ -18,6 +21,7 @@
 #include "xml.h"
 #include "uri.h"
 #include "logging.h"
+#include "hmac_sign.h"
 
 
 /************************************************************************************************
@@ -349,7 +353,7 @@ Clue ** get_clues(const Tagger *tagger, const Item *item, int *num) {
   return clues;
 }
 
-static struct output {
+struct output {
   int pos;
   int size;
   char *data;
@@ -413,7 +417,7 @@ static int xml_for_tagger(const Tagger *tagger, const Array *list, struct output
 #define PUT 1
 #define POST 2
 
-static int save_taggings(const Tagger *tagger, Array *taggings, int method, char ** errmsg) {
+static int save_taggings(const Tagger *tagger, Array *taggings, int method, const Credentials * credentials, char ** errmsg) {
   int rc;
   
   if (tagger && tagger->classifier_taggings_url) {
@@ -428,12 +432,24 @@ static int save_taggings(const Tagger *tagger, Array *taggings, int method, char
     http_headers = curl_slist_append(http_headers, "Content-Type: application/atom+xml");
     http_headers = curl_slist_append(http_headers, "Expect:");
     http_headers = curl_slist_append(http_headers, "Connection: close");
-        
+    
+    
+    if (valid_credentials(credentials)) {
+      char *method_s = method == PUT ? "PUT" : method == POST ? "POST" : "";
+      xmlURIPtr uri = xmlParseURIRaw(tagger->classifier_taggings_url, 1);
+      if (uri) {
+        http_headers = hmac_sign(method_s, uri->path, http_headers, credentials);
+        xmlFreeURI(uri);
+      }
+    } else {
+      debug("No credentials provided");
+    }
+    
     CURL *curl = curl_easy_init();
     
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, http_headers);    
     char ua[512];
     snprintf(ua, sizeof(ua), "PeerworksClassifier/%s %s", PACKAGE_VERSION, curl_version());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, http_headers);    
     curl_easy_setopt(curl, CURLOPT_USERAGENT, ua);
     curl_easy_setopt(curl, CURLOPT_URL, tagger->classifier_taggings_url);
     //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
@@ -452,7 +468,7 @@ static int save_taggings(const Tagger *tagger, Array *taggings, int method, char
       fatal("Got something other than PUT or POST for method. This is a bug.");
       rc = FAIL;
     }
-    
+        
     if (rc != FAIL && curl_easy_perform(curl)) {
       error("URL %s not accessible: %s", tagger->classifier_taggings_url, curlerr);
       rc = FAIL;
@@ -471,12 +487,12 @@ static int save_taggings(const Tagger *tagger, Array *taggings, int method, char
   return rc;
 }
 
-int replace_taggings(const Tagger * tagger, Array *taggings, char **errmsg) {
-  return save_taggings(tagger, taggings, PUT, errmsg);
+int replace_taggings(const Tagger * tagger, Array *taggings, const Credentials * credentials, char **errmsg) {
+  return save_taggings(tagger, taggings, PUT, credentials, errmsg);
 }
 
-int update_taggings(const Tagger * tagger, Array *taggings, char **errmsg) {
-  return save_taggings(tagger, taggings, POST, errmsg);
+int update_taggings(const Tagger * tagger, Array *taggings, const Credentials * credentials, char **errmsg) {
+  return save_taggings(tagger, taggings, POST, credentials, errmsg);
 }
 
 /* Creates a ItemCacheEntry from an entry in this Tagger's atom document.
