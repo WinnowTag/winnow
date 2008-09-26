@@ -803,7 +803,8 @@ static void purge_old_jobs(ClassificationEngine *ce) {
     if (job->state == CJOB_STATE_COMPLETE || job->state == CJOB_STATE_ERROR) {
       if (job->completed_at.tv_sec < purge_time) {
         debug("Purging %s", index);
-        ce_remove_classification_job(ce, job, false);
+        int removed = false;
+        JSLD(removed, ce->classification_jobs, (uint8_t*) job->id);
         free_classification_job(job);
       }
     }
