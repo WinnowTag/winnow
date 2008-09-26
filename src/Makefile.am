@@ -22,7 +22,7 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            job_queue.c job_queue.h   \
                            classification_engine.h   \
                            classification_engine.c   \
-                           httpd.h httpd.c           \
+                           httpd.h httpd.c http_responses.h  \
                            misc.h                    \
                            create_file.c             \
                            item_cache.c      				 \
@@ -38,7 +38,7 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            fetch_url.h \
                            xml_error_functions.h \
                            curl_response.h \
-                           hmac.c hmac_internal.h hmac_sign.h hmac_auth.h \
+                           hmac.c hmac_internal.h hmac_sign.h hmac_auth.h hmac_credentials.h \
                            buffer.c buffer.h
 
 libclassifier_la_LIBADD = @LTLIBOBJS@
