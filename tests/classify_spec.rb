@@ -46,6 +46,6 @@ describe "Classify" do
       cmd = File.join(ENV['PWD'], '../src/classify')
     end
     
-    system("#{cmd} #{corpus} #{tag}")
+    system("#{cmd} #{corpus} #{tag} 2> /dev/null")
   end
 end
