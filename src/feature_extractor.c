@@ -31,9 +31,14 @@ Item * tokenize_entry(ItemCache * item_cache, const ItemCacheEntry * entry, void
       const char * entry_id = item_cache_entry_full_id(entry);
       info("tokenizing entry %s using %s", entry_id, tokenizer_url);
     
+      struct curl_slist *http_headers = NULL;
+      http_headers = curl_slist_append(http_headers, "Content-Type: application/atom+xml");
+      http_headers = curl_slist_append(http_headers, "Expect:");
+    
       CURL *curl = curl_easy_init();
       curl_easy_setopt(curl, CURLOPT_URL, tokenizer_url);
       curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, http_headers);
       curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);
       curl_easy_setopt(curl, CURLOPT_POST, 1);
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
@@ -41,17 +46,24 @@ Item * tokenize_entry(ItemCache * item_cache, const ItemCacheEntry * entry, void
       curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
       curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_response);
 
-      if (curl_easy_perform(curl)) {
+      debug("Sending request");
+      int perform_return = curl_easy_perform(curl);
+      debug("Request complete");
+              
+      if (perform_return) {
         error("HTTP server not accessible: %s", curlerr);
       } else if (CURLE_OK != curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code)) {
         error("Could not get response code from tokenizer");
       } else if (code != 200) {
         error("Got %i for tokenization, expected 201", code);
       }  else {
+        debug("Got tokenized item back");
         item = item_from_xml(item_cache, response.data);
+        debug("Parsing item completed");
         free(response.data);
       }
 
+      curl_slist_free_all(http_headers);
       curl_easy_cleanup(curl);
     }
   }

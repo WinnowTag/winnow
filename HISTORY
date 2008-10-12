@@ -1,3 +1,7 @@
+=== 1.5.2 (12 October 2008)
+
+* Fixed slow point in item tokenization.  Was caused by libcurl sending a Expect: 100-continue header to the tokenizer.
+
 === 1.5.1 (27 September 2008)
 
 * Fixed deadlock bug when purging old jobs.
