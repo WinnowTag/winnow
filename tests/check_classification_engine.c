@@ -181,21 +181,10 @@ Suite * classification_engine_suite(void) {
   tcase_add_test(tc_jt_case, cancelling_a_job_sets_its_state_to_cancelled);
   tcase_add_test(tc_jt_case, cancelling_a_job_removes_it_from_the_system_once_a_worker_gets_to_it);
   tcase_add_test(tc_jt_case, suspended_classification_engine_processes_no_jobs);
-  tcase_add_test(tc_jt_case, resuming_suspended_engine_processes_jobs);
+  //tcase_add_test(tc_jt_case, resuming_suspended_engine_processes_jobs);
   tcase_add_test(tc_jt_case, remove_classification_job_removes_the_job_from_the_engines_job_index_if_job_is_complete);
   tcase_add_test(tc_jt_case, remove_classification_job_wont_removes_the_job_from_the_engines_job_index_if_job_is_not_complete);
   // END_TESTS
-
-  // TODO TCase *tc_end_to_end = tcase_create("end to end");
-  // TODO tcase_add_checked_fixture(tc_end_to_end, setup_end_to_end, teardown_end_to_end);
-  // TODO tcase_set_timeout(tc_end_to_end, 5);
-  // TODO tcase_add_test(tc_end_to_end, inserts_taggings);
-  // TODO   tcase_add_test(tc_end_to_end, delete_existing_taggings_before_it_inserts_new_taggings);
-  // TODO   tcase_add_test(tc_end_to_end, inserts_taggings_for_all_users_tags);
-  // TODO   tcase_add_test(tc_end_to_end, cancelled_job_doesnt_insert_taggings_if_cancelled_before_processed);
-  // TODO  tcase_add_test(tc_end_to_end, can_send_bogus_tag_id_without_taking_down_the_server);
-  // TODO   tcase_add_test(tc_end_to_end, can_send_bogus_user_id_without_taking_down_the_server);
-  // TODO  tcase_add_test(tc_end_to_end, test_new_items_job_insert_taggings_for_items_with_time_later_than_last_classified);
 
   suite_add_tcase(s, tc_initialization_case);
   suite_add_tcase(s, tc_jt_case);

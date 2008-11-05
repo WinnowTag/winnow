@@ -9,6 +9,7 @@
 #include <check.h>
 #include "fixtures.h"
 #include <stdio.h>
+#include <string.h>
 #include "assertions.h"
 #include "read_document.h"
 #include "../src/item_cache.h"
@@ -280,9 +281,17 @@ START_TEST (adding_an_entry_saves_its_xml) {
   ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 0);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
-  char *saved_doc = read_document("/tmp/valid-copy/items/890807.atom");
-  assert_not_null(saved_doc);
-  assert_equal_s(entry_document, saved_doc);
+
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("/tmp/valid-copy/atom.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_exec(db, "ATTACH DATABASE '/tmp/valid-copy/catalog.db' as cat", NULL, NULL, NULL);
+  sqlite3_prepare_v2(db, "select * from entry_atom where id = (select id from cat.entries where full_id = 'urn:peerworks.org:entry#1')", -1, &stmt, NULL);
+  if (SQLITE_ROW != sqlite3_step(stmt)) {
+    fail("Could not get atom record");
+  }
+
+  sqlite3_close(db);
 } END_TEST
 
 START_TEST (test_can_add_entry_without_a_feed_id) {
@@ -346,12 +355,31 @@ START_TEST (test_destroying_an_entry_removes_it_from_the_database_file) {
 
 START_TEST (test_destroying_an_entry_removes_its_xml_document) {
   int rc = item_cache_remove_entry(item_cache, 753459);
-  assert_null(fopen("/tmp/valid-copy/items/753459.atom", "r"));
+
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("/tmp/valid-copy/atom.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from entry_atom where id = ?", -1, &stmt, NULL);
+  sqlite3_bind_int(stmt, 1, 753459);
+  if (SQLITE_ROW == sqlite3_step(stmt)) {
+	  fail("XML not deleted");
+  }
+
+  sqlite3_close(db);
 } END_TEST
 
 START_TEST (test_destroying_an_entry_removes_tokens) {
   int rc = item_cache_remove_entry(item_cache, 753459);
-  assert_null(fopen("/tmp/valid-copy/tokens/753459.tokens", "r"));
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("/tmp/valid-copy/tokens.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from entry_tokens where id = ?", -1, &stmt, NULL);
+  sqlite3_bind_int(stmt, 1, 753459);
+  if (SQLITE_ROW == sqlite3_step(stmt)) {
+  	  fail("Tokens not deleted");
+  }
+
+  sqlite3_close(db);
 } END_TEST
 
 START_TEST (test_cant_delete_an_item_that_is_used_in_the_random_background) {
@@ -370,10 +398,17 @@ START_TEST (test_cant_delete_an_item_that_is_used_in_the_random_background) {
 START_TEST (test_failed_deletion_doesnt_delete_tokens) {
   int rc = item_cache_remove_entry(item_cache, 890806);
   assert_equal(ITEM_CACHE_ENTRY_PROTECTED, rc);
-  
-  FILE * file = fopen("/tmp/valid-copy/tokens/753459.tokens", "r");
-  assert_not_null(file);
-  fclose(file);
+
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("/tmp/valid-copy/tokens.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select * from entry_tokens where id = ?", -1, &stmt, NULL);
+  sqlite3_bind_int(stmt, 1, 890806);
+  if (SQLITE_ROW != sqlite3_step(stmt)) {
+	  fail("Tokens not deleted");
+  }
+
+  sqlite3_close(db);
 } END_TEST
 
 /* Feed addition */
@@ -555,7 +590,7 @@ START_TEST (test_add_item_puts_it_in_the_right_position_at_end) {
 
 static int get_entry_id(char *db_file, char *full_id) {
   int id = -1;
-  
+
   sqlite3 *db;
   sqlite3_stmt *stmt;
   sqlite3_open_v2(db_file, &db, SQLITE_OPEN_READONLY, NULL);
@@ -566,7 +601,7 @@ static int get_entry_id(char *db_file, char *full_id) {
   id = sqlite3_column_int(stmt, 0);
   sqlite3_finalize(stmt);
   sqlite3_close(db);
-  
+
   return id;
 }
 
@@ -581,15 +616,19 @@ START_TEST (test_save_item_stores_it_in_the_database) {
   assert_equal(CLASSIFIER_OK, rc);
 
   int id = get_entry_id("/tmp/valid-copy/catalog.db", "urn:peerworks.org:entry#1");
-  
-  char path[1024];
-  snprintf(path, 1024, "/tmp/valid-copy/tokens/%i.tokens", id);
-  FILE *file = fopen(path, "r");
-  fail_unless(file != NULL, "%s doesn't exist", path);
-  fseek(file, 0, SEEK_END);
-  int size = ftell(file);  
-  fclose(file);
-  assert_equal(4 * 6 /* num tokens * TOKEN_BYTES */, size);
+
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("/tmp/valid-copy/tokens.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select tokens from entry_tokens where id = ?", -1, &stmt, NULL);
+  sqlite3_bind_int(stmt, 1, id);
+  rc = sqlite3_step(stmt);
+  assert_equal(SQLITE_ROW, rc);
+  char* tokens = (char*) sqlite3_column_blob(stmt, 0);
+  assert_not_null(tokens);
+  assert_equal(4 * 6 /* num tokens * TOKEN_BYTES */, strlen(tokens));
+  sqlite3_finalize(stmt);
+  sqlite3_close(db);
 } END_TEST
 
 START_TEST (test_save_item_stores_the_correct_tokens) {
@@ -725,11 +764,15 @@ START_TEST (test_adding_entry_causes_tokens_to_be_added_to_the_db) {
   sleep(1);
 
   int entry_id = get_entry_id("/tmp/valid-copy/catalog.db", "urn:peerworks.org:entry#1");
-  char path[MAXPATHLEN];
-  sprintf(path, "/tmp/valid-copy/tokens/%i.tokens", entry_id);
-  FILE *file = fopen(path, "r");
-  assert_not_null(file);
-  fclose(file);
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+  sqlite3_open_v2("/tmp/valid-copy/tokens.db", &db, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_prepare_v2(db, "select tokens from entry_tokens where id = ?", -1, &stmt, NULL);
+  sqlite3_bind_int(stmt, 1, entry_id);
+  int rc = sqlite3_step(stmt);
+  assert_equal(SQLITE_ROW, rc);
+  sqlite3_finalize(stmt);
+  sqlite3_close(db);
 } END_TEST
 
 START_TEST (test_adding_multiple_entries_causes_item_added_to_cache) {
@@ -754,11 +797,11 @@ START_TEST (test_update_callback) {
 
   item_cache_add_entry(item_cache, entry1);
   sleep(1);
-  
+
   if (!memo_ref) {
     sleep(1);
   }
-  
+
   assert_equal(&memo, memo_ref);
 } END_TEST
 

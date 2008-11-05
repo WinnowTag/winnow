@@ -21,7 +21,7 @@ describe "Classify" do
       File.exist?("/tmp/taggings.atom").should be_true
     end
 
-    it "should have taggings for each entry" do
+    xit "should have taggings for each entry" do
       classify(FixBase + "/valid", 'file:' + FixBase + "/file_tag.atom")
       Atom::Feed.load_feed(File.open("/tmp/taggings.atom")).should have(10).entries    
     end

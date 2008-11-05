@@ -18,6 +18,8 @@ describe "The Classifier's Item Cache" do
     system("rm /tmp/perf.log")   
     start_classifier
     @sqlite = SQLite3::Database.open("#{Database}/catalog.db")
+    @sqlite.execute("ATTACH DATABASE '#{Database}/atom.db' as atom")
+    @sqlite.execute("ATTACH DATABASE '#{Database}/tokens.db' as tokens")
   end
   
   after(:each) do
@@ -81,10 +83,10 @@ describe "The Classifier's Item Cache" do
       @sqlite.get_first_value("select count(*) from entries where full_id = 'urn:peerworks.org:entries#1111'").should == "1"
     end
     
-    it "should store the XML in the file system" do
+    it "should store the XML in the database" do
       create_entry
       id = @sqlite.get_first_value("select id from entries where full_id = 'urn:peerworks.org:entries#1111'")
-      File.exists?(File.join(Database, "items", "#{id}.atom")).should be_true
+      @sqlite.get_first_value("select atom from atom.entry_atom where id = #{id}").should_not be_nil
     end
     
     it "should update an existing item in the database" do
@@ -118,7 +120,7 @@ describe "The Classifier's Item Cache" do
       create_entry
       sleep(1)
       id = @sqlite.get_first_value("select id from entries where full_id = 'urn:peerworks.org:entries#1111'")
-      File.exists?(File.join(Database, "tokens", "#{id}.tokens")).should be_true
+      @sqlite.get_first_value("select tokens from tokens.entry_tokens where id = #{id}").should_not be_nil
     end
     
     it "should insert tokens on the correct item when an item is added twice" do
@@ -126,7 +128,7 @@ describe "The Classifier's Item Cache" do
       create_entry
       sleep(1)
       id = @sqlite.get_first_value("select id from entries where full_id = 'urn:peerworks.org:entries#1111'")
-      File.exists?(File.join(Database, "tokens", "#{id}.tokens")).should be_true
+      @sqlite.get_first_value("select tokens from tokens.entry_tokens where id = #{id}").should_not be_nil
     end
     
     it "should tokenize an existing item if it doesn't have tokens" do
@@ -134,7 +136,7 @@ describe "The Classifier's Item Cache" do
       create_entry
       sleep(1)
       id = @sqlite.get_first_value("select id from entries where full_id = 'urn:peerworks.org:entries#1111'")
-      File.exists?(File.join(Database, "tokens", "#{id}.tokens")).should be_true
+      @sqlite.get_first_value("select tokens from tokens.entry_tokens where id = #{id}").should_not be_nil
     end
   end
   
@@ -149,15 +151,15 @@ describe "The Classifier's Item Cache" do
     end
     
     it "should remove the XML from the cache" do
-      File.exists?(File.join(Database, "items", "888769.atom")).should be_true
+      @sqlite.get_first_value("select atom from atom.entry_atom where id = 888769").should_not be_nil
       destroy_entry(888769)
-      File.exists?(File.join(Database, "items", "888769.atom")).should be_false
+      @sqlite.get_first_value("select atom from atom.entry_atom where id = 888769").should be_nil
     end
     
     it "should remove the tokens from the database" do
-      File.exists?(File.join(Database, "tokens", "888769.tokens")).should be_true
+      @sqlite.get_first_value("select tokens from tokens.entry_tokens where id = 888769").should_not be_nil
       destroy_entry(888769)
-      File.exists?(File.join(Database, "tokens", "888769.tokens")).should be_false
+      @sqlite.get_first_value("select tokens from tokens.entry_tokens where id = 888769").should be_nil
     end
   end  
 end

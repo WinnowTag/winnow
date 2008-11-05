@@ -32,7 +32,7 @@
 #include "uri.h"
 #include "array.h"
 
-#define CURRENT_USER_VERSION 3
+#define CURRENT_USER_VERSION 4
 #define FETCH_ITEM_SQL "select full_id, id, strftime('%s', updated) from entries where full_id = ?"
 #define FETCH_ALL_ITEMS_SQL "select full_id, id, strftime('%s', updated) from entries where updated > (julianday('now') - ?) order by updated desc"
 #define FETCH_RANDOM_BACKGROUND "select full_id, id from entries where id in (select entry_id from random_backgrounds)"
@@ -46,9 +46,11 @@
 #define INSERT_ATOM_SQL "insert into tokens (token) values (?)"
 #define FIND_TOKEN_SQL "select token from tokens where id = ?"
 #define CORRUPT_TOKEN_FILE "Token file %s did not have a multiple of %i bytes, it has %i bytes and is possibly corrupt."
+#define DELETE_ATOM_XML_SQL "delete from atom.entry_atom where id = ?"
+#define DELETE_ENTRY_TOKENS "delete from token.entry_tokens where id = ?"
 #define TOKEN_BYTES 6
 #define PROCESSING_LIMIT 200
-                                  
+
 typedef struct ORDERED_ITEM_LIST OrderedItemList;
 struct ORDERED_ITEM_LIST {
   Item *item;
@@ -111,11 +113,13 @@ struct ITEM_CACHE {
   sqlite3_stmt *insert_entry_stmt;
   sqlite3_stmt *update_entry_stmt;
   sqlite3_stmt *delete_entry_stmt;
+  sqlite3_stmt *delete_atom_xml_stmt;
   sqlite3_stmt *insert_feed_stmt;
   sqlite3_stmt *delete_feed_stmt;
   sqlite3_stmt *find_token_stmt;
   sqlite3_stmt *find_atom_stmt;
   sqlite3_stmt *insert_atom_stmt;
+  sqlite3_stmt *delete_tokens_stmt;
 
   /* Mutex for database access.
    *
@@ -137,7 +141,7 @@ struct ITEM_CACHE {
 
   /* The Judy Array that stores each item keyed by their id. */
   Pvoid_t items_by_id;
-  
+
   /* Number of items in the array */
   int cached_size;
 
@@ -173,14 +177,14 @@ struct ITEM_CACHE {
   /* Thread which handles the cache updating */
   pthread_t *cache_updating_thread;
 
-  /* R/W lock for accessing the in-memory item cache. 
+  /* R/W lock for accessing the in-memory item cache.
    *
    * To prevent deadlocks, this should only be locked in the public API functions,
    * all static functions that require the lock to be held should expect the lock
    * to be acquired in the caller.
    */
   pthread_rwlock_t cache_lock;
-  
+
   /* Callback for updates to the item cache */
   UpdateCallback update_callback;
 
@@ -192,7 +196,7 @@ struct ITEM_CACHE {
 
   /* Cache purging interval in seconds */
   int purge_interval;
-  
+
   int shutting_down;
 };
 
@@ -256,25 +260,25 @@ static ItemCacheEntry * copy_entry(const ItemCacheEntry * entry) {
 
 ItemCacheEntry * create_entry_from_atom_xml(const char * xml, int feed_id) {
   ItemCacheEntry *entry = NULL;
-  
+
   xmlDocPtr doc;
-  
+
   if (NULL == (doc = xmlReadMemory(xml, strlen(xml), "", NULL, XML_PARSE_COMPACT))) {
     error("BAD DATA: %s", xml);
   } else {
     entry = calloc(1, sizeof(struct ITEM_CACHE_ENTRY));
     xmlXPathContextPtr ctx = xmlXPathNewContext(doc);
     xmlXPathRegisterNs(ctx, BAD_CAST "atom", BAD_CAST "http://www.w3.org/2005/Atom");
-        
+
     entry->full_id = get_element_value(ctx, "/atom:entry/atom:id/text()");
     entry->updated = get_element_value_time(ctx, "/atom:entry/atom:updated/text()");
     entry->feed_id = feed_id;
     entry->atom = strdup(xml);
-    
+
     xmlXPathFreeContext(ctx);
     xmlFreeDoc(doc);
   }
-  
+
   return entry;
 }
 
@@ -398,7 +402,9 @@ static int create_prepared_statements(ItemCache *item_cache) {
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_FEED_SQL,            -1, &item_cache->delete_feed_stmt,           NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FIND_TOKEN_SQL,             -1, &item_cache->find_token_stmt,            NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FIND_ATOM_SQL,              -1, &item_cache->find_atom_stmt,             NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ATOM_SQL,            -1, &item_cache->insert_atom_stmt,           NULL)) {
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ATOM_SQL,            -1, &item_cache->insert_atom_stmt,           NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_ATOM_XML_SQL,        -1, &item_cache->delete_atom_xml_stmt,       NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_ENTRY_TOKENS,        -1, &item_cache->delete_tokens_stmt,         NULL)) {
     fatal("Unable to prepare statment: \"%s\"", item_cache_errmsg(item_cache));
     rc = CLASSIFIER_FAIL;
   }
@@ -412,8 +418,25 @@ static int check_user_version(ItemCache * item_cache) {
     if (item_cache->user_version != CURRENT_USER_VERSION) {
       item_cache->version_mismatch = 1;
       rc = CLASSIFIER_FAIL;
+      fprintf(stderr, "version %i expected got %i\n", CURRENT_USER_VERSION, item_cache->user_version);
     }
   } else {
+    rc = CLASSIFIER_FAIL;
+  }
+
+  return rc;
+}
+
+static int attach_database(sqlite3 *db, const char * path, const char * alias) {
+  int rc = CLASSIFIER_OK;
+  char sql[MAXPATHLEN];
+
+  if (MAXPATHLEN < snprintf(sql, MAXPATHLEN, "ATTACH DATABASE '%s' as %s", path, alias)) {
+    fatal("Path name too long: %s", path);
+    exit(1);
+  }
+
+  if (SQLITE_OK != sqlite3_exec(db, sql, NULL, NULL, NULL)) {
     rc = CLASSIFIER_FAIL;
   }
 
@@ -423,8 +446,21 @@ static int check_user_version(ItemCache * item_cache) {
 static int item_cache_open_database(ItemCache *item_cache) {
   int rc = CLASSIFIER_OK;
   char path[MAXPATHLEN];
+  char atom_path[MAXPATHLEN];
+  char token_path[MAXPATHLEN];
+
   if (MAXPATHLEN < snprintf(path, MAXPATHLEN, "%s/catalog.db", item_cache->cache_directory)) {
     fatal("Path to catalog.db too long: %s", item_cache->cache_directory);
+    exit(1);
+  }
+
+  if (MAXPATHLEN < snprintf(atom_path, MAXPATHLEN, "%s/atom.db", item_cache->cache_directory)) {
+    fatal("Path to atom.db too long: %s", item_cache->cache_directory);
+    exit(1);
+  }
+
+  if (MAXPATHLEN < snprintf(token_path, MAXPATHLEN, "%s/tokens.db", item_cache->cache_directory)) {
+    fatal("Path to tokens.db too long: %s", item_cache->cache_directory);
     exit(1);
   }
 
@@ -432,9 +468,12 @@ static int item_cache_open_database(ItemCache *item_cache) {
   if (SQLITE_OK != sqlite3_open_v2(path, &item_cache->db, SQLITE_OPEN_READWRITE, NULL)) {
       rc = CLASSIFIER_FAIL;
   } else {
-    if (CLASSIFIER_OK == (rc = check_user_version(item_cache))) {
-      sqlite3_busy_timeout(item_cache->db, 1000);
+    if (CLASSIFIER_OK == (rc = check_user_version(item_cache)) &&
+        CLASSIFIER_OK == (rc = attach_database(item_cache->db, atom_path, "atom")) &&
+        CLASSIFIER_OK == (rc = attach_database(item_cache->db, token_path, "token"))) {
+
       rc = create_prepared_statements(item_cache);
+      sqlite3_busy_timeout(item_cache->db, 1000);
     }
   }
 
@@ -461,25 +500,25 @@ static int build_item_path(const char *cache_directory, int key, char * buffer, 
 
 static int get_file_size(FILE *file, const char * path) {
   int file_size = -1;
-  
+
   if (fseek(file, 0, SEEK_END) || (file_size = ftell(file)) < 0) {
     file_size = -1;
   } else if (fseek(file, 0, SEEK_SET)) {
     file_size = -1;
   }
-  
+
   return file_size;
 }
 
 static int read_tokens(const char * path, Item * item) {
   int tokens_read = 0;
   FILE *token_file = fopen(path, "rb");
-      
-  if (!token_file) {    
+
+  if (!token_file) {
     error("Could not open token file at %s: %s", path, strerror(errno));
     return 0;
   }
-  
+
   int file_size = get_file_size(token_file, path);
 
   if (file_size < 0) {
@@ -488,19 +527,19 @@ static int read_tokens(const char * path, Item * item) {
     error(CORRUPT_TOKEN_FILE, path, TOKEN_BYTES, file_size);
   } else {
     int i, num_tokens = file_size / TOKEN_BYTES;
-    
+
     for (i = 0; i < num_tokens; i++) {
       int token;
       short frequency;
       int token_read = fread(&token    , 4, 1, token_file);
       int frequ_read = fread(&frequency, 2, 1, token_file);
-      
+
       if (!token_read || !frequ_read) {
         error("Unable to read token from %s, not enough data.", path);
         tokens_read = -1;
         break;
       } else {
-        /* Tokens are stored in network byte order so switch them to host byte order */        
+        /* Tokens are stored in network byte order so switch them to host byte order */
         item_add_token(item, ntohl(token), ntohs(frequency));
         tokens_read++;
       }
@@ -508,40 +547,40 @@ static int read_tokens(const char * path, Item * item) {
   }
 
   fclose(token_file);
-  
+
   return tokens_read;
 }
 
 static int write_tokens(Item * item, const char * path) {
-  int rc = CLASSIFIER_OK;  
+  int rc = CLASSIFIER_OK;
   FILE *file;
-  
+
   if (!(file = fopen(path, "w+"))) {
     error("Could not open token file at %s: %s", path, strerror(errno));
     rc = CLASSIFIER_FAIL;
   } else {
     int token = 0;
     short frequency = 0;
-    
+
     while (item_next_token(item, &token, &frequency)) {
       /* Always write the tokens out in network byte order. */
       int out_token = htonl(token);
       short out_frequency = htons(frequency);
-      
+
       if (!fwrite(&out_token, 4, 1, file) || !fwrite(&out_frequency, 2, 1, file)) {
         error("Error writing tokens to file: %s: %s", path, strerror(errno));
         rc = CLASSIFIER_FAIL;
         break;
       }
     }
-    
+
     fclose(file);
-    
+
     if (CLASSIFIER_FAIL == rc) {
       unlink(path);
     }
   }
-  
+
   return rc;
 }
 
@@ -588,7 +627,7 @@ static Item * fetch_item_from_catalog(ItemCache * item_cache, const char * id) {
 
 	sqlite3_clear_bindings(item_cache->fetch_item_stmt);
 	sqlite3_reset(item_cache->fetch_item_stmt);
-  
+
 	trace("thread(%p) has unlocked db_access_mutex after fetching %s", pthread_self(), id);
 
 	return item;
@@ -596,27 +635,27 @@ static Item * fetch_item_from_catalog(ItemCache * item_cache, const char * id) {
 
 static int get_entry_key(ItemCache * item_cache, const unsigned char * entry_id) {
   int entry_key = -1;
-  
+
   if (item_cache && entry_id) {
     if (SQLITE_OK != sqlite3_bind_text(item_cache->fetch_item_stmt, 1, entry_id, -1, NULL)) {
-      error("Unable to bind %s to fetch_item_stmt: %s", entry_id, item_cache_errmsg(item_cache));      
+      error("Unable to bind %s to fetch_item_stmt: %s", entry_id, item_cache_errmsg(item_cache));
     } else if (SQLITE_ROW != sqlite3_step(item_cache->fetch_item_stmt)) {
       error("Entry does not exist: %s", entry_id);
     } else {
       entry_key = sqlite3_column_int(item_cache->fetch_item_stmt, 1);
     }
-    
+
     sqlite3_clear_bindings(item_cache->fetch_item_stmt);
     sqlite3_reset(item_cache->fetch_item_stmt);
   }
-  
+
   return entry_key;
 }
 
 /* This will also update the entry's id. But side-effecty I guess */
 static int _is_new_entry(ItemCache * item_cache, ItemCacheEntry * entry) {
   int is_new_entry = true;
-  
+
   sqlite3_bind_text(item_cache->fetch_item_stmt, 1, entry->full_id, -1, NULL);
   if (SQLITE_ROW == sqlite3_step(item_cache->fetch_item_stmt)) {
     is_new_entry = false;
@@ -630,14 +669,14 @@ static int _is_new_entry(ItemCache * item_cache, ItemCacheEntry * entry) {
 
 static int save_entry_xml(ItemCache *item_cache, ItemCacheEntry *entry) {
   int rc = CLASSIFIER_OK;
-  
+
   if (!(entry->atom && entry->id > 0)) {
     error("No xml or id for entry %s (%i)", entry->full_id, entry->id);
     rc = CLASSIFIER_FAIL;
   } else {
     char path[MAXPATHLEN];
     FILE *file;
-    
+
     if (build_item_path(item_cache->cache_directory, entry->id, path, MAXPATHLEN)) {
       rc = CLASSIFIER_FAIL;
     } else if (!(file = fopen(path, "w+"))) {
@@ -645,20 +684,20 @@ static int save_entry_xml(ItemCache *item_cache, ItemCacheEntry *entry) {
       rc = CLASSIFIER_FAIL;
     } else {
       int size = strlen(entry->atom);
-      
+
       if (size > fwrite(entry->atom, sizeof(char), size, file)) {
         error("Error writing to file %s: %s", path, strerror(errno));
       }
       fclose(file);
-    }  
-  } 
-  
+    }
+  }
+
   return rc;
 }
 
 static int insert_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
   int rc = CLASSIFIER_OK;
-  
+
   if (SQLITE_OK != sqlite3_bind_text(item_cache->insert_entry_stmt, 1, entry->full_id, -1, NULL)) {
     error("Error binding %s to parameter %i", entry->full_id, 1);
     rc = CLASSIFIER_FAIL;
@@ -704,8 +743,8 @@ static int entry_has_tokens(ItemCache *item_cache, ItemCacheEntry *entry) {
   if (file) {
     has_tokens = true;
     fclose(file);
-  } 
-  
+  }
+
   return has_tokens;
 }
 
@@ -725,7 +764,7 @@ static void * item_cache_purge_thread_func(void *memo) {
     sleep(item_cache->purge_interval);
     item_cache_purge_old_items(item_cache);
   }
-  
+
   return NULL;
 }
 
@@ -823,7 +862,7 @@ static void * cache_updating_func(void *memo) {
  */
 static int items_by_id_insert(ItemCache * item_cache, Item * item) {
   int rc = CLASSIFIER_OK;
-    
+
   PWord_t item_pointer;
   JSLI(item_pointer, item_cache->items_by_id, item->id);
   if (NULL != item_pointer) {
@@ -833,7 +872,7 @@ static int items_by_id_insert(ItemCache * item_cache, Item * item) {
     fatal("Error malloc'ing item by id");
     rc = CLASSIFIER_FAIL;
   }
-    
+
   return rc;
 }
 
@@ -850,13 +889,13 @@ static Item * items_by_id_get(ItemCache * item_cache, const unsigned char * id) 
 }
 
 static int items_by_id_remove(ItemCache * item_cache, Item * item) {
-  int judyrc;  
-  
-  JSLD(judyrc, item_cache->items_by_id, item->id);  
+  int judyrc;
+
+  JSLD(judyrc, item_cache->items_by_id, item->id);
   if (judyrc) {
     item_cache->cached_size--;
   }
-  
+
   return judyrc == 1 ? CLASSIFIER_OK : CLASSIFIER_FAIL;
 }
 
@@ -864,24 +903,24 @@ static int items_by_id_remove(ItemCache * item_cache, Item * item) {
 static OrderedItemList * ordered_item_list_insert_after(OrderedItemList * insert_after, Item * item) {
   OrderedItemList * new = malloc(sizeof(OrderedItemList));
   if (!new) {
-    fatal("Could not malloc OrderedItemList");    
+    fatal("Could not malloc OrderedItemList");
   } else {
     new->item = item;
     new->next = NULL;
-    
+
     if (insert_after) {
       new->next = insert_after->next;
       insert_after->next = new;
     }
   }
-  
+
   return new;
 }
 
-/* Inserts item in list and returns the head of the list. 
+/* Inserts item in list and returns the head of the list.
  *
  * Order is descending item time.
- */ 
+ */
 static OrderedItemList * ordered_item_list_insert_in_order(OrderedItemList * list, Item * item) {
   OrderedItemList *head = list;
   OrderedItemList *new_node = calloc(1, sizeof(struct ORDERED_ITEM_LIST));
@@ -889,7 +928,7 @@ static OrderedItemList * ordered_item_list_insert_in_order(OrderedItemList * lis
   if (new_node) {
     new_node->item = item;
     new_node->next = NULL;
-    
+
     if (head == NULL) {
       head = new_node;
     } else if (head->item->time < new_node->item->time) {
@@ -897,7 +936,7 @@ static OrderedItemList * ordered_item_list_insert_in_order(OrderedItemList * lis
       head = new_node;
     } else {
       OrderedItemList *current = head;
-      
+
       while (current->next != NULL) {
         if (current->next->item->time < item->time) {
           new_node->next = current->next;
@@ -913,7 +952,7 @@ static OrderedItemList * ordered_item_list_insert_in_order(OrderedItemList * lis
       }
     }
   }
-  
+
   return head;
 }
 
@@ -928,12 +967,12 @@ static OrderedItemList * ordered_item_list_split(OrderedItemList * list, time_t 
       if (previous) {
         previous->next = NULL;
       }
-      
+
       leftovers = current;
       break;
     }
   }
-  
+
   return leftovers;
 }
 
@@ -963,7 +1002,7 @@ static int load_all_items(ItemCache * item_cache) {
       free_item(item);
       continue;
     }
-    
+
     if (items_by_id_insert(item_cache, item)) {
       rc = CLASSIFIER_FAIL;
       free_item(item);
@@ -974,7 +1013,7 @@ static int load_all_items(ItemCache * item_cache) {
       free_item(item);
       break;
     }
-    
+
     if (!item_cache->items_in_order) {
       item_cache->items_in_order = last;
     }
@@ -982,33 +1021,33 @@ static int load_all_items(ItemCache * item_cache) {
 
   sqlite3_clear_bindings(item_cache->fetch_all_items_stmt);
   sqlite3_reset(item_cache->fetch_all_items_stmt);
-  
+
   return rc;
 }
 
 static int load_random_background(ItemCache * item_cache) {
   int rndbg_item_count = 0;
   item_cache->random_background = new_pool();
-  
+
   while (SQLITE_ROW == sqlite3_step(item_cache->random_background_stmt)) {
     const unsigned char * id = sqlite3_column_text(item_cache->random_background_stmt, 0);
     int key = sqlite3_column_int(item_cache->random_background_stmt, 1);
     Item *item = create_item(id, key, -1);
-    
+
     if (item) {
       if (fetch_tokens_for(item_cache, item)) {
         pool_add_item(item_cache->random_background, item);
       }
-      
+
       free_item(item);
       rndbg_item_count++;
     } else {
       error("Could not create item: %s (%i)", id, key);
-    }    
+    }
   }
   sqlite3_reset(item_cache->random_background_stmt);
   info("Randombackground contains %i items", rndbg_item_count);
-  
+
   return CLASSIFIER_OK;
 }
 
@@ -1097,15 +1136,15 @@ int item_cache_create(ItemCache **item_cache, const char * cache_directory, cons
   (*item_cache)->loaded = false;
   (*item_cache)->feature_extraction_queue = new_queue();
   (*item_cache)->update_queue = new_queue();
-  (*item_cache)->shutting_down = 0;  
-  
+  (*item_cache)->shutting_down = 0;
+
   if (pthread_mutex_init(&(*item_cache)->db_access_mutex, NULL)) {
     fatal("pthread_mutex_init error for db_access_mutex");
     free(*item_cache);
     *item_cache = NULL;
     rc = CLASSIFIER_FAIL;
   }
-  
+
   if (pthread_rwlock_init(&(*item_cache)->cache_lock, NULL)) {
     fatal("Could not allocate item cache");
     rc = CLASSIFIER_FAIL;
@@ -1129,22 +1168,22 @@ void free_item_cache(ItemCache *item_cache) {
 
   if (item_cache) {
     item_cache->shutting_down = 1;
-    
+
     if (item_cache->feature_extraction_thread) {
       info("Stopping feature extractor");
       pthread_join(*item_cache->feature_extraction_thread, NULL);
     }
-    
+
     if (item_cache->cache_updating_thread) {
       info("Stopping cache updater");
       pthread_cancel(*item_cache->cache_updating_thread);
     }
-    
+
     if (item_cache->purge_thread) {
       info("Stopping cache purger");
       pthread_cancel(*item_cache->purge_thread);
     }
-    
+
     if (item_cache->db) {
       sqlite3_finalize(item_cache->fetch_item_stmt);
       sqlite3_finalize(item_cache->fetch_all_items_stmt);
@@ -1203,7 +1242,8 @@ const char * item_cache_errmsg(const ItemCache *item_cache) {
 
   if (item_cache && item_cache->db) {
     if (item_cache->version_mismatch) {
-      msg = "Database file's user version does not match classifier version. Trying running classifier-db-migrate.";
+      msg = "Database file's user version does not match classifier version."
+          " Trying running classifier-db-migrate.";
     } else {
       msg = sqlite3_errmsg(item_cache->db);
     }
@@ -1227,17 +1267,17 @@ int item_cache_load(ItemCache *item_cache) {
 
   info("item_cache_load from %i days ago", item_cache->load_items_since);
   time_t start_time = time(NULL);
- 
-  pthread_rwlock_wrlock(&item_cache->cache_lock);  
+
+  pthread_rwlock_wrlock(&item_cache->cache_lock);
   pthread_mutex_lock(&item_cache->db_access_mutex);
-  
-  int rc = load_all_items(item_cache);  
- 
+
+  int rc = load_all_items(item_cache);
+
   if (CLASSIFIER_OK == rc) {
     rc = load_random_background(item_cache);
   }
-    
-  item_cache->loaded = true;  
+
+  item_cache->loaded = true;
   pthread_mutex_unlock(&item_cache->db_access_mutex);
   pthread_rwlock_unlock(&item_cache->cache_lock);
   time_t end_time = time(NULL);
@@ -1303,7 +1343,7 @@ Item * item_cache_fetch_item(ItemCache *item_cache, const unsigned char * id, in
     pthread_mutex_lock(&item_cache->db_access_mutex);
     item = fetch_item_from_catalog(item_cache, (char *) id);
     pthread_mutex_unlock(&item_cache->db_access_mutex);
-    
+
     if (item && fetch_tokens_for(item_cache, item) <= 0) {
     	free_item(item);
     	item = NULL;
@@ -1377,7 +1417,7 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
     } else {
       update_entry(item_cache, entry);
     }
-    
+
     if (save_entry_xml(item_cache, entry)) {
       rc = CLASSIFIER_FAIL;
     }
@@ -1388,7 +1428,7 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
       if (is_new_entry) {
         debug("Adding %s to feature_extraction queue", entry->full_id);
         q_enqueue(item_cache->feature_extraction_queue, copy_entry(entry));
-      } else if (!entry_has_tokens(item_cache, entry)) {        
+      } else if (!entry_has_tokens(item_cache, entry)) {
         debug("Adding %s to feature_extraction queue", entry->full_id);
         q_enqueue(item_cache->feature_extraction_queue, copy_entry(entry));
       }
@@ -1413,6 +1453,8 @@ int item_cache_remove_entry(ItemCache *item_cache, int entry_id) {
     int sqlite3_rc;
     sqlite3_bind_int(item_cache->delete_entry_stmt, 1, entry_id);
     sqlite3_rc = sqlite3_step(item_cache->delete_entry_stmt);
+    sqlite3_clear_bindings(item_cache->delete_entry_stmt);
+    sqlite3_reset(item_cache->delete_entry_stmt);
 
     if (SQLITE_DONE != sqlite3_rc) {
       if (SQLITE_CONSTRAINT == sqlite3_rc) {
@@ -1423,23 +1465,15 @@ int item_cache_remove_entry(ItemCache *item_cache, int entry_id) {
         rc = CLASSIFIER_FAIL;
       }
     } else {
-      char path[MAXPATHLEN];
-      
-      build_item_path(item_cache->cache_directory, entry_id, path, MAXPATHLEN);
-      if (0 > unlink(path)) {
-        error("Error deleting %s: %s", path, strerror(errno));
-      }
-      
-      build_token_path(item_cache->cache_directory, entry_id, path, MAXPATHLEN);
-      if (0 < unlink(path)) {
-        error("Error deleting %s: %s", path, strerror(errno));
-      }
-      
+      sqlite3_bind_int(item_cache->delete_atom_xml_stmt, 1, entry_id);
+      sqlite3_step(item_cache->delete_atom_xml_stmt);
+      sqlite3_reset(item_cache->delete_atom_xml_stmt);
+      sqlite3_bind_int(item_cache->delete_tokens_stmt, 1, entry_id);
+      sqlite3_step(item_cache->delete_tokens_stmt);
+      sqlite3_reset(item_cache->delete_tokens_stmt);
       info("Deleted ItemCache entry %i", entry_id);
     }
 
-    sqlite3_clear_bindings(item_cache->delete_entry_stmt);
-    sqlite3_reset(item_cache->delete_entry_stmt);
     pthread_mutex_unlock(&item_cache->db_access_mutex);
   }
 
@@ -1514,7 +1548,7 @@ int item_cache_add_item(ItemCache *item_cache, Item *item) {
       pthread_rwlock_wrlock(&item_cache->cache_lock);
 
       if (CLASSIFIER_OK == items_by_id_insert(item_cache, item)) {
-        item_cache->items_in_order = ordered_item_list_insert_in_order(item_cache->items_in_order, item);        
+        item_cache->items_in_order = ordered_item_list_insert_in_order(item_cache->items_in_order, item);
       } else {
         fatal("Malloc error inserting into items_by_id");
         rc = CLASSIFIER_FAIL;
@@ -1543,7 +1577,7 @@ int item_cache_save_item(ItemCache * item_cache, Item *item) {
     pthread_mutex_lock(&item_cache->db_access_mutex);
     int entry_key = get_entry_key(item_cache, item->id);
     pthread_mutex_unlock(&item_cache->db_access_mutex);
-    
+
     if (entry_key <= 0) {
       rc = CLASSIFIER_FAIL;
     } else {
@@ -1552,8 +1586,8 @@ int item_cache_save_item(ItemCache * item_cache, Item *item) {
         rc = CLASSIFIER_FAIL;
       } else {
         rc = write_tokens(item, path);
-      }      
-    } 
+      }
+    }
   }
 
   return rc;
@@ -1568,11 +1602,11 @@ int item_cache_purge_old_items(ItemCache *item_cache) {
     pthread_rwlock_wrlock(&item_cache->cache_lock);
 
     OrderedItemList *purge_list = ordered_item_list_split(item_cache->items_in_order, get_purge_time());
-    
+
     if (purge_list == item_cache->items_in_order) {
       item_cache->items_in_order = NULL;
     }
-    
+
     while (purge_list) {
       OrderedItemList *next = purge_list->next;
       items_by_id_remove(item_cache, purge_list->item);
@@ -1581,7 +1615,7 @@ int item_cache_purge_old_items(ItemCache *item_cache) {
       purge_list = next;
       number_purged++;
     }
-      
+
     pthread_rwlock_unlock(&item_cache->cache_lock);
     info("Purged %i items", number_purged);
   }
@@ -1792,13 +1826,13 @@ static int load_tokens_from_array(Item *item, int tokens[][2], int num_tokens) {
   for (i = 0; i < num_tokens; i++) {
     int token_id = tokens[i][0];
     int token_frequency = tokens[i][1];
-    
+
     if (item_add_token(item, token_id, token_frequency)) {
       return_code = 1;
       break;
-    }      
+    }
   }
-  
+
   return return_code;
 }
 
@@ -1971,7 +2005,7 @@ int item_next_token(const Item * item, int * token_id, short * token_frequency) 
   int success = true;
   PWord_t frequency = NULL;
   Word_t index = (Word_t) *token_id;
-  
+
   if (NULL != item) {
     if (0 == token_id) {
       JLF(frequency, item->tokens, index);
