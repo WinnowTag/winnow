@@ -48,6 +48,8 @@
 #define CORRUPT_TOKEN_FILE "Token file %s did not have a multiple of %i bytes, it has %i bytes and is possibly corrupt."
 #define INSERT_ATOM_XML_SQL "insert into atom.entry_atom values (?, ?)"
 #define DELETE_ATOM_XML_SQL "delete from atom.entry_atom where id = ?"
+#define FETCH_ENTRY_TOKENS  "select tokens from token.entry_tokens where id = ?"
+#define INSERT_ENTRY_TOKENS "insert into token.entry_tokens values (?, ?)"
 #define DELETE_ENTRY_TOKENS "delete from token.entry_tokens where id = ?"
 #define TOKEN_BYTES 6
 #define PROCESSING_LIMIT 200
@@ -121,6 +123,8 @@ struct ITEM_CACHE {
   sqlite3_stmt *find_token_stmt;
   sqlite3_stmt *find_atom_stmt;
   sqlite3_stmt *insert_atom_stmt;
+  sqlite3_stmt *insert_tokens_stmt;
+  sqlite3_stmt *fetch_tokens_stmt;
   sqlite3_stmt *delete_tokens_stmt;
 
   /* Mutex for database access.
@@ -407,6 +411,8 @@ static int create_prepared_statements(ItemCache *item_cache) {
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ATOM_SQL,            -1, &item_cache->insert_atom_stmt,           NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ATOM_XML_SQL,        -1, &item_cache->insert_atom_xml_stmt,       NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_ATOM_XML_SQL,        -1, &item_cache->delete_atom_xml_stmt,       NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ENTRY_TOKENS,        -1, &item_cache->insert_tokens_stmt,         NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_ENTRY_TOKENS,        -1, &item_cache->fetch_tokens_stmt,         NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_ENTRY_TOKENS,        -1, &item_cache->delete_tokens_stmt,         NULL)) {
     fatal("Unable to prepare statment: \"%s\"", item_cache_errmsg(item_cache));
     rc = CLASSIFIER_FAIL;
@@ -512,76 +518,56 @@ static int get_file_size(FILE *file, const char * path) {
   return file_size;
 }
 
-static int read_tokens(const char * path, Item * item) {
-  int tokens_read = 0;
-  FILE *token_file = fopen(path, "rb");
-
-  if (!token_file) {
-    error("Could not open token file at %s: %s", path, strerror(errno));
-    return 0;
-  }
-
-  int file_size = get_file_size(token_file, path);
-
-  if (file_size < 0) {
-    error("Could not get file size for %s: %s", path, strerror(errno));
-  } else if (0 != (file_size % TOKEN_BYTES)) {
-    error(CORRUPT_TOKEN_FILE, path, TOKEN_BYTES, file_size);
-  } else {
-    int i, num_tokens = file_size / TOKEN_BYTES;
-
-    for (i = 0; i < num_tokens; i++) {
-      int token;
-      short frequency;
-      int token_read = fread(&token    , 4, 1, token_file);
-      int frequ_read = fread(&frequency, 2, 1, token_file);
-
-      if (!token_read || !frequ_read) {
-        error("Unable to read token from %s, not enough data.", path);
-        tokens_read = -1;
-        break;
-      } else {
-        /* Tokens are stored in network byte order so switch them to host byte order */
-        item_add_token(item, ntohl(token), ntohs(frequency));
-        tokens_read++;
-      }
-    }
-  }
-
-  fclose(token_file);
-
-  return tokens_read;
-}
-
-static int write_tokens(Item * item, const char * path) {
+static int serialize_tokens(Item * item, int *size, char ** token_data) {
   int rc = CLASSIFIER_OK;
-  FILE *file;
+  int num_tokens = item_get_num_tokens(item);
+  *size = num_tokens * 6;
 
-  if (!(file = fopen(path, "w+"))) {
-    error("Could not open token file at %s: %s", path, strerror(errno));
+  if (NULL == (*token_data = calloc(num_tokens, 6))) {
+    fatal("Could not allocate data for token array");
     rc = CLASSIFIER_FAIL;
   } else {
     int token = 0;
     short frequency = 0;
+    char * position = token_data[0];
 
     while (item_next_token(item, &token, &frequency)) {
       /* Always write the tokens out in network byte order. */
       int out_token = htonl(token);
       short out_frequency = htons(frequency);
 
-      if (!fwrite(&out_token, 4, 1, file) || !fwrite(&out_frequency, 2, 1, file)) {
-        error("Error writing tokens to file: %s: %s", path, strerror(errno));
+      // Make sure we haven't overflowed
+      if (((int)(position - token_data[0])) > size) {
+        error("Error allocating enough memory for tokens.");
+        free(*token_data);
         rc = CLASSIFIER_FAIL;
         break;
       }
-    }
 
-    fclose(file);
-
-    if (CLASSIFIER_FAIL == rc) {
-      unlink(path);
+      memcpy(position, &out_token, 4);     position += 4;
+      memcpy(position, &out_frequency, 2); position += 2;
     }
   }
+
+  return rc;
+}
+
+static int save_tokens(ItemCache *item_cache, int entry_id, const char * token_data, int size) {
+  int rc = CLASSIFIER_OK;
+
+  if (SQLITE_OK != sqlite3_bind_int(item_cache->insert_tokens_stmt, 1, entry_id)) {
+    error("Error binding entry id to %s", INSERT_ENTRY_TOKENS);
+    rc = CLASSIFIER_FAIL;
+  } else if (SQLITE_OK != sqlite3_bind_blob(item_cache->insert_tokens_stmt, 2, token_data, size, SQLITE_TRANSIENT)) {
+    error("Error binding blob to %s", INSERT_ENTRY_TOKENS);
+    rc = CLASSIFIER_FAIL;
+  } else if (SQLITE_DONE != sqlite3_step(item_cache->insert_tokens_stmt)) {
+    error("Error inserting token data for item %i: %s", entry_id, item_cache_errmsg(item_cache));
+    rc = CLASSIFIER_FAIL;
+  }
+
+  sqlite3_clear_bindings(item_cache->insert_tokens_stmt);
+  sqlite3_reset(item_cache->insert_tokens_stmt);
 
   return rc;
 }
@@ -590,14 +576,51 @@ static int write_tokens(Item * item, const char * path) {
  *
  * @returns the number of tokens fetched for the the item.
  */
+static int read_tokens(const char * token_data, int size, Item * item) {
+  int tokens_read = 0;
+
+  if (!token_data) {
+    error("No token data for item");
+    tokens_read = -1;
+  } else if (0 != (size % TOKEN_BYTES)) {
+    error("Token data is corrupt for item $i (size = %i)", item->key, size);
+    tokens_read = -1;
+  } else {
+    int i, num_tokens = size / TOKEN_BYTES;
+    char *token_p = token_data;
+
+    for (i = 0; i < num_tokens; i++) {
+      int token;
+      short frequency;
+      memcpy(&token,     token_p, 4); token_p += 4;
+      memcpy(&frequency, token_p, 2); token_p += 2;
+      /* Tokens are stored in network byte order so switch them to host byte order */
+      item_add_token(item, ntohl(token), ntohs(frequency));
+      tokens_read++;
+    }
+  }
+
+  return tokens_read;
+}
+
 static int fetch_tokens_for(ItemCache * item_cache, Item * item) {
   int tokens_loaded = 0;
 
   if (item_cache && item) {
-  	char path[MAXPATHLEN];
-    if (!build_token_path(item_cache->cache_directory, item->key, path, MAXPATHLEN)) {
-      tokens_loaded = read_tokens(path, item);
+    if (SQLITE_OK != sqlite3_bind_int(item_cache->fetch_tokens_stmt, 1, item->key)) {
+      error("Could not bind item->key to stmt: %s", item_cache_errmsg(item_cache));
+      tokens_loaded = -1;
+    } else if (SQLITE_ROW != sqlite3_step(item_cache->fetch_tokens_stmt)) {
+      error("Could not execute stmt: %s", item_cache_errmsg(item_cache));
+      tokens_loaded = -1;
+    } else {
+      int blob_size = sqlite3_column_bytes(item_cache->fetch_tokens_stmt, 0);
+      const char *token_data = (char*) sqlite3_column_blob(item_cache->fetch_tokens_stmt, 0);
+      tokens_loaded = read_tokens(token_data, blob_size, item);
     }
+
+    sqlite3_clear_bindings(item_cache->fetch_tokens_stmt);
+    sqlite3_reset(item_cache->fetch_tokens_stmt);
   }
 
   return tokens_loaded;
@@ -736,13 +759,13 @@ static int update_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
 
 static int entry_has_tokens(ItemCache *item_cache, ItemCacheEntry *entry) {
   int has_tokens = false;
-  char path[MAXPATHLEN];
-  snprintf(path, MAXPATHLEN, "%s/tokens/%i.tokens", item_cache->cache_directory, entry->id);
 
-  FILE *file = fopen(path, "r");
-  if (file) {
-    has_tokens = true;
-    fclose(file);
+  if (SQLITE_OK != sqlite3_bind_int(item_cache->fetch_tokens_stmt, 1, entry->id)) {
+    fatal("Error bind int: %s", item_cache_errmsg(item_cache));
+  } else {
+    has_tokens = SQLITE_ROW == sqlite3_step(item_cache->fetch_tokens_stmt);
+    sqlite3_clear_bindings(item_cache->fetch_tokens_stmt);
+    sqlite3_reset(item_cache->fetch_tokens_stmt);
   }
 
   return has_tokens;
@@ -1196,6 +1219,10 @@ void free_item_cache(ItemCache *item_cache) {
       sqlite3_finalize(item_cache->find_token_stmt);
       sqlite3_finalize(item_cache->find_atom_stmt);
       sqlite3_finalize(item_cache->insert_atom_stmt);
+      sqlite3_finalize(item_cache->insert_atom_xml_stmt);
+      sqlite3_finalize(item_cache->delete_atom_xml_stmt);
+      sqlite3_finalize(item_cache->delete_tokens_stmt);
+      sqlite3_finalize(item_cache->insert_tokens_stmt);
       sqlite3_close(item_cache->db);
     }
 
@@ -1342,12 +1369,13 @@ Item * item_cache_fetch_item(ItemCache *item_cache, const unsigned char * id, in
     *free_when_done = true;
     pthread_mutex_lock(&item_cache->db_access_mutex);
     item = fetch_item_from_catalog(item_cache, (char *) id);
-    pthread_mutex_unlock(&item_cache->db_access_mutex);
 
     if (item && fetch_tokens_for(item_cache, item) <= 0) {
     	free_item(item);
     	item = NULL;
     }
+
+    pthread_mutex_unlock(&item_cache->db_access_mutex);
   }
 
   return item;
@@ -1573,21 +1601,22 @@ int item_cache_save_item(ItemCache * item_cache, Item *item) {
   int rc = CLASSIFIER_OK;
 
   if (item_cache && item) {
-    debug("Saving item %i", item->id);
+    debug("Saving item %s", item->id);
     pthread_mutex_lock(&item_cache->db_access_mutex);
     int entry_key = get_entry_key(item_cache, item->id);
-    pthread_mutex_unlock(&item_cache->db_access_mutex);
 
     if (entry_key <= 0) {
       rc = CLASSIFIER_FAIL;
     } else {
-      char path[MAXPATHLEN];
-      if (build_token_path(item_cache->cache_directory, entry_key, path, MAXPATHLEN)) {
-        rc = CLASSIFIER_FAIL;
-      } else {
-        rc = write_tokens(item, path);
+      int size;
+      char *token_data;
+      if (CLASSIFIER_OK == (rc = serialize_tokens(item, &size, &token_data))) {
+        rc = save_tokens(item_cache, entry_key, token_data, size);
+        free(token_data);
       }
     }
+
+    pthread_mutex_unlock(&item_cache->db_access_mutex);
   }
 
   return rc;

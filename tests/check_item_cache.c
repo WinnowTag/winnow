@@ -626,7 +626,7 @@ START_TEST (test_save_item_stores_it_in_the_database) {
   assert_equal(SQLITE_ROW, rc);
   char* tokens = (char*) sqlite3_column_blob(stmt, 0);
   assert_not_null(tokens);
-  assert_equal(4 * 6 /* num tokens * TOKEN_BYTES */, strlen(tokens));
+  assert_equal(4 * 6 /* num tokens * TOKEN_BYTES */, sqlite3_column_bytes(stmt, 0));
   sqlite3_finalize(stmt);
   sqlite3_close(db);
 } END_TEST
@@ -729,6 +729,7 @@ START_TEST (test_null_feature_extraction) {
 
 /* Cache updating tests */
 static int item_id = 9;
+static char * entry_document2;
 static Item * mock_feature_extractor2(ItemCache *item_cache, const ItemCacheEntry * entry, void *ignore) {
   return create_item_with_tokens_and_time((unsigned char *) item_cache_entry_full_id(entry), tokens, 4, (time_t) 1178683198L);;
 }
@@ -744,6 +745,7 @@ static void setup_full_update(void) {
 
   tokenized_item = create_item_with_tokens_and_time((unsigned char*) "9", tokens, 4, (time_t) 1178683198L);
   entry_document = read_document("fixtures/entry.atom");
+  entry_document2 = read_document("fixtures/entry2.atom");
 }
 
 static void teardown_full_update(void) {
@@ -777,7 +779,7 @@ START_TEST (test_adding_entry_causes_tokens_to_be_added_to_the_db) {
 
 START_TEST (test_adding_multiple_entries_causes_item_added_to_cache) {
   ItemCacheEntry *entry1 = create_entry_from_atom_xml(entry_document, 141);
-  ItemCacheEntry *entry2 = create_entry_from_atom_xml(entry_document, 141); // TODO create another document
+  ItemCacheEntry *entry2 = create_entry_from_atom_xml(entry_document2, 141); // TODO create another document
 
   item_cache_add_entry(item_cache, entry1);
   item_cache_add_entry(item_cache, entry2);

@@ -1,9 +1,8 @@
-#TESTS =  check_tagger_builder check_train_tagger check_precompute_tagger  check_tag_index \
-#         check_classifier check_pool check_queue check_url_fetching check_clue \
-#         check_classify check_get_tagger check_item_cache check_classification_engine  \
-#         check_hmac_sign check_hmac_shared check_hmac_authenticate \
-#         specs
-TESTS = check_item_cache 
+TESTS =  check_tagger_builder check_train_tagger check_precompute_tagger  check_tag_index \
+         check_classifier check_pool check_queue check_url_fetching check_clue \
+         check_classify check_get_tagger check_item_cache check_classification_engine  \
+         check_hmac_sign check_hmac_shared check_hmac_authenticate \
+         specs
 CLEANFILES = http_test.log http_test_data.log test.log
 
 LDFLAGS = -static @SQLITE3_LDFLAGS@ @CHECK_LIBS@
