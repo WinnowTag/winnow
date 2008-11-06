@@ -3,7 +3,7 @@
 #         check_classify check_get_tagger check_item_cache check_classification_engine  \
 #         check_hmac_sign check_hmac_shared check_hmac_authenticate \
 #         specs
-TESTS = check_item_cache specs
+TESTS = check_item_cache 
 CLEANFILES = http_test.log http_test_data.log test.log
 
 LDFLAGS = -static @SQLITE3_LDFLAGS@ @CHECK_LIBS@

@@ -46,6 +46,7 @@
 #define INSERT_ATOM_SQL "insert into tokens (token) values (?)"
 #define FIND_TOKEN_SQL "select token from tokens where id = ?"
 #define CORRUPT_TOKEN_FILE "Token file %s did not have a multiple of %i bytes, it has %i bytes and is possibly corrupt."
+#define INSERT_ATOM_XML_SQL "insert into atom.entry_atom values (?, ?)"
 #define DELETE_ATOM_XML_SQL "delete from atom.entry_atom where id = ?"
 #define DELETE_ENTRY_TOKENS "delete from token.entry_tokens where id = ?"
 #define TOKEN_BYTES 6
@@ -113,6 +114,7 @@ struct ITEM_CACHE {
   sqlite3_stmt *insert_entry_stmt;
   sqlite3_stmt *update_entry_stmt;
   sqlite3_stmt *delete_entry_stmt;
+  sqlite3_stmt *insert_atom_xml_stmt;
   sqlite3_stmt *delete_atom_xml_stmt;
   sqlite3_stmt *insert_feed_stmt;
   sqlite3_stmt *delete_feed_stmt;
@@ -403,6 +405,7 @@ static int create_prepared_statements(ItemCache *item_cache) {
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FIND_TOKEN_SQL,             -1, &item_cache->find_token_stmt,            NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FIND_ATOM_SQL,              -1, &item_cache->find_atom_stmt,             NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ATOM_SQL,            -1, &item_cache->insert_atom_stmt,           NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ATOM_XML_SQL,        -1, &item_cache->insert_atom_xml_stmt,       NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_ATOM_XML_SQL,        -1, &item_cache->delete_atom_xml_stmt,       NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_ENTRY_TOKENS,        -1, &item_cache->delete_tokens_stmt,         NULL)) {
     fatal("Unable to prepare statment: \"%s\"", item_cache_errmsg(item_cache));
@@ -418,7 +421,6 @@ static int check_user_version(ItemCache * item_cache) {
     if (item_cache->user_version != CURRENT_USER_VERSION) {
       item_cache->version_mismatch = 1;
       rc = CLASSIFIER_FAIL;
-      fprintf(stderr, "version %i expected got %i\n", CURRENT_USER_VERSION, item_cache->user_version);
     }
   } else {
     rc = CLASSIFIER_FAIL;
@@ -674,22 +676,20 @@ static int save_entry_xml(ItemCache *item_cache, ItemCacheEntry *entry) {
     error("No xml or id for entry %s (%i)", entry->full_id, entry->id);
     rc = CLASSIFIER_FAIL;
   } else {
-    char path[MAXPATHLEN];
-    FILE *file;
-
-    if (build_item_path(item_cache->cache_directory, entry->id, path, MAXPATHLEN)) {
+    int size = strlen(entry->atom);
+    if (SQLITE_OK != sqlite3_bind_int(item_cache->insert_atom_stmt, 1, entry->id)) {
+      error("Unable to bind atom id: %s", item_cache_errmsg(item_cache));
       rc = CLASSIFIER_FAIL;
-    } else if (!(file = fopen(path, "w+"))) {
-      error("Could not open file at %s: %s", path, strerror(errno));
+    } else if (SQLITE_OK != sqlite3_bind_blob(item_cache->insert_atom_xml_stmt, 2, entry->atom, size, SQLITE_TRANSIENT)) {
+      error("Unable to bind atom xml: %s", item_cache_errmsg(item_cache));
       rc = CLASSIFIER_FAIL;
-    } else {
-      int size = strlen(entry->atom);
-
-      if (size > fwrite(entry->atom, sizeof(char), size, file)) {
-        error("Error writing to file %s: %s", path, strerror(errno));
-      }
-      fclose(file);
+    } else if (SQLITE_DONE != sqlite3_step(item_cache->insert_atom_xml_stmt)) {
+      error("Unable to insert atom xml: %s", item_cache_errmsg(item_cache));
+      rc = CLASSIFIER_FAIL;
     }
+
+    sqlite3_clear_bindings(item_cache->insert_atom_xml_stmt);
+    sqlite3_reset(item_cache->insert_atom_xml_stmt);
   }
 
   return rc;
