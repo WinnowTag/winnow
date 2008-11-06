@@ -1,3 +1,7 @@
+=== 1.6.0 (6 November 2008)
+
+* Change item cache to store tokens and xml as blobs in separate SQLite databases.
+
 === 1.5.2 (12 October 2008)
 
 * Fixed slow point in item tokenization.  Was caused by libcurl sending a Expect: 100-continue header to the tokenizer.
