@@ -488,36 +488,6 @@ static int item_cache_open_database(ItemCache *item_cache) {
   return rc;
 }
 
-static int build_token_path(const char *cache_directory, int key, char * buffer, size_t size) {
-  int rc = CLASSIFIER_OK;
-  if (size < snprintf(buffer, size, "%s/tokens/%i.tokens", cache_directory, key)) {
-    error("Path too long %s/tokens/%i.tokens", cache_directory, key);
-    rc = CLASSIFIER_FAIL;
-  }
-  return rc;
-}
-
-static int build_item_path(const char *cache_directory, int key, char * buffer, size_t size) {
-  int rc = CLASSIFIER_OK;
-  if (size < snprintf(buffer, size, "%s/items/%i.atom", cache_directory, key)) {
-    error("Path too long %s/tokens/%i.tokens", cache_directory, key);
-    rc = CLASSIFIER_FAIL;
-  }
-  return rc;
-}
-
-static int get_file_size(FILE *file, const char * path) {
-  int file_size = -1;
-
-  if (fseek(file, 0, SEEK_END) || (file_size = ftell(file)) < 0) {
-    file_size = -1;
-  } else if (fseek(file, 0, SEEK_SET)) {
-    file_size = -1;
-  }
-
-  return file_size;
-}
-
 static int serialize_tokens(Item * item, int *size, char ** token_data) {
   int rc = CLASSIFIER_OK;
   int num_tokens = item_get_num_tokens(item);
@@ -537,7 +507,7 @@ static int serialize_tokens(Item * item, int *size, char ** token_data) {
       short out_frequency = htons(frequency);
 
       // Make sure we haven't overflowed
-      if (((int)(position - token_data[0])) > size) {
+      if (position - token_data[0] > *size) {
         error("Error allocating enough memory for tokens.");
         free(*token_data);
         rc = CLASSIFIER_FAIL;
@@ -587,7 +557,7 @@ static int read_tokens(const char * token_data, int size, Item * item) {
     tokens_read = -1;
   } else {
     int i, num_tokens = size / TOKEN_BYTES;
-    char *token_p = token_data;
+    const char *token_p = token_data;
 
     for (i = 0; i < num_tokens; i++) {
       int token;
@@ -658,7 +628,7 @@ static Item * fetch_item_from_catalog(ItemCache * item_cache, const char * id) {
 	return item;
 }
 
-static int get_entry_key(ItemCache * item_cache, const unsigned char * entry_id) {
+static int get_entry_key(ItemCache * item_cache, const char * entry_id) {
   int entry_key = -1;
 
   if (item_cache && entry_id) {
@@ -1603,7 +1573,7 @@ int item_cache_save_item(ItemCache * item_cache, Item *item) {
   if (item_cache && item) {
     debug("Saving item %s", item->id);
     pthread_mutex_lock(&item_cache->db_access_mutex);
-    int entry_key = get_entry_key(item_cache, item->id);
+    int entry_key = get_entry_key(item_cache, (char*) item->id);
 
     if (entry_key <= 0) {
       rc = CLASSIFIER_FAIL;
