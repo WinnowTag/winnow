@@ -269,7 +269,7 @@ START_TEST (adding_an_entry_saves_all_its_attributes) {
   if (SQLITE_ROW == sqlite3_step(stmt)) {
     assert_equal_s("urn:peerworks.org:entry#1", sqlite3_column_text(stmt, 1));
     assert_equal_f(2453583.02047454, sqlite3_column_double(stmt, 2));
-    assert_equal(0, sqlite3_column_int(stmt, 3));
+    assert_equal(NULL, sqlite3_column_text(stmt, 4));
   } else {
     fail("Could not get record");
   }
