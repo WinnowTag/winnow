@@ -216,10 +216,6 @@ static int get_entry_id(const char * path) {
   return get_path_id("^/feed_items/([0-9]+)$", path);
 }
 
-static int get_feed_id(const char * path) {
-  return get_path_id("^/feeds/([0-9]+)", path);
-}
-
 static int about_handler(const HTTPRequest * request, HTTPResponse * response) {
   response->code = MHD_HTTP_OK;
   response->content_type = CONTENT_TYPE;
@@ -242,16 +238,12 @@ static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
     info("BAD DATA: %s", request->data->buf);
     HTTP_BAD_XML(response);
   } else {
-    int feed_id = get_feed_id(request->path);
+    ItemCacheEntry *entry = create_entry_from_atom_xml_document(doc, request->data->buf);
 
-    if (feed_id <= 0) {
+    if (!entry) {
       HTTP_BAD_ENTRY(response);
     } else {
-      ItemCacheEntry *entry = create_entry_from_atom_xml_document(feed_id, doc, request->data->buf);
-
-      if (!entry) {
-        HTTP_BAD_ENTRY(response);
-      } else if (CLASSIFIER_OK == item_cache_add_entry(request->item_cache, entry)) {
+      if (CLASSIFIER_OK == item_cache_add_entry(request->item_cache, entry)) {
         response->code = MHD_HTTP_CREATED;
         response->content = strdup(request->data->buf);
         response->content_type = CONTENT_TYPE;
@@ -261,10 +253,10 @@ static int add_entry(const HTTPRequest * request, HTTPResponse * response) {
       } else {
         HTTP_BAD_ENTRY(response);
       }
-
+      
       free_entry(entry);
     }
-
+    
     xmlFreeDoc(doc);
   }
 
@@ -299,107 +291,10 @@ static int entry_handler(const HTTPRequest * request, HTTPResponse * response) {
   return 0;
 }
 
-static int add_feed(const HTTPRequest * request, HTTPResponse * response) {
-  regex_t regex;
-
-  if (regcomp(&regex, "^/feeds/?$", REG_EXTENDED | REG_NOSUB)) {
-    fatal("Error compiling regex");
-    return 1;
-  }
-
-  if (0 == regexec(&regex, request->path, 0, NULL, 0)) {
-    xmlDocPtr doc = NULL;
-
-    if (NULL == request->data) {
-      HTTP_BAD_XML(response);
-    } else if (NULL == (doc = xmlReadMemory(request->data->buf, request->data->length, "", NULL, XML_PARSE_COMPACT))) {
-      error("Bad xml for feed: %s", request->data->buf);
-      HTTP_BAD_XML(response);
-    } else {
-      xmlXPathContextPtr context = xmlXPathNewContext(doc);
-      xmlXPathRegisterNs(context, BAD_CAST "atom", BAD_CAST "http://www.w3.org/2005/Atom");
-      char *title = get_element_value(context, "/atom:entry/atom:title/text()");
-      char *id = get_element_value(context, "/atom:entry/atom:id/text()");
-
-      if (!id) {
-        error("Missing id for feed: %s", request->data->buf);
-        HTTP_BAD_FEED(response);
-      } else {
-        int feed_id = uri_fragment_id(id);
-
-        if (feed_id <= 0) {
-          HTTP_BAD_FEED(response);
-          error("Missing id for feed: %s", request->data->buf);
-        } else {
-          Feed *feed = create_feed(feed_id, title);
-          if (CLASSIFIER_OK == item_cache_add_feed(request->item_cache, feed)) {
-            response->code = MHD_HTTP_CREATED;
-            response->content = strdup(request->data->buf);
-            response->content_type = CONTENT_TYPE;
-            response->free_content = MHD_YES;
-            response->location = calloc(48, sizeof(char));
-            snprintf(response->location, 48, "/feeds/%i", feed_id);
-          } else {
-            HTTP_ITEM_CACHE_ERROR(response, request->item_cache);
-          }
-          free_feed(feed);
-        }
-      }
-
-      xmlXPathFreeContext(context);
-      xmlFreeDoc(doc);
-      if (id) free(id);
-      if (title) free(title);
-    }
-  } else {
-     response->code = MHD_HTTP_METHOD_NOT_ALLOWED;
-     response->content = "POST not allowed";
-     response->content_type = "text/plain";
-   }
-
-  regfree(&regex);
-
-  return 1;
-}
-
-static int delete_feed(const HTTPRequest * request, HTTPResponse * response) {
-  int feed_id = get_feed_id(request->path);
-
-  if (feed_id > 0) {
-    if (CLASSIFIER_FAIL == item_cache_remove_feed(request->item_cache, feed_id)) {
-      HTTP_ITEM_CACHE_ERROR(response, request->item_cache);
-    } else {
-      response->code = MHD_HTTP_NO_CONTENT;
-      response->content = "";
-    }
-  } else {
-    HTTP_NOT_FOUND(response);
-  }
-
-  return 0;
-}
-
 static int feed_handler(const HTTPRequest * request, HTTPResponse * response) {
-  switch (request->method) {
-    case DELETE:
-      delete_feed(request, response);
-      break;
-    case POST:
-      add_feed(request, response);
-      break;
-    case PUT:
-      // TODO Decide if we ever need to actually update a feed. For now it is a no-op
-      response->code = MHD_HTTP_ACCEPTED;
-      response->content = "<info>Feed updates ignored.</info>";
-      response->content_type = CONTENT_TYPE;
-      break;
-    default:
-      response->code = MHD_HTTP_METHOD_NOT_ALLOWED;
-      response->content = "Only POST, PUT or DELETE allowed";
-      response->content_type = "text/plain";
-      break;
-  }
-
+  response->code = MHD_HTTP_ACCEPTED;
+  response->content = "<info>Feed updates ignored.</info>";
+  response->content_type = CONTENT_TYPE;
   return 0;
 }
 

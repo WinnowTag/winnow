@@ -39,13 +39,6 @@ describe 'the classifier' do
     'classifier'.should not_leak
   end
   
-  it "should not leak memory after adding a feed" do
-    create_feed
-    create_feed(:title => 'My new feed', :id => 'urn:peerworks.org:feeds#1338')
-    # There is a weird one off memory leak on OSX with the regex in add_feed.
-    'classifier'.should have_no_more_than_leaks(1) 
-  end
-  
   describe "job functionality" do
     before(:each) do
       @http = TestHttpServer.new(:port => 8888)

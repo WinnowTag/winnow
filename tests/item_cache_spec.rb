@@ -27,35 +27,6 @@ describe "The Classifier's Item Cache" do
     stop_classifier
   end
   
-  describe "feed creation" do    
-    it "should create a feed without error" do
-      lambda { create_feed(:title => 'My new feed', :id => 'urn:peerworks.org:feeds#1337') }.should_not raise_error
-    end
-    
-    it "should create a feed without a title without error" do
-      lambda { create_feed(:title => nil, :id => 'urn:peerworks.org:feeds#1337') }.should_not raise_error
-    end
-    
-    it "should store feed in the database" do
-      create_feed(:title => 'My new feed', :id => 'urn:peerworks.org:feeds#1337')
-      @sqlite.get_first_value("select title from feeds where id = 1337").should == 'My new feed'
-    end
-    
-    it "should return 400 when there is no content"
-    it "should return 202 when updating a feed"
-  end
-  
-  describe "feed deletion" do
-    it "should delete the feed without error" do
-      lambda { create_feed(:title => 'My new feed', :id => 'urn:peerworks.org:feeds#1337').destroy! }.should_not raise_error
-    end
-    
-    it "should remove the feed from the database" do
-      create_feed(:title => 'My new feed', :id => 'urn:peerworks.org:feeds#1337').destroy!
-      @sqlite.get_first_value("select title from feeds where id = 1337").should be_nil
-    end
-  end
-  
   describe "entry creation" do
     it "should create an entry without error" do
       lambda { create_entry }.should_not raise_error
@@ -173,15 +144,7 @@ describe "Item Cache Authentication" do
   after(:each) do
     stop_classifier
   end
-  
-  it "should reject unauthenticated create feed requests" do
-    lambda { create_feed }.should raise_error
-  end
-  
-  it "should allow authenticated create feed requests" do
-    lambda { create_feed(:access_id => 'collector_id', :secret => 'collector_secret') }.should_not raise_error
-  end
-  
+
   it "should reject unauthenticated create entry requests" do
     lambda { create_entry }.should raise_error
   end

@@ -36,12 +36,10 @@
 #define FETCH_ITEM_SQL "select full_id, id, strftime('%s', updated) from entries where full_id = ?"
 #define FETCH_ALL_ITEMS_SQL "select full_id, id, strftime('%s', updated) from entries where updated > (julianday('now') - ?) order by updated desc"
 #define FETCH_RANDOM_BACKGROUND "select full_id, id from entries where id in (select entry_id from random_backgrounds)"
-#define INSERT_ENTRY_SQL "insert into entries (full_id, updated, feed_id, created_at) \
-                          VALUES (:full_id, julianday(:updated, 'unixepoch'), :feed_id, julianday(:created_at, 'unixepoch'))"
+#define INSERT_ENTRY_SQL "insert into entries (full_id, updated, created_at) \
+                          VALUES (:full_id, julianday(:updated, 'unixepoch'), julianday(:created_at, 'unixepoch'))"
 #define UPDATE_ENTRY_SQL "update entries set updated = julianday(?, 'unixepoch') where full_id = ?"
 #define DELETE_ENTRY_SQL "delete from entries where id = ?"
-#define INSERT_FEED_SQL "insert or replace into feeds VALUES (?, ?)"
-#define DELETE_FEED_SQL "delete from feeds where id = ?"
 #define FIND_ATOM_SQL "select id from tokens where token = ?"
 #define INSERT_ATOM_SQL "insert into tokens (token) values (?)"
 #define FIND_TOKEN_SQL "select token from tokens where id = ?"
@@ -58,11 +56,6 @@ typedef struct ORDERED_ITEM_LIST OrderedItemList;
 struct ORDERED_ITEM_LIST {
   Item *item;
   OrderedItemList *next;
-};
-
-struct FEED {
-  int id;
-  char * title;
 };
 
 struct ITEM {
@@ -95,7 +88,6 @@ struct ITEM_CACHE_ENTRY {
   int id;          /* This is the DB id */
   char * full_id;  /* This is the "global" id */
   time_t updated;
-  int feed_id;
   time_t created_at;
   char * atom;
 };
@@ -118,8 +110,6 @@ struct ITEM_CACHE {
   sqlite3_stmt *delete_entry_stmt;
   sqlite3_stmt *insert_atom_xml_stmt;
   sqlite3_stmt *delete_atom_xml_stmt;
-  sqlite3_stmt *insert_feed_stmt;
-  sqlite3_stmt *delete_feed_stmt;
   sqlite3_stmt *find_token_stmt;
   sqlite3_stmt *find_atom_stmt;
   sqlite3_stmt *insert_atom_stmt;
@@ -239,14 +229,12 @@ static UpdateJob * create_add_job(Item * item) {
  */
 ItemCacheEntry * create_item_cache_entry( const char * full_id,
                                           time_t updated,
-                                          int feed_id,
                                           time_t created_at,
                                           const char * atom) {
   ItemCacheEntry *entry = calloc(1, sizeof(struct ITEM_CACHE_ENTRY));
 
   if (entry) {
     debug("new entry %s", full_id);
-    entry->feed_id = feed_id;
     entry->updated = updated;
     entry->created_at = created_at;
     COPY_STRING(entry->full_id, full_id);
@@ -259,12 +247,12 @@ ItemCacheEntry * create_item_cache_entry( const char * full_id,
 }
 
 static ItemCacheEntry * copy_entry(const ItemCacheEntry * entry) {
-  ItemCacheEntry *copy = create_item_cache_entry(entry->full_id, entry->updated, entry->feed_id, entry->created_at, entry->atom);
+  ItemCacheEntry *copy = create_item_cache_entry(entry->full_id, entry->updated, entry->created_at, entry->atom);
   copy->id = entry->id;
   return copy;
 }
 
-ItemCacheEntry * create_entry_from_atom_xml(const char * xml, int feed_id) {
+ItemCacheEntry * create_entry_from_atom_xml(const char * xml) {
   ItemCacheEntry *entry = NULL;
 
   xmlDocPtr doc;
@@ -278,7 +266,6 @@ ItemCacheEntry * create_entry_from_atom_xml(const char * xml, int feed_id) {
 
     entry->full_id = get_element_value(ctx, "/atom:entry/atom:id/text()");
     entry->updated = get_element_value_time(ctx, "/atom:entry/atom:updated/text()");
-    entry->feed_id = feed_id;
     entry->atom = strdup(xml);
 
     xmlXPathFreeContext(ctx);
@@ -290,7 +277,7 @@ ItemCacheEntry * create_entry_from_atom_xml(const char * xml, int feed_id) {
 
 /** Create an entry from atom XML.
  */
-ItemCacheEntry * create_entry_from_atom_xml_document(int feed_id, xmlDocPtr doc, const char * xml_source) {
+ItemCacheEntry * create_entry_from_atom_xml_document(xmlDocPtr doc, const char * xml_source) {
   ItemCacheEntry *entry = NULL;
   xmlXPathContextPtr context = xmlXPathNewContext(doc);
   xmlXPathRegisterNs(context, BAD_CAST "atom", BAD_CAST "http://www.w3.org/2005/Atom");
@@ -312,7 +299,7 @@ ItemCacheEntry * create_entry_from_atom_xml_document(int feed_id, xmlDocPtr doc,
       error("Couldn't parse datetime: %s", updated);
     }
 
-    entry = create_item_cache_entry(id, updated_time, feed_id, time(NULL), xml_source);
+    entry = create_item_cache_entry(id, updated_time, time(NULL), xml_source);
   } else {
     error("Missing id or updated from atom (%s, %s)", id, updated);
   }
@@ -341,27 +328,6 @@ void free_entry(ItemCacheEntry *entry) {
     FREE_STRING(entry->full_id);
     FREE_STRING(entry->atom);
     free(entry);
-  }
-}
-
-/******************************************************************************
- * Feed creation functions
- ******************************************************************************/
-Feed * create_feed(int id, const char * title) {
-  Feed *feed = calloc(1, sizeof(struct FEED));
-
-  if (NULL != feed) {
-    feed->id = id;
-    COPY_STRING(feed->title, title);
-  }
-
-  return feed;
-}
-
-void free_feed(Feed * feed) {
-  if (feed) {
-    FREE_STRING(feed->title);
-    free(feed);
   }
 }
 
@@ -404,8 +370,6 @@ static int create_prepared_statements(ItemCache *item_cache) {
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ENTRY_SQL,           -1, &item_cache->insert_entry_stmt,          NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, UPDATE_ENTRY_SQL,           -1, &item_cache->update_entry_stmt,          NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_ENTRY_SQL,           -1, &item_cache->delete_entry_stmt,          NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_FEED_SQL,            -1, &item_cache->insert_feed_stmt,           NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_FEED_SQL,            -1, &item_cache->delete_feed_stmt,           NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FIND_TOKEN_SQL,             -1, &item_cache->find_token_stmt,            NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FIND_ATOM_SQL,              -1, &item_cache->find_atom_stmt,             NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ATOM_SQL,            -1, &item_cache->insert_atom_stmt,           NULL) ||
@@ -696,8 +660,7 @@ static int insert_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
     rc = CLASSIFIER_FAIL;
   } else {
     sqlite3_bind_double(item_cache->insert_entry_stmt, 2, entry->updated);
-    if (entry->feed_id > 0) sqlite3_bind_int(item_cache->insert_entry_stmt, 3, entry->feed_id);
-    sqlite3_bind_double(item_cache->insert_entry_stmt, 4, entry->created_at);
+    sqlite3_bind_double(item_cache->insert_entry_stmt, 3, entry->created_at);
 
     if (SQLITE_DONE != sqlite3_step(item_cache->insert_entry_stmt)) {
       error("Error inserting item %s: %s", entry->full_id, item_cache_errmsg(item_cache));
@@ -1184,8 +1147,6 @@ void free_item_cache(ItemCache *item_cache) {
       sqlite3_finalize(item_cache->insert_entry_stmt);
       sqlite3_finalize(item_cache->update_entry_stmt);
       sqlite3_finalize(item_cache->delete_entry_stmt);
-      sqlite3_finalize(item_cache->insert_feed_stmt);
-      sqlite3_finalize(item_cache->delete_feed_stmt);
       sqlite3_finalize(item_cache->find_token_stmt);
       sqlite3_finalize(item_cache->find_atom_stmt);
       sqlite3_finalize(item_cache->insert_atom_stmt);
@@ -1472,57 +1433,6 @@ int item_cache_remove_entry(ItemCache *item_cache, int entry_id) {
       info("Deleted ItemCache entry %i", entry_id);
     }
 
-    pthread_mutex_unlock(&item_cache->db_access_mutex);
-  }
-
-  return rc;
-}
-
-/** Adds a feed to the item cache
- */
-int item_cache_add_feed(ItemCache *item_cache, Feed * feed) {
-  int rc = CLASSIFIER_OK;
-
-  if (item_cache && feed) {
-    pthread_mutex_lock(&item_cache->db_access_mutex);
-    sqlite3_bind_int(item_cache->insert_feed_stmt, 1, feed->id);
-    if (SQLITE_OK != sqlite3_bind_text(item_cache->insert_feed_stmt, 2, feed->title, -1, NULL)) {
-      error("Error binding feed title: %s: %s", feed->title, item_cache_errmsg(item_cache));
-      rc = CLASSIFIER_FAIL;
-    } else if (SQLITE_DONE != sqlite3_step(item_cache->insert_feed_stmt)) {
-      error("Error inserting feed '%s' into item cache: %s", feed->title, item_cache_errmsg(item_cache));
-      rc = CLASSIFIER_FAIL;
-    } else {
-      info("Inserted feed '%s' into item cache", feed->title);
-    }
-
-    sqlite3_clear_bindings(item_cache->insert_feed_stmt);
-    sqlite3_reset(item_cache->insert_feed_stmt);
-
-    pthread_mutex_unlock(&item_cache->db_access_mutex);
-  }
-
-  return rc;
-}
-
-/** Remove a feed from the item cache.
- */
-int item_cache_remove_feed(ItemCache *item_cache, int feed_id) {
-  int rc = CLASSIFIER_OK;
-
-  if (item_cache) {
-    pthread_mutex_lock(&item_cache->db_access_mutex);
-    sqlite3_bind_int(item_cache->delete_feed_stmt, 1, feed_id);
-
-    if (SQLITE_DONE != sqlite3_step(item_cache->delete_feed_stmt)) {
-      error("Error deleting feed %i from item cache: %s", feed_id, item_cache_errmsg(item_cache));
-      rc = CLASSIFIER_FAIL;
-    } else {
-      info("Deleted feed %i", feed_id);
-    }
-
-    sqlite3_clear_bindings(item_cache->delete_feed_stmt);
-    sqlite3_reset(item_cache->delete_feed_stmt);
     pthread_mutex_unlock(&item_cache->db_access_mutex);
   }
 

@@ -29,7 +29,6 @@ typedef struct ITEM Item;
 typedef struct POOL Pool;
 typedef struct ITEM_CACHE ItemCache;
 typedef struct ITEM_CACHE_ENTRY ItemCacheEntry;
-typedef struct FEED Feed;
 
 typedef int (*ItemIterator) (const Item *item, void *memo);
 typedef Item* (*FeatureExtractor) (ItemCache *item_cache, const ItemCacheEntry * entry, void *memo);
@@ -47,13 +46,11 @@ extern int          item_cache_each_item          (ItemCache *item_cache, ItemIt
 extern const Pool * item_cache_random_background  (ItemCache *item_cache);
 extern int          item_cache_add_entry          (ItemCache *item_cache, ItemCacheEntry *entry);
 extern int          item_cache_remove_entry       (ItemCache *item_cache, int entry_id);
-extern int          item_cache_add_feed           (ItemCache *item_cache, Feed *feed);
-extern int          item_cache_remove_feed        (ItemCache *item_cache, int feed_id);
 extern int          item_cache_add_item           (ItemCache *item_cache, Item *item);
 extern int          item_cache_save_item          (ItemCache *item_cache, Item *item);
 extern int          item_cache_start_purger       (ItemCache *item_cache, int purge_interval);
 extern int          item_cache_purge_old_items    (ItemCache *item_cache);
-extern int          item_cache_feature_extraction_queue_size(const ItemCache *item_cache);
+extern int          item_cache_feature_extraction_queue_size (const ItemCache *item_cache);
 extern int          item_cache_start_feature_extractor (ItemCache *item_cache);
 extern int          item_cache_start_cache_updater     (ItemCache *item_cache);
 extern int          item_cache_update_queue_size  (const ItemCache * item_cache);
@@ -64,18 +61,15 @@ extern void         free_item_cache               (ItemCache *is);
 
 extern ItemCacheEntry * create_item_cache_entry( const char * full_id,
                                                  time_t updated,
-                                                 int feed_id,
                                                  time_t created_at,
                                                  const char * atom);
-extern ItemCacheEntry * create_entry_from_atom_xml_document(int feed_id, xmlDocPtr doc, const char * xml_source);
-extern ItemCacheEntry * create_entry_from_atom_xml(const char * xml, int feed_id);
+extern ItemCacheEntry * create_entry_from_atom_xml_document(xmlDocPtr doc, const char * xml_source);
+extern ItemCacheEntry * create_entry_from_atom_xml(const char * xml);
 extern int item_cache_entry_id(const ItemCacheEntry *entry);
 extern const char * item_cache_entry_full_id(const ItemCacheEntry *entry);
 extern const char * item_cache_entry_title(const ItemCacheEntry *entry);
 extern void free_entry(ItemCacheEntry *entry);
 extern const char * item_cache_entry_atom(const ItemCacheEntry *entry);
-extern Feed * create_feed(int id, const char * title);
-extern void   free_feed(Feed * feed);
 
 extern Item * item_from_xml           (ItemCache * item_cache, const char * xml);
 extern Item * create_item             (const unsigned char * id, int key, time_t time);

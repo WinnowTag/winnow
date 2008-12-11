@@ -33,7 +33,7 @@ START_TEST (creating_with_empty_db_file_fails) {
   int rc = item_cache_create(&item_cache, "fixtures/empty", &item_cache_options);
   assert_equal(CLASSIFIER_FAIL, rc);
   const char *msg = item_cache_errmsg(item_cache);
-  assert_equal_s("Database file's user version does not match classifier version. Trying running classifier-db-migrate.", msg);
+  assert_equal_s("Database file's user version does not match classifier version. Trying running classifier-db-migrate from the classifier-tools package.", msg);
   teardown_fixture_path();
 } END_TEST
 
@@ -258,7 +258,7 @@ static void teardown_modification(void) {
 }
 
 START_TEST (adding_an_entry_saves_all_its_attributes) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 0);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
 
@@ -278,7 +278,7 @@ START_TEST (adding_an_entry_saves_all_its_attributes) {
 } END_TEST
 
 START_TEST (adding_an_entry_saves_its_xml) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 0);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
 
@@ -295,7 +295,7 @@ START_TEST (adding_an_entry_saves_its_xml) {
 } END_TEST
 
 START_TEST (test_can_add_entry_without_a_feed_id) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 0);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
 
@@ -312,7 +312,7 @@ START_TEST (test_can_add_entry_without_a_feed_id) {
 } END_TEST
 
 START_TEST (adding_an_entry_twice_does_not_fail) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
   rc = item_cache_add_entry(item_cache, entry);
@@ -320,7 +320,7 @@ START_TEST (adding_an_entry_twice_does_not_fail) {
 } END_TEST
 
 START_TEST (adding_an_entry_twice_does_not_add_a_duplicate) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
   item_cache_add_entry(item_cache, entry);
   item_cache_add_entry(item_cache, entry);
 
@@ -411,78 +411,15 @@ START_TEST (test_failed_deletion_doesnt_delete_tokens) {
   sqlite3_close(db);
 } END_TEST
 
-/* Feed addition */
-START_TEST (test_add_feed_to_item_cache) {
-  Feed *feed = create_feed(10, "Feed 10");
-  int rc = item_cache_add_feed(item_cache, feed);
-  assert_equal(CLASSIFIER_OK, rc);
-
-  sqlite3 *db;
-  sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy/catalog.db", &db, SQLITE_OPEN_READONLY, NULL);
-  sqlite3_prepare_v2(db, "select * from feeds where id = 10", -1, &stmt, NULL);
-  rc = sqlite3_step(stmt);
-  assert_equal(SQLITE_ROW, rc);
-  assert_not_null(sqlite3_column_text(stmt, 1));
-  assert_equal_s("Feed 10", sqlite3_column_text(stmt, 1));
-  sqlite3_close(db);
-  free_feed(feed);
-} END_TEST
-
-START_TEST (test_add_feed_that_already_exists_updates_attributes) {
-  Feed *feed = create_feed(141, "Feed 999");
-  int rc = item_cache_add_feed(item_cache, feed);
-  assert_equal(CLASSIFIER_OK, rc);
-
-  sqlite3 *db;
-  sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy/catalog.db", &db, SQLITE_OPEN_READONLY, NULL);
-  sqlite3_prepare_v2(db, "select * from feeds where id = 141", -1, &stmt, NULL);
-  rc = sqlite3_step(stmt);
-  assert_equal(SQLITE_ROW, rc);
-  assert_equal_s("Feed 999", sqlite3_column_text(stmt, 1));
-  sqlite3_close(db);
-  free_feed(feed);
-} END_TEST
-
-/* Feed deletion */
-START_TEST (test_deleting_a_feed_removes_it_from_the_database) {
-  int rc = item_cache_remove_feed(item_cache, 141);
-  assert_equal(CLASSIFIER_OK, rc);
-
-  sqlite3 *db;
-  sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy/catalog.db", &db, SQLITE_OPEN_READONLY, NULL);
-  sqlite3_prepare_v2(db, "select * from feeds where id = 141", -1, &stmt, NULL);
-  rc = sqlite3_step(stmt);
-  assert_equal(SQLITE_DONE, rc);
-
-  sqlite3_close(db);
-} END_TEST
-
-START_TEST (test_deleting_a_feed_removes_its_entries_from_the_database) {
-  int rc = item_cache_remove_feed(item_cache, 141);
-  assert_equal(CLASSIFIER_OK, rc);
-
-  sqlite3 *db;
-  sqlite3_stmt *stmt;
-  sqlite3_open_v2("/tmp/valid-copy/catalog.db", &db, SQLITE_OPEN_READONLY, NULL);
-  sqlite3_prepare_v2(db, "select * from entries where feed_id = 141", -1, &stmt, NULL);
-  rc = sqlite3_step(stmt);
-  assert_equal(SQLITE_DONE, rc);
-
-  sqlite3_close(db);
-} END_TEST
-
 START_TEST (test_adding_entry_causes_it_to_be_added_to_the_tokenization_queue) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
   item_cache_add_entry(item_cache, entry);
   assert_equal(1, item_cache_feature_extraction_queue_size(item_cache));
 } END_TEST
 
 START_TEST (test_adding_existing_entry_doesnt_tokenize_if_the_entry_is_tokenized) {
   char * existing = read_document("fixtures/existing_entry.atom");
-  ItemCacheEntry *entry = create_entry_from_atom_xml(existing, 141);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(existing);
   int rc1 = item_cache_add_entry(item_cache, entry);
   int rc2 = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc1);
@@ -607,7 +544,7 @@ static int get_entry_id(char *db_file, char *full_id) {
 
 START_TEST (test_save_item_stores_it_in_the_database) {
   // Need a corresponding entry
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
 
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
@@ -632,7 +569,7 @@ START_TEST (test_save_item_stores_it_in_the_database) {
 } END_TEST
 
 START_TEST (test_save_item_stores_the_correct_tokens) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
 
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
@@ -683,14 +620,14 @@ static void teardown_feature_extraction(void) {
 }
 
 START_TEST (test_adding_entry_results_in_calling_the_tokenizer_with_the_entry) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
   item_cache_add_entry(item_cache, entry);
   sleep(1);
   assert_equal(item_cache_entry_id(entry), tokenizer_called_with);
 } END_TEST
 
 START_TEST (test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_update_queue) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
   item_cache_add_entry(item_cache, entry);
   sleep(1);
   assert_equal(1, item_cache_update_queue_size(item_cache));
@@ -720,7 +657,7 @@ static void teardown_null_feature_extraction(void) {
 }
 
 START_TEST (test_null_feature_extraction) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
   item_cache_add_entry(item_cache, entry);
   sleep(1);
   assert_equal(0, item_cache_update_queue_size(item_cache));
@@ -754,14 +691,14 @@ static void teardown_full_update(void) {
 }
 
 START_TEST (test_adding_entry_causes_item_added_to_cache) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
   item_cache_add_entry(item_cache, entry);
   sleep(1);
   assert_equal(11, item_cache_cached_size(item_cache));
 } END_TEST
 
 START_TEST (test_adding_entry_causes_tokens_to_be_added_to_the_db) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document, 141);
+  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
   item_cache_add_entry(item_cache, entry);
   sleep(1);
 
@@ -778,8 +715,8 @@ START_TEST (test_adding_entry_causes_tokens_to_be_added_to_the_db) {
 } END_TEST
 
 START_TEST (test_adding_multiple_entries_causes_item_added_to_cache) {
-  ItemCacheEntry *entry1 = create_entry_from_atom_xml(entry_document, 141);
-  ItemCacheEntry *entry2 = create_entry_from_atom_xml(entry_document2, 141); // TODO create another document
+  ItemCacheEntry *entry1 = create_entry_from_atom_xml(entry_document);
+  ItemCacheEntry *entry2 = create_entry_from_atom_xml(entry_document2); // TODO create another document
 
   item_cache_add_entry(item_cache, entry1);
   item_cache_add_entry(item_cache, entry2);
@@ -795,7 +732,7 @@ static void update_callback(ItemCache * item_cache, void *memo) {
 START_TEST (test_update_callback) {
   int memo = 21;
   item_cache_set_update_callback(item_cache, update_callback, &memo);
-  ItemCacheEntry *entry1 = create_entry_from_atom_xml(entry_document, 141);
+  ItemCacheEntry *entry1 = create_entry_from_atom_xml(entry_document);
 
   item_cache_add_entry(item_cache, entry1);
   sleep(1);
@@ -811,7 +748,7 @@ START_TEST (test_update_callback_not_triggered_for_invalid_item) {
   memo_ref = NULL;
   int memo = 21;
   item_cache_set_update_callback(item_cache, update_callback, &memo);
-  ItemCacheEntry *entry1 = create_entry_from_atom_xml(entry_document, 141);
+  ItemCacheEntry *entry1 = create_entry_from_atom_xml(entry_document);
 
   item_cache_add_entry(item_cache, entry1);
   sleep(1);
@@ -1122,10 +1059,6 @@ item_cache_suite(void) {
   tcase_add_test(modification, test_destroying_an_entry_removes_it_from_the_database_file);
   tcase_add_test(modification, test_cant_delete_an_item_that_is_used_in_the_random_background);
   tcase_add_test(modification, test_failed_deletion_doesnt_delete_tokens);
-  tcase_add_test(modification, test_add_feed_to_item_cache);
-  tcase_add_test(modification, test_add_feed_that_already_exists_updates_attributes);
-  tcase_add_test(modification, test_deleting_a_feed_removes_it_from_the_database);
-  tcase_add_test(modification, test_deleting_a_feed_removes_its_entries_from_the_database);
   tcase_add_test(modification, test_adding_entry_causes_it_to_be_added_to_the_tokenization_queue);
   tcase_add_test(modification, test_adding_existing_entry_doesnt_tokenize_if_the_entry_is_tokenized);
 

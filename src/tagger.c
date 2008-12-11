@@ -519,7 +519,7 @@ static ItemCacheEntry * create_entry(xmlXPathContextPtr ctx, char * entry_id) {
     xmlDocPtr doc = xmlNewDoc(BAD_CAST "1.0");
     xmlDocSetRootElement(doc, xmlDocCopyNode(xp->nodesetval->nodeTab[0], doc, 1));
     xmlDocDumpFormatMemory(doc, &atom, &size, 1);
-    entry = create_entry_from_atom_xml_document(0, doc, atom);
+    entry = create_entry_from_atom_xml_document(doc, atom);
     xmlFreeDoc(doc);
     xmlFree(atom);
     
