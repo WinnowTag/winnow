@@ -1240,7 +1240,7 @@ const char * item_cache_errmsg(const ItemCache *item_cache) {
   if (item_cache && item_cache->db) {
     if (item_cache->version_mismatch) {
       msg = "Database file's user version does not match classifier version."
-          " Trying running classifier-db-migrate.";
+          " Trying running classifier-db-migrate from the classifier-tools package.";
     } else {
       msg = sqlite3_errmsg(item_cache->db);
     }
