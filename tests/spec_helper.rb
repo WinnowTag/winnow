@@ -45,7 +45,7 @@ end
 
 def create_entry(opts = {})
   opts = {:id => '1111', :title => 'My Entry', :content => "this is the html content for entry 1111 there should be enough to tokenize"}.merge(opts)
-  collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feeds/426/feed_items')
+  collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feed_items')
   entry = Atom::Entry.new do |entry|
     entry.title = opts[:title]
     entry.id = "urn:peerworks.org:entries##{opts[:id]}"
@@ -60,7 +60,7 @@ end
 
 def create_empty_entry(opts = {})
   opts = {:id => '1111', :title => 'My Entry'}.merge(opts)
-  collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feeds/426/feed_items')
+  collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feed_items')
   entry = Atom::Entry.new do |entry|
     entry.title = opts[:title]
     entry.id = "urn:peerworks.org:entries##{opts[:id]}"
@@ -73,7 +73,7 @@ def create_empty_entry(opts = {})
 end
 
 def create_big_entry  
-  collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feeds/426/feed_items')
+  collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feed_items')
   entry = Atom::Entry.new do |entry|
     entry.title = 'My Feed'
     entry.id = "urn:peerworks.org:entries#1111"
@@ -124,7 +124,7 @@ def create_another_big_entry
   </entry>
   END
   
-  collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feeds/426/feed_items')
+  collection = Atom::Pub::Collection.new(:href => CLASSIFIER_URL + '/feed_items')
   entry = Atom::Entry.load_entry(s)
   collection.publish(entry)
 end

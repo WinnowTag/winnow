@@ -66,7 +66,6 @@ struct HTTPD {
   regex_t start_job_regex;
   regex_t job_status_regex;
   regex_t about_regex;
-  regex_t item_cache_feeds_regex;
   regex_t item_cache_create_feed_items_regex;
   regex_t item_cache_feed_items_regex;
   regex_t get_clues_regex;
@@ -291,13 +290,6 @@ static int entry_handler(const HTTPRequest * request, HTTPResponse * response) {
   return 0;
 }
 
-static int feed_handler(const HTTPRequest * request, HTTPResponse * response) {
-  response->code = MHD_HTTP_ACCEPTED;
-  response->content = "<info>Feed updates ignored.</info>";
-  response->content_type = CONTENT_TYPE;
-  return 0;
-}
-
 static int start_job(const HTTPRequest * request, HTTPResponse * response) {
   int ret = 0;
 
@@ -516,9 +508,6 @@ static int handle_request(const Httpd * httpd, const HTTPRequest * request, HTTP
     handler = &job_handler;
   } else if (0 == regexec(&httpd->about_regex,                        request->path, 0, NULL, 0)) {
     handler = &about_handler;
-  } else if (0 == regexec(&httpd->item_cache_feeds_regex,             request->path, 0, NULL, 0)) {
-    credentials = httpd->config->item_cache_credentials;
-    handler = &feed_handler;
   } else if (0 == regexec(&httpd->item_cache_create_feed_items_regex, request->path, 0, NULL, 0)) {
     credentials = httpd->config->item_cache_credentials;
     handler = &add_entry;
@@ -658,8 +647,7 @@ Httpd * httpd_start(HttpConfig *config, ClassificationEngine *ce, ItemCache *ite
     COMPILE_REGEX(&httpd->start_job_regex,                    "^/classifier/jobs/?(.xml)?$");
     COMPILE_REGEX(&httpd->job_status_regex,                   "^/classifier/jobs/.+(.xml)*$");
     COMPILE_REGEX(&httpd->about_regex,                        "^/classifier(.xml)?$");
-    COMPILE_REGEX(&httpd->item_cache_feeds_regex,             "^/feeds/?([0-9]+)?$");
-    COMPILE_REGEX(&httpd->item_cache_create_feed_items_regex, "^/feeds/([0-9]+)/feed_items/?$");
+    COMPILE_REGEX(&httpd->item_cache_create_feed_items_regex, "^/feed_items/?$");
     COMPILE_REGEX(&httpd->item_cache_feed_items_regex,        "^/feed_items/([0-9]+)$");
     COMPILE_REGEX(&httpd->get_clues_regex,                    "^/classifier/clues");
 
