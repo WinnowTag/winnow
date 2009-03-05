@@ -760,13 +760,14 @@ time_t purge_time;
 
 static void setup_purging(void) {
   setup_fixture_path();
+  item_cache_options.load_items_since = 30;
   system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
 
   time_t now = time(NULL);
   struct tm item_time;
   gmtime_r(&now, &item_time);
-  item_time.tm_mday--;
+  //item_time.tm_mday--;
   item_time.tm_mon--;
   purge_time = timegm(&item_time);
 }
@@ -1013,88 +1014,88 @@ item_cache_suite(void) {
   TCase *tc_case = tcase_create("case");
 
   tcase_add_test(tc_case, creating_with_missing_db_file_fails);
-  tcase_add_test(tc_case, creating_with_empty_db_file_fails);
-  tcase_add_test(tc_case, create_with_valid_db);
-
-  TCase *fetch_item_case = tcase_create("fetch_item");
-  tcase_add_checked_fixture(fetch_item_case, setup_cache, teardown_item_cache);
-  tcase_add_test(fetch_item_case, test_fetch_item_returns_null_when_item_doesnt_exist);
-  tcase_add_test(fetch_item_case, test_fetch_item_contains_item_id);
-  tcase_add_test(fetch_item_case, test_fetch_item_contains_item_time);
-  tcase_add_test(fetch_item_case, test_fetch_item_contains_the_right_number_of_tokens);
-  tcase_add_test(fetch_item_case, test_fetch_item_contains_the_right_frequency_for_a_given_token);
-  tcase_add_test(fetch_item_case, test_fetch_item_after_load);
-  tcase_add_test(fetch_item_case, test_fetch_item_after_load_contains_tokens);
-  tcase_add_test(fetch_item_case, test_free_when_done_is_true_when_the_item_is_not_in_the_memory_cache);
-  tcase_add_test(fetch_item_case, test_free_when_done_is_false_when_the_item_is_in_the_memory_cache);
-
-  TCase *load = tcase_create("load");
-  tcase_add_checked_fixture(load, setup_cache, teardown_item_cache);
-  tcase_add_test(load, test_load_loads_the_right_number_of_items);
-  tcase_add_test(load, test_load_sets_cache_loaded_to_true);
-  tcase_add_test(load, test_load_respects_min_tokens);
-
-  TCase *iteration = tcase_create("iteration");
-  tcase_add_checked_fixture(iteration, setup_iteration, teardown_iteration);
-  tcase_add_test(iteration, test_iterates_over_all_items);
-  tcase_add_test(iteration, test_iteration_stops_when_iterator_returns_CLASSIFIER_FAIL);
-  tcase_add_test(iteration, test_iteration_happens_in_reverse_updated_order);
-
-  TCase *rndbg = tcase_create("random background");
-  tcase_add_checked_fixture(rndbg, setup_cache, teardown_item_cache);
-  tcase_add_test(rndbg, test_random_background_is_empty_pool_before_load);
-  tcase_add_test(rndbg, test_creates_random_background_after_load);
-  tcase_add_test(rndbg, test_random_background_is_correct_size);
-  tcase_add_test(rndbg, test_random_background_has_right_count_for_a_token);
-
-  TCase *modification = tcase_create("modification");
-  tcase_add_checked_fixture(modification, setup_modification, teardown_modification);
-  tcase_add_test(modification, adding_an_entry_twice_does_not_fail);
-  tcase_add_test(modification, adding_an_entry_twice_does_not_add_a_duplicate);
-  tcase_add_test(modification, adding_an_entry_saves_all_its_attributes);
-  tcase_add_test(modification, adding_an_entry_saves_its_xml);
-  tcase_add_test(modification, test_can_add_entry_without_a_feed_id);
-  tcase_add_test(modification, test_destroying_an_entry_removes_its_xml_document);
-  tcase_add_test(modification, test_destroying_an_entry_removes_tokens);
-  tcase_add_test(modification, test_destroying_an_entry_removes_it_from_the_database_file);
-  tcase_add_test(modification, test_cant_delete_an_item_that_is_used_in_the_random_background);
-  tcase_add_test(modification, test_failed_deletion_doesnt_delete_tokens);
-  tcase_add_test(modification, test_adding_entry_causes_it_to_be_added_to_the_tokenization_queue);
-  tcase_add_test(modification, test_adding_existing_entry_doesnt_tokenize_if_the_entry_is_tokenized);
-
-  TCase *loaded_modification = tcase_create("loaded modification");
-  tcase_add_checked_fixture(loaded_modification, setup_loaded_modification, teardown_loaded_modification);
-  tcase_add_test(loaded_modification, item_cache_add_item_returns_CLASSIFIER_OK_if_the_item_is_added);
-  tcase_add_test(loaded_modification, item_cache_add_item_returns_CLASSIFIER_FAIL_if_the_item_is_not_added_because_it_doesn_have_enough_tokens);
-  tcase_add_test(loaded_modification, item_cache_add_item_doesnt_add_small_items);
-  tcase_add_test(loaded_modification, test_add_item_to_in_memory_arrays_adds_an_item);
-  tcase_add_test(loaded_modification, test_add_item_makes_it_fetchable);
-  tcase_add_test(loaded_modification, test_add_item_makes_it_iteratable);
-  tcase_add_test(loaded_modification, test_add_item_puts_it_in_the_right_position);
-  tcase_add_test(loaded_modification, test_add_item_puts_it_in_the_right_position_at_beginning);
-  tcase_add_test(loaded_modification, test_add_item_puts_it_in_the_right_position_at_end);
-  tcase_add_test(loaded_modification, test_save_item_stores_it_in_the_database);
-  tcase_add_test(loaded_modification, test_save_item_without_an_entry_wont_store_it_in_the_database);
-  tcase_add_test(loaded_modification, test_save_item_stores_the_correct_tokens);
-
-  TCase *feature_extraction = tcase_create("feature extraction");
-  tcase_add_checked_fixture(feature_extraction, setup_feature_extraction, teardown_feature_extraction);
-  tcase_add_test(feature_extraction, test_adding_entry_results_in_calling_the_tokenizer_with_the_entry);
-  tcase_add_test(feature_extraction, test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_update_queue);
-
-  TCase *null_feature_extraction = tcase_create("null feature extraction");
-  tcase_add_checked_fixture(null_feature_extraction, setup_null_feature_extraction, teardown_null_feature_extraction);
-  tcase_add_test(null_feature_extraction, test_null_feature_extraction);
-
-  TCase *full_update = tcase_create("full update");
-  tcase_add_checked_fixture(full_update, setup_full_update, teardown_full_update);
-  tcase_set_timeout(full_update, 5);
-  tcase_add_test(full_update, test_update_callback);
-  tcase_add_test(full_update, test_adding_multiple_entries_causes_item_added_to_cache);
-  tcase_add_test(full_update, test_adding_entry_causes_item_added_to_cache);
-  tcase_add_test(full_update, test_update_callback_not_triggered_for_invalid_item);
-  tcase_add_test(full_update, test_adding_entry_causes_tokens_to_be_added_to_the_db);
-
+   tcase_add_test(tc_case, creating_with_empty_db_file_fails);
+   tcase_add_test(tc_case, create_with_valid_db);
+   
+   TCase *fetch_item_case = tcase_create("fetch_item");
+   tcase_add_checked_fixture(fetch_item_case, setup_cache, teardown_item_cache);
+   tcase_add_test(fetch_item_case, test_fetch_item_returns_null_when_item_doesnt_exist);
+   tcase_add_test(fetch_item_case, test_fetch_item_contains_item_id);
+   tcase_add_test(fetch_item_case, test_fetch_item_contains_item_time);
+   tcase_add_test(fetch_item_case, test_fetch_item_contains_the_right_number_of_tokens);
+   tcase_add_test(fetch_item_case, test_fetch_item_contains_the_right_frequency_for_a_given_token);
+   tcase_add_test(fetch_item_case, test_fetch_item_after_load);
+   tcase_add_test(fetch_item_case, test_fetch_item_after_load_contains_tokens);
+   tcase_add_test(fetch_item_case, test_free_when_done_is_true_when_the_item_is_not_in_the_memory_cache);
+   tcase_add_test(fetch_item_case, test_free_when_done_is_false_when_the_item_is_in_the_memory_cache);
+   
+   TCase *load = tcase_create("load");
+   tcase_add_checked_fixture(load, setup_cache, teardown_item_cache);
+   tcase_add_test(load, test_load_loads_the_right_number_of_items);
+   tcase_add_test(load, test_load_sets_cache_loaded_to_true);
+   tcase_add_test(load, test_load_respects_min_tokens);
+   
+   TCase *iteration = tcase_create("iteration");
+   tcase_add_checked_fixture(iteration, setup_iteration, teardown_iteration);
+   tcase_add_test(iteration, test_iterates_over_all_items);
+   tcase_add_test(iteration, test_iteration_stops_when_iterator_returns_CLASSIFIER_FAIL);
+   tcase_add_test(iteration, test_iteration_happens_in_reverse_updated_order);
+   
+   TCase *rndbg = tcase_create("random background");
+   tcase_add_checked_fixture(rndbg, setup_cache, teardown_item_cache);
+   tcase_add_test(rndbg, test_random_background_is_empty_pool_before_load);
+   tcase_add_test(rndbg, test_creates_random_background_after_load);
+   tcase_add_test(rndbg, test_random_background_is_correct_size);
+   tcase_add_test(rndbg, test_random_background_has_right_count_for_a_token);
+   
+   TCase *modification = tcase_create("modification");
+   tcase_add_checked_fixture(modification, setup_modification, teardown_modification);
+   tcase_add_test(modification, adding_an_entry_twice_does_not_fail);
+   tcase_add_test(modification, adding_an_entry_twice_does_not_add_a_duplicate);
+   tcase_add_test(modification, adding_an_entry_saves_all_its_attributes);
+   tcase_add_test(modification, adding_an_entry_saves_its_xml);
+   tcase_add_test(modification, test_can_add_entry_without_a_feed_id);
+   tcase_add_test(modification, test_destroying_an_entry_removes_its_xml_document);
+   tcase_add_test(modification, test_destroying_an_entry_removes_tokens);
+   tcase_add_test(modification, test_destroying_an_entry_removes_it_from_the_database_file);
+   tcase_add_test(modification, test_cant_delete_an_item_that_is_used_in_the_random_background);
+   tcase_add_test(modification, test_failed_deletion_doesnt_delete_tokens);
+   tcase_add_test(modification, test_adding_entry_causes_it_to_be_added_to_the_tokenization_queue);
+   tcase_add_test(modification, test_adding_existing_entry_doesnt_tokenize_if_the_entry_is_tokenized);
+   
+   TCase *loaded_modification = tcase_create("loaded modification");
+   tcase_add_checked_fixture(loaded_modification, setup_loaded_modification, teardown_loaded_modification);
+   tcase_add_test(loaded_modification, item_cache_add_item_returns_CLASSIFIER_OK_if_the_item_is_added);
+   tcase_add_test(loaded_modification, item_cache_add_item_returns_CLASSIFIER_FAIL_if_the_item_is_not_added_because_it_doesn_have_enough_tokens);
+   tcase_add_test(loaded_modification, item_cache_add_item_doesnt_add_small_items);
+   tcase_add_test(loaded_modification, test_add_item_to_in_memory_arrays_adds_an_item);
+   tcase_add_test(loaded_modification, test_add_item_makes_it_fetchable);
+   tcase_add_test(loaded_modification, test_add_item_makes_it_iteratable);
+   tcase_add_test(loaded_modification, test_add_item_puts_it_in_the_right_position);
+   tcase_add_test(loaded_modification, test_add_item_puts_it_in_the_right_position_at_beginning);
+   tcase_add_test(loaded_modification, test_add_item_puts_it_in_the_right_position_at_end);
+   tcase_add_test(loaded_modification, test_save_item_stores_it_in_the_database);
+   tcase_add_test(loaded_modification, test_save_item_without_an_entry_wont_store_it_in_the_database);
+   tcase_add_test(loaded_modification, test_save_item_stores_the_correct_tokens);
+   
+   TCase *feature_extraction = tcase_create("feature extraction");
+   tcase_add_checked_fixture(feature_extraction, setup_feature_extraction, teardown_feature_extraction);
+   tcase_add_test(feature_extraction, test_adding_entry_results_in_calling_the_tokenizer_with_the_entry);
+   tcase_add_test(feature_extraction, test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_update_queue);
+   
+   TCase *null_feature_extraction = tcase_create("null feature extraction");
+   tcase_add_checked_fixture(null_feature_extraction, setup_null_feature_extraction, teardown_null_feature_extraction);
+   tcase_add_test(null_feature_extraction, test_null_feature_extraction);
+   
+   TCase *full_update = tcase_create("full update");
+   tcase_add_checked_fixture(full_update, setup_full_update, teardown_full_update);
+   tcase_set_timeout(full_update, 5);
+   tcase_add_test(full_update, test_update_callback);
+   tcase_add_test(full_update, test_adding_multiple_entries_causes_item_added_to_cache);
+   tcase_add_test(full_update, test_adding_entry_causes_item_added_to_cache);
+   tcase_add_test(full_update, test_update_callback_not_triggered_for_invalid_item);
+   tcase_add_test(full_update, test_adding_entry_causes_tokens_to_be_added_to_the_db);
+ 
   TCase *purging = tcase_create("purging");
   tcase_add_checked_fixture(purging, setup_purging, teardown_purging);
   tcase_add_test(purging, test_purging_cache_does_nothing_with_one_new_item);

@@ -704,12 +704,12 @@ static int entry_has_tokens(ItemCache *item_cache, ItemCacheEntry *entry) {
   return has_tokens;
 }
 
-static time_t get_purge_time(void) {
+static time_t get_purge_time(int days_to_keep) {
   time_t now = time(NULL);
   struct tm purge_time_tm;
   gmtime_r(&now, &purge_time_tm);
-  purge_time_tm.tm_mon--;
-  purge_time_tm.tm_mday--;
+  purge_time_tm.tm_mon -= (days_to_keep / 30);
+  purge_time_tm.tm_mday -= (days_to_keep % 30);
   return timegm(&purge_time_tm);
 }
 
@@ -1510,7 +1510,7 @@ int item_cache_purge_old_items(ItemCache *item_cache) {
     int number_purged = 0;
     pthread_rwlock_wrlock(&item_cache->cache_lock);
 
-    OrderedItemList *purge_list = ordered_item_list_split(item_cache->items_in_order, get_purge_time());
+    OrderedItemList *purge_list = ordered_item_list_split(item_cache->items_in_order, get_purge_time(item_cache->load_items_since));
 
     if (purge_list == item_cache->items_in_order) {
       item_cache->items_in_order = NULL;
