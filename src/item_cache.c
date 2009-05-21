@@ -1302,6 +1302,7 @@ Item * item_cache_fetch_item(ItemCache *item_cache, const unsigned char * id, in
     item = fetch_item_from_catalog(item_cache, (char *) id);
 
     if (item && fetch_tokens_for(item_cache, item) <= 0) {
+      // TODO No tokens for the item, should probably add it to the tokenizer queue
     	free_item(item);
     	item = NULL;
     }
