@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<?fileVersion 4.0.0?>
+<?fileVersion 5.0.0?>
 
-<cproject>
+<cproject storage_type_id="org.eclipse.cdt.core.XmlProjectDescriptionStorage2">
 <storageModule moduleId="org.eclipse.cdt.core.settings">
-<cconfiguration id="cdt.managedbuild.toolchain.gnu.macosx.base.1004525392">
-<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="cdt.managedbuild.toolchain.gnu.macosx.base.1004525392" moduleId="org.eclipse.cdt.core.settings" name="MacOSX GCC">
+<cconfiguration id="cdt.managedbuild.toolchain.gnu.macosx.base.1455459050">
+<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="cdt.managedbuild.toolchain.gnu.macosx.base.1455459050" moduleId="org.eclipse.cdt.core.settings" name="MacOSX GCC">
 <externalSettings/>
 <extensions>
 <extension id="org.eclipse.cdt.core.MachO" point="org.eclipse.cdt.core.BinaryParser"/>
@@ -14,38 +14,6 @@
 <extension id="org.eclipse.cdt.core.MakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 </extensions>
 </storageModule>
-<storageModule moduleId="cdtBuildSystem" version="4.0.0">
-<configuration artifactName="classifier" buildProperties="" description="" id="cdt.managedbuild.toolchain.gnu.macosx.base.1004525392" name="MacOSX GCC" parent="org.eclipse.cdt.build.core.emptycfg">
-<folderInfo id="cdt.managedbuild.toolchain.gnu.macosx.base.1004525392.127088926" name="/" resourcePath="">
-<toolChain id="cdt.managedbuild.toolchain.gnu.macosx.base.98108739" name="cdt.managedbuild.toolchain.gnu.macosx.base" superClass="cdt.managedbuild.toolchain.gnu.macosx.base">
-<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.MachO" id="cdt.managedbuild.target.gnu.platform.macosx.base.1193813546" name="Debug Platform" osList="macosx" superClass="cdt.managedbuild.target.gnu.platform.macosx.base"/>
-<builder id="cdt.managedbuild.target.gnu.builder.macosx.base.1684948520" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder" superClass="cdt.managedbuild.target.gnu.builder.macosx.base"/>
-<tool id="cdt.managedbuild.tool.macosx.c.linker.macosx.base.2133101255" name="MacOS X C Linker" superClass="cdt.managedbuild.tool.macosx.c.linker.macosx.base">
-<inputType id="cdt.managedbuild.tool.macosx.c.linker.input.1508954931" superClass="cdt.managedbuild.tool.macosx.c.linker.input">
-<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
-<additionalInput kind="additionalinput" paths="$(LIBS)"/>
-</inputType>
-</tool>
-<tool id="cdt.managedbuild.tool.macosx.cpp.linker.macosx.base.1982292816" name="MacOS X C++ Linker" superClass="cdt.managedbuild.tool.macosx.cpp.linker.macosx.base"/>
-<tool id="cdt.managedbuild.tool.gnu.assembler.macosx.base.1864052815" name="GCC Assembler" superClass="cdt.managedbuild.tool.gnu.assembler.macosx.base">
-<inputType id="cdt.managedbuild.tool.gnu.assembler.input.1997952510" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
-</tool>
-<tool id="cdt.managedbuild.tool.gnu.archiver.macosx.base.466737132" name="GCC Archiver" superClass="cdt.managedbuild.tool.gnu.archiver.macosx.base"/>
-<tool id="cdt.managedbuild.tool.gnu.cpp.compiler.macosx.base.853796106" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.macosx.base"/>
-<tool id="cdt.managedbuild.tool.gnu.c.compiler.macosx.base.1440647700" name="GCC C Compiler" superClass="cdt.managedbuild.tool.gnu.c.compiler.macosx.base">
-<option id="gnu.c.compiler.option.include.paths.493722583" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" valueType="includePath">
-<listOptionValue builtIn="false" value="&quot;${workspace_loc:/classifier/json-c}&quot;"/>
-<listOptionValue builtIn="false" value="&quot;${workspace_loc:/classifier/microhttpd/src/include}&quot;"/>
-<listOptionValue builtIn="false" value="&quot;${workspace_loc:/classifier/judy/src}&quot;"/>
-<listOptionValue builtIn="false" value="/usr/local/include/libxml2"/>
-</option>
-<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.501752102" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
-</tool>
-</toolChain>
-</folderInfo>
-</configuration>
-</storageModule>
-<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
 <storageModule moduleId="scannerConfiguration">
 <autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId="org.eclipse.cdt.make.core.GCCStandardMakePerProjectProfile"/>
 <profile id="org.eclipse.cdt.make.core.GCCStandardMakePerProjectProfile">
@@ -212,16 +180,41 @@
 </profile>
 </scannerConfigBuildInfo>
 </storageModule>
+<storageModule moduleId="cdtBuildSystem" version="4.0.0">
+<configuration artifactName="classifier" buildProperties="" description="" id="cdt.managedbuild.toolchain.gnu.macosx.base.1455459050" name="MacOSX GCC" parent="org.eclipse.cdt.build.core.emptycfg">
+<folderInfo id="cdt.managedbuild.toolchain.gnu.macosx.base.1455459050.1213686008" name="/" resourcePath="">
+<toolChain id="cdt.managedbuild.toolchain.gnu.macosx.base.530008137" name="cdt.managedbuild.toolchain.gnu.macosx.base" superClass="cdt.managedbuild.toolchain.gnu.macosx.base">
+<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.MachO" id="cdt.managedbuild.target.gnu.platform.macosx.base.231652421" name="Debug Platform" osList="macosx" superClass="cdt.managedbuild.target.gnu.platform.macosx.base"/>
+<builder id="cdt.managedbuild.target.gnu.builder.macosx.base.1775550886" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder" superClass="cdt.managedbuild.target.gnu.builder.macosx.base"/>
+<tool id="cdt.managedbuild.tool.macosx.c.linker.macosx.base.1172014494" name="MacOS X C Linker" superClass="cdt.managedbuild.tool.macosx.c.linker.macosx.base">
+<inputType id="cdt.managedbuild.tool.macosx.c.linker.input.1073257403" superClass="cdt.managedbuild.tool.macosx.c.linker.input">
+<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
+<additionalInput kind="additionalinput" paths="$(LIBS)"/>
+</inputType>
+</tool>
+<tool id="cdt.managedbuild.tool.macosx.cpp.linker.macosx.base.320089668" name="MacOS X C++ Linker" superClass="cdt.managedbuild.tool.macosx.cpp.linker.macosx.base"/>
+<tool id="cdt.managedbuild.tool.gnu.assembler.macosx.base.1937602574" name="GCC Assembler" superClass="cdt.managedbuild.tool.gnu.assembler.macosx.base">
+<inputType id="cdt.managedbuild.tool.gnu.assembler.input.1457069211" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
+</tool>
+<tool id="cdt.managedbuild.tool.gnu.archiver.macosx.base.1527039363" name="GCC Archiver" superClass="cdt.managedbuild.tool.gnu.archiver.macosx.base"/>
+<tool id="cdt.managedbuild.tool.gnu.cpp.compiler.macosx.base.1471567270" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.macosx.base"/>
+<tool id="cdt.managedbuild.tool.gnu.c.compiler.macosx.base.270365939" name="GCC C Compiler" superClass="cdt.managedbuild.tool.gnu.c.compiler.macosx.base">
+<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.585455697" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
+</tool>
+</toolChain>
+</folderInfo>
+</configuration>
+</storageModule>
+<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
 <storageModule moduleId="org.eclipse.cdt.core.language.mapping"/>
-<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
 <storageModule moduleId="org.eclipse.cdt.make.core.buildtargets">
 <buildTargets>
-<target name="Check" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+<target name="check" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 <buildCommand>make</buildCommand>
-<buildArguments>check</buildArguments>
+<buildArguments></buildArguments>
 <buildTarget>check</buildTarget>
 <stopOnError>true</stopOnError>
-<useDefaultCommand>false</useDefaultCommand>
+<useDefaultCommand>true</useDefaultCommand>
 <runAllBuilders>true</runAllBuilders>
 </target>
 </buildTargets>
@@ -229,6 +222,6 @@
 </cconfiguration>
 </storageModule>
 <storageModule moduleId="cdtBuildSystem" version="4.0.0">
-<project id="classifier.null.1363921384" name="classifier"/>
+<project id="classifier.null.749554366" name="classifier"/>
 </storageModule>
 </cproject>
