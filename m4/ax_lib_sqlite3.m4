@@ -150,6 +150,8 @@ AC_DEFUN([AX_LIB_SQLITE3],
             AC_SUBST(SQLITE3_LDFLAGS)
             AC_SUBST(SQLITE3_VERSION)
             AC_DEFINE([HAVE_SQLITE3], [], [Have the SQLITE3 library])
+        else
+            AC_MSG_ERROR([Can not find SQLITE library or headers]) 
         fi
     fi
 ])
