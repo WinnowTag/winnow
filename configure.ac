@@ -1,4 +1,5 @@
 AC_INIT([classifier], [1.7.1], [info@peerworks.org])
+AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_CONFIG_LIBOBJ_DIR(src)
 AC_GNU_SOURCE

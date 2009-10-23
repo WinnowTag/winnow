@@ -39,6 +39,7 @@
 
 AC_DEFUN([AX_LIB_SQLITE3],
 [
+		AC_PROG_CXX
     AC_ARG_WITH([sqlite3],
         AC_HELP_STRING(
             [--with-sqlite3=@<:@ARG@:>@],
