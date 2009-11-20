@@ -11,8 +11,6 @@ require File.dirname(__FILE__) + "/spec_helper.rb"
 
 describe "Tag Index" do
   before(:each) do 
-    system("rm /tmp/perf.log")   
-    start_classifier(:tag_index => 'http://localhost:8888/tags.atom', :sleep => false)
     @http = TestHttpServer.new(:port => 8888)
   end
   
@@ -27,6 +25,8 @@ describe "Tag Index" do
       end
     end
     
+    start_classifier(:tag_index => 'http://localhost:8888/tags.atom', :sleep => false)
+    
     @http.should have_received_requests
   end
   
@@ -37,6 +37,7 @@ describe "Tag Index" do
       end
     end
     
+    start_classifier(:tag_index => 'http://localhost:8888/tags.atom', :sleep => false)
     @http.should have_received_requests
   end
   
@@ -47,6 +48,7 @@ describe "Tag Index" do
       end
     end
     
+    start_classifier(:tag_index => 'http://localhost:8888/tags.atom', :sleep => false)
     @http.should have_received_requests
   end
   
@@ -57,6 +59,7 @@ describe "Tag Index" do
       end
     end
     
+    start_classifier(:tag_index => 'http://localhost:8888/tags.atom', :sleep => false)
     @http.should have_received_requests
   end
 end
@@ -64,8 +67,6 @@ end
 describe "after item addition" do
   before(:each) do
     start_tokenizer
-    system("rm /tmp/perf.log")   
-    start_classifier(:tag_index => 'http://localhost:8888/tags.atom', :sleep => false)
     @http = TestHttpServer.new(:port => 8888)
   end
 
@@ -89,6 +90,7 @@ describe "after item addition" do
     end
 
     sleep(0.1)
+    start_classifier(:tag_index => 'http://localhost:8888/tags.atom', :sleep => false)
     create_entry
     @http.should have_received_requests
   end    

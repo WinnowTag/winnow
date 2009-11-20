@@ -12,7 +12,6 @@ require 'auth-hmac'
 
 describe "Classifier Job Control" do
   before(:each) do
-    system("rm /tmp/perf.log")   
     start_classifier
   end
   
@@ -92,7 +91,7 @@ describe "Classifier Job Control" do
   
   describe "GET job" do
     before(:each) do
-      @job = Job.create(:tag_url => "http://localhost/tag.atom")
+      @job = Job.create(:tag_url => "http://localhost:60000/tag.atom")
     end
     
     it "should return 200 for valid job" do
@@ -124,7 +123,6 @@ end
 
 describe "Item Cache Authentication" do
   before(:each) do
-    system("rm /tmp/perf.log")   
     start_classifier(:credentials => File.join(ROOT, 'fixtures', 'credentials.js'))
   end
   

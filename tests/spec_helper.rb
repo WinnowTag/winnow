@@ -140,7 +140,8 @@ def start_classifier(opts = {})
   options = {:min_tokens => 0, :load_items_since => 3650}.update(opts)
   system("rm -Rf #{Database} && cp -R #{File.join(ROOT, 'fixtures/valid')} #{Database}")
   system("chmod -R 755 #{Database}") 
-  system("rm -f /tmp/classifier-test.pid")
+  system("rm -f /tmp/classifier-test.pid")  
+  system("rm -f /tmp/perf.log")
   classifier = File.join(ROOT, "../src/classifier")
   
   tag_index = "--tag-index #{opts[:tag_index]}" if opts[:tag_index]
@@ -169,7 +170,7 @@ def start_classifier(opts = {})
       exec(classifier_cmd)
     end
   else
-    system("#{classifier_cmd} -d")
+    raise "Could not start the classifier" unless system("#{classifier_cmd} -d")
   end  
     
   sleep(0.1) if opts[:sleep] != false

@@ -15,7 +15,6 @@ describe "The Classifier's Item Cache" do
   end
   
   before(:each) do
-    system("rm /tmp/perf.log")   
     start_classifier
     @sqlite = SQLite3::Database.open("#{Database}/catalog.db")
     @sqlite.execute("ATTACH DATABASE '#{Database}/atom.db' as atom")
@@ -137,7 +136,6 @@ end
 
 describe "Item Cache Authentication" do
   before(:each) do
-    system("rm /tmp/perf.log")   
     start_classifier(:credentials => File.join(ROOT, 'fixtures', 'credentials.js'))
   end
   

@@ -16,7 +16,6 @@ require 'auth-hmac'
 
 describe "Classifier Job Processing" do
   before(:each) do
-    system("rm -f /tmp/perf.log")   
     start_classifier
     @http = TestHttpServer.new(:port => 8888)
   end
@@ -218,7 +217,6 @@ end
 
 describe "Job Processing with a threshold set" do
   before(:each) do
-    system("rm /tmp/perf.log")   
     start_classifier(:positive_threshold => 0.9)
     @http = TestHttpServer.new(:port => 8888)
   end
@@ -237,7 +235,6 @@ end
   
 describe "Job Processing with an incomplete tag" do
   before(:each) do
-    system("rm /tmp/perf.log")   
     start_classifier(:positive_threshold => 0.9)
     start_tokenizer
     @http = TestHttpServer.new(:port => 8888)
@@ -266,7 +263,6 @@ end
 
 describe "Job Processing with missing items and no tokenizer" do
   before(:each) do
-    system("rm /tmp/perf.log")   
     start_classifier(:missing_item_timeout => 1)
     @http = TestHttpServer.new(:port => 8888)
   end
@@ -383,7 +379,6 @@ end
 
 describe 'Job Processing with authentication' do
   before(:each) do
-    system("rm -f /tmp/perf.log")   
     start_classifier(:credentials => File.join(ROOT, 'fixtures', 'credentials.js'))
     @http = TestHttpServer.new(:port => 8888)
     @authhmac = AuthHMAC.new('classifier_id' => 'classifier_secret')
