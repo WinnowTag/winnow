@@ -1,21 +1,21 @@
 /*
-     This file is part of libmicrohttpd
-     (C) 2007 Daniel Pittman and Christian Grothoff
+ This file is part of libmicrohttpd
+ (C) 2007 Daniel Pittman and Christian Grothoff
 
-     This library is free software; you can redistribute it and/or
-     modify it under the terms of the GNU Lesser General Public
-     License as published by the Free Software Foundation; either
-     version 2.1 of the License, or (at your option) any later version.
+ This library is free software; you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public
+ License as published by the Free Software Foundation; either
+ version 2.1 of the License, or (at your option) any later version.
 
-     This library is distributed in the hope that it will be useful,
-     but WITHOUT ANY WARRANTY; without even the implied warranty of
-     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-     Lesser General Public License for more details.
+ This library is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ Lesser General Public License for more details.
 
-     You should have received a copy of the GNU Lesser General Public
-     License along with this library; if not, write to the Free Software
-     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
+ You should have received a copy of the GNU Lesser General Public
+ License along with this library; if not, write to the Free Software
+ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 /**
  * @file internal.h
@@ -27,30 +27,16 @@
 #ifndef INTERNAL_H
 #define INTERNAL_H
 
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <stdarg.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <signal.h>
-
-#include "config.h"
-#include "plibc.h"
+#include "platform.h"
 #include "microhttpd.h"
-
-#ifndef MINGW
-#include <sys/mman.h>
-#include <netdb.h>
-#include <netinet/in.h>
+#if HTTPS_SUPPORT
+#include "gnutls.h"
 #endif
 
-#include <pthread.h>
+#define EXTRA_CHECKS MHD_YES
 
-#define MAX(a,b) ((a)<(b)) ? (b) : (a)
-#define MIN(a,b) ((a)<(b)) ? (a) : (b)
+#define MHD_MAX(a,b) ((a)<(b)) ? (b) : (a)
+#define MHD_MIN(a,b) ((a)<(b)) ? (a) : (b)
 
 /**
  * Size by which MHD usually tries to increment read/write buffers.
@@ -65,25 +51,44 @@
  * messages.
  */
 void MHD_DLOG (const struct MHD_Daemon *daemon, const char *format, ...);
+
 #endif
+void MHD_tls_log_func (int level, const char *str);
 
 /**
  * Process escape sequences ('+'=space, %HH).
  * Updates val in place.
+ *
+ * @return length of the resulting val (strlen(val) maybe
+ *  shorter afterwards due to elimination of escape sequences)
  */
-void MHD_http_unescape (char *val);
+size_t MHD_http_unescape (char *val);
 
 /**
  * Header or cookie in HTTP request or response.
  */
 struct MHD_HTTP_Header
 {
+  /**
+   * Headers are kept in a linked list.
+   */
   struct MHD_HTTP_Header *next;
 
+  /**
+   * The name of the header (key), without
+   * the colon.
+   */
   char *header;
 
+  /**
+   * The value of the header.
+   */
   char *value;
 
+  /**
+   * Type of the header (where in the HTTP
+   * protocol is this header from).
+   */
   enum MHD_ValueKind kind;
 
 };
@@ -140,7 +145,7 @@ struct MHD_Response
   /**
    * Set to -1 if size is not known.
    */
-  size_t total_size;
+  uint64_t total_size;
 
   /**
    * Size of data.
@@ -156,7 +161,7 @@ struct MHD_Response
    * At what offset in the stream is the
    * beginning of data located?
    */
-  size_t data_start;
+  uint64_t data_start;
 
 };
 
@@ -282,8 +287,68 @@ enum MHD_CONNECTION_STATE
    */
   MHD_CONNECTION_CLOSED = MHD_CONNECTION_FOOTERS_SENT + 1,
 
+  /*
+   *  SSL/TLS connection states
+   */
+
+  /**
+   * The initial connection state for all secure connectoins
+   * Handshake messages will be processed in this state & while
+   * in the 'MHD_TLS_HELLO_REQUEST' state
+   */
+  MHD_TLS_CONNECTION_INIT = MHD_CONNECTION_CLOSED + 1,
+
+  /**
+   * This state indicates the server has send a 'Hello Request' to
+   * the client & a renegotiation of the handshake is in progress.
+   *
+   * Handshake messages will processed in this state & while
+   * in the 'MHD_TLS_CONNECTION_INIT' state
+   */
+  MHD_TLS_HELLO_REQUEST,
+
+  MHD_TLS_HANDSHAKE_FAILED,
+
+  MHD_TLS_HANDSHAKE_COMPLETE
+
 };
 
+/**
+ * Should all state transitions be printed to stderr?
+ */
+#define DEBUG_STATES MHD_NO
+
+#if HAVE_MESSAGES
+char *MHD_state_to_string (enum MHD_CONNECTION_STATE state);
+#endif
+
+/**
+ * Function to receive plaintext data.
+ *
+ * @param conn the connection struct
+ * @param write_to where to write received data
+ * @param max_bytes maximum number of bytes to receive
+ * @return number of bytes written to write_to
+ */
+typedef ssize_t (*ReceiveCallback) (struct MHD_Connection * conn,
+                                    void *write_to, size_t max_bytes);
+
+
+/**
+ * Function to transmit plaintext data.
+ *
+ * @param conn the connection struct
+ * @param read_from where to read data to transmit
+ * @param max_bytes maximum number of bytes to transmit
+ * @return number of bytes transmitted
+ */
+typedef ssize_t (*TransmitCallback) (struct MHD_Connection * conn,
+                                     const void *write_to, size_t max_bytes);
+
+
+/**
+ * State kept for each HTTP request.
+ */
 struct MHD_Connection
 {
 
@@ -420,14 +485,14 @@ struct MHD_Connection
    * How many more bytes of the body do we expect
    * to read? "-1" for unknown.
    */
-  size_t remaining_upload_size;
+  uint64_t remaining_upload_size;
 
   /**
    * Current write position in the actual response
    * (excluding headers, content only; should be 0
    * while sending headers).
    */
-  size_t response_write_position;
+  uint64_t response_write_position;
 
   /**
    * Position in the 100 CONTINUE message that
@@ -445,6 +510,13 @@ struct MHD_Connection
    * (reading or writing).
    */
   time_t last_activity;
+
+  /**
+   * Did we ever call the "default_handler" on this connection?
+   * (this flag will determine if we call the 'notify_completed'
+   * handler when the connection closes down).
+   */
+  int client_aware;
 
   /**
    * Socket for this connection.  Set to -1 if
@@ -510,10 +582,44 @@ struct MHD_Connection
    */
   unsigned int current_chunk_offset;
 
+  /**
+   * Handler used for processing read connection operations
+   */
+  int (*read_handler) (struct MHD_Connection * connection);
+
+  /**
+   * Handler used for processing write connection operations
+   */
+  int (*write_handler) (struct MHD_Connection * connection);
+
+  /**
+   * Handler used for processing idle connection operations
+   */
+  int (*idle_handler) (struct MHD_Connection * connection);
+
+  /**
+   * Function used for reading HTTP request stream.
+   */
+  ReceiveCallback recv_cls;
+
+  /**
+   * Function used for writing HTTP response stream.
+   */
+  TransmitCallback send_cls;
+
+#if HTTPS_SUPPORT
+  /**
+   * State required for HTTPS/SSL/TLS support.
+   */
+  MHD_gtls_session_t tls_session;
+#endif
 };
 
+typedef void * (*LogCallback)(void * cls, const char * uri);
 
-
+/**
+ * State kept for each MHD daemon.
+ */
 struct MHD_Daemon
 {
 
@@ -532,13 +638,55 @@ struct MHD_Daemon
    */
   struct MHD_Connection *connections;
 
+  /**
+   * Function to call to check if we should
+   * accept or reject an incoming request.
+   * May be NULL.
+   */
   MHD_AcceptPolicyCallback apc;
 
+  /**
+   * Closure argument to apc.
+   */
   void *apc_cls;
 
+  /**
+   * Function to call when we are done processing
+   * a particular request.  May be NULL.
+   */
   MHD_RequestCompletedCallback notify_completed;
 
+  /**
+   * Closure argument to notify_completed.
+   */
   void *notify_completed_cls;
+
+  /**
+   * Function to call with the full URI at the
+   * beginning of request processing.  May be NULL.
+   * <p>
+   * Returns the initial pointer to internal state
+   * kept by the client for the request.
+   */
+  LogCallback uri_log_callback;
+
+  /**
+   * Closure argument to uri_log_callback.
+   */
+  void *uri_log_callback_cls;
+
+#if HAVE_MESSAGES
+  /**
+   * Function for logging error messages (if we
+   * support error reporting).
+   */
+  void (*custom_error_log) (void *cls, const char *fmt, va_list va);
+
+  /**
+   * Closure argument to custom_error_log.
+   */
+  void *custom_error_log_cls;
+#endif
 
   /**
    * PID of the select thread (if we have internal select)
@@ -558,7 +706,7 @@ struct MHD_Daemon
   /**
    * Size of the per-connection memory pools.
    */
-  unsigned int pool_size;
+  size_t pool_size;
 
   /**
    * Limit on the number of parallel connections.
@@ -578,6 +726,16 @@ struct MHD_Daemon
   unsigned int per_ip_connection_limit;
 
   /**
+   * Table storing number of connections per IP
+   */
+  void *per_ip_connection_count;
+
+  /**
+   * Mutex for per-IP connection counts
+   */
+  pthread_mutex_t per_ip_connection_mutex;
+
+  /**
    * Daemon's options.
    */
   enum MHD_OPTION options;
@@ -587,7 +745,62 @@ struct MHD_Daemon
    */
   unsigned short port;
 
+#if HTTPS_SUPPORT
+  /**
+   * What kind of credentials are we offering
+   * for SSL/TLS?
+   */
+  enum MHD_GNUTLS_CredentialsType cred_type;
+
+  /**
+   * Server x509 credentials
+   */
+  MHD_gtls_cert_credentials_t x509_cred;
+
+  /**
+   * Cipher priority cache
+   */
+  MHD_gnutls_priority_t priority_cache;
+
+  /**
+   * Diffie-Hellman parameters
+   */
+  MHD_gtls_dh_params_t dh_params;
+
+  /**
+   * Pointer to our SSL/TLS key (in ASCII) in memory.
+   */
+  const char *https_mem_key;
+
+  /**
+   * Pointer to our SSL/TLS certificate (in ASCII) in memory.
+   */
+  const char *https_mem_cert;
+#endif
+
+  /**
+   * Pointer to master daemon (NULL if this is the master)
+   */
+  struct MHD_Daemon *master;
+
+  /**
+   * Worker daemons (one per thread)
+   */
+  struct MHD_Daemon *worker_pool;
+
+  /**
+   * Number of worker daemons
+   */
+  unsigned int worker_pool_size;
 };
+
+
+#if EXTRA_CHECKS
+#define EXTRA_CHECK(a) if (!(a)) abort();
+#else
+#define EXTRA_CHECK(a)
+#endif
+
 
 
 #endif

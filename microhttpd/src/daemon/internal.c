@@ -28,6 +28,69 @@
 
 #if HAVE_MESSAGES
 /**
+ * State to string dictionary.
+ */
+char *
+MHD_state_to_string (enum MHD_CONNECTION_STATE state)
+{
+  switch (state)
+    {
+    case MHD_CONNECTION_INIT:
+      return "connection init";
+    case MHD_CONNECTION_URL_RECEIVED:
+      return "connection url received";
+    case MHD_CONNECTION_HEADER_PART_RECEIVED:
+      return "header partially received";
+    case MHD_CONNECTION_HEADERS_RECEIVED:
+      return "headers received";
+    case MHD_CONNECTION_HEADERS_PROCESSED:
+      return "headers processed";
+    case MHD_CONNECTION_CONTINUE_SENDING:
+      return "continue sending";
+    case MHD_CONNECTION_CONTINUE_SENT:
+      return "continue sent";
+    case MHD_CONNECTION_BODY_RECEIVED:
+      return "body received";
+    case MHD_CONNECTION_FOOTER_PART_RECEIVED:
+      return "footer partially received";
+    case MHD_CONNECTION_FOOTERS_RECEIVED:
+      return "footers received";
+    case MHD_CONNECTION_HEADERS_SENDING:
+      return "headers sending";
+    case MHD_CONNECTION_HEADERS_SENT:
+      return "headers sent";
+    case MHD_CONNECTION_NORMAL_BODY_READY:
+      return "normal body ready";
+    case MHD_CONNECTION_NORMAL_BODY_UNREADY:
+      return "normal body unready";
+    case MHD_CONNECTION_CHUNKED_BODY_READY:
+      return "chunked body ready";
+    case MHD_CONNECTION_CHUNKED_BODY_UNREADY:
+      return "chunked body unready";
+    case MHD_CONNECTION_BODY_SENT:
+      return "body sent";
+    case MHD_CONNECTION_FOOTERS_SENDING:
+      return "footers sending";
+    case MHD_CONNECTION_FOOTERS_SENT:
+      return "footers sent";
+    case MHD_CONNECTION_CLOSED:
+      return "closed";
+    case MHD_TLS_CONNECTION_INIT:
+      return "secure connection init";
+    case MHD_TLS_HELLO_REQUEST:
+      return "secure hello request";
+    case MHD_TLS_HANDSHAKE_FAILED:
+      return "secure handshake failed";
+    case MHD_TLS_HANDSHAKE_COMPLETE:
+      return "secure handshake _complete";
+    default:
+      return "unrecognized connection state";
+    }
+}
+#endif
+
+#if HAVE_MESSAGES
+/**
  * fprintf-like helper function for logging debug
  * messages.
  */
@@ -39,30 +102,58 @@ MHD_DLOG (const struct MHD_Daemon *daemon, const char *format, ...)
   if ((daemon->options & MHD_USE_DEBUG) == 0)
     return;
   va_start (va, format);
-  VFPRINTF (stderr, format, va);
+  daemon->custom_error_log (daemon->custom_error_log_cls, format, va);
   va_end (va);
 }
 #endif
 
+void
+MHD_tls_log_func (int level, const char *str)
+{
+#ifdef HAVE_MESSAGES
+  FPRINTF (stderr, "|<%d>| %s", level, str);
+#endif
+}
+
 /**
  * Process escape sequences ('+'=space, %HH)
  */
-void
+size_t
 MHD_http_unescape (char *val)
 {
-  char *esc;
+  char *rpos = val;
+  char *wpos = val;
   unsigned int num;
 
-  while (NULL != (esc = strstr (val, "+")))
-    *esc = ' ';
-  while (NULL != (esc = strstr (val, "%")))
+  while ('\0' != *rpos)
     {
-      if ((1 == sscanf (&esc[1],
-                        "%2x", &num)) || (1 == sscanf (&esc[1], "%2X", &num)))
-        {
-          esc[0] = (unsigned char) num;
-          memmove (&esc[1], &esc[3], strlen (&esc[3]) + 1);
-        }
-      val = esc + 1;
+      switch (*rpos)
+	{
+	case '+':
+	  *wpos = ' ';
+	  wpos++;
+	  rpos++;
+	  break;
+	case '%':
+	  if ( (1 == SSCANF (&rpos[1],
+			     "%2x", &num)) ||
+	       (1 == SSCANF (&rpos[1],
+			     "%2X", &num)) )
+	    {
+	      *wpos = (unsigned char) num;
+	      wpos++;
+	      rpos += 3;
+	      break;
+	    }
+	  /* intentional fall through! */
+	default:
+	  *wpos = *rpos;
+	  wpos++;
+	  rpos++;
+	}
     }
+  *wpos = '\0'; /* add 0-terminator */
+  return wpos - val; /* = strlen(val) */
 }
+
+/* end of internal.c */

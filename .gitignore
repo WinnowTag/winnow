@@ -166,3 +166,15 @@ ltsugar.m4
 ltversion.m4
 lt-obsolete.m4
 lt~obsolete.m4
+microhttpd/MHD_config.h
+microhttpd/libmicrohttpd.pc
+microhttpd/src/daemon/daemon_test
+microhttpd/src/daemon/postprocessor_large_test
+microhttpd/src/examples/authorization_example
+microhttpd/src/examples/fileserver_example_dirs
+microhttpd/src/examples/fileserver_example_external_select
+microhttpd/src/examples/minimal_example_comet
+microhttpd/src/examples/querystring_example
+microhttpd/src/examples/refuse_post_example
+microhttpd/src/testcurl/daemon_options_test
+microhttpd/src/testcurl/libcurl_version_check.a

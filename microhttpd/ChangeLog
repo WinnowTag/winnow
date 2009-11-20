@@ -1,3 +1,267 @@
+Wed Oct 28 20:26:00 CET 2009
+ 	Releasing libmicrohttpd 0.4.4. -CG
+
+Wed Oct 14 14:37:37 CEST 2009
+	Fixing (rare) deadlock due to SELECT missing SIGALRM by
+	making all SELECT calls block for at most 1s.  While this
+	can in (rare) situations delay the shutdown by 1s, I think
+	this is preferable (both performance and possibly portability-wise)
+	over using a pipe for the signal. -CG
+
+Sun Oct 11 14:57:29 CEST 2009
+	Adding eCos license as an additional license for the
+	non-HTTPS code of MHD. -CG
+
+Sun Oct 11 11:24:27 CEST 2009
+	Adding support for Symbian. -MR
+
+Fri Oct  9 15:21:29 CEST 2009
+	Check for error codes from pthread operations (to help with
+	error diagnostics) and abort if something went wrong. -CG
+
+Thu Oct  8 10:43:02 CEST 2009
+	Added check for sockets being '< FD_SETSIZE' (just to be safe). -CG
+
+Mon Oct  5 21:17:26 CEST 2009
+	Adding "COOKIE" header string #defines. -CG
+
+Mon Oct  5 08:29:06 CEST 2009
+	Documenting default values. -CG
+
+Fri Aug 28 22:56:47 CEST 2009
+ 	Releasing libmicrohttpd 0.4.3. -CG
+
+Sun Aug 23 16:21:35 UTC 2009
+	Allow MHD_get_daemon_info to return the daemon's listen socket.
+	Includes a test case that uses this functionality to bind a server to
+	an OS-assigned port, look the port up with getsockname, and curl it. -DR
+
+Tue Aug  4 00:14:04 CEST 2009
+	 Fixing double-call to read from content-reader callback for first
+	 data segment (as reported by Alex on the mailinglist). -CG
+
+Thu Jul 29 21:41:52 CEST 2009
+ 	 Fixed issue with the code not using the "block_size" argument
+         given to MHD_create_response_from_callback causing inefficiencies
+	 for values < 2048 and segmentation faults for values > 2048
+	 (as reported by Andre Colomb on the mailinglist). -CG
+
+Sun May 17 03:29:46 MDT 2009
+ 	 Releasing libmicrohttpd 0.4.2. -CG
+
+Fri May 15 11:00:20 MDT 2009
+	 Grow reserved read buffer more aggressively so that we are not
+	 needlessly stuck reading only a handfull of bytes in each iteration. -CG
+
+Thu May 14 21:20:30 MDT 2009
+	 Fixed issue where the "NOTIFY_COMPLETED" handler could be called
+	 twice (if a socket error or timeout occured for a pipelined
+	 connection after successfully completing a request and before
+	 the next request was successfully transmitted).  This could
+	 confuse applications not expecting to see a connection "complete"
+	 that they were never aware of in the first place. -CG
+
+Mon May 11 13:01:16 MDT 2009
+         Fixed issue where error code on timeout was "TERMINATED_WITH_ERROR"
+         instead of "TERMINATED_TIMEOUT_REACHED". -CG
+
+Wed Apr  1 21:33:05 CEST 2009
+         Added MHD_get_version(). -ND
+
+Wed Mar 18 22:59:07 MDT 2009
+	 Releasing libmicrohttpd 0.4.1. -CG
+
+Wed Mar 18 17:46:58 MDT 2009
+	 Always RECV/SEND with MSG_DONTWAIT to (possibly) address
+	 strange deadlock reported by Erik on the mailinglist ---
+	 and/or issues with blocking read after select on GNU/Linux
+	 (see select man page under bugs). -CG
+
+Tue Mar 17 01:19:50 MDT 2009
+	 Added support for thread-pools. -CG/RA
+
+Mon Mar  2 23:44:08 MST 2009
+	 Fixed problem with 64-bit upload and download sizes and
+	 "-1" being used to indicate "unknown" by introducing
+	 new 64-bit constant "MHD_SIZE_UNKNOWN". -CG/DC
+
+Wed Feb 18 08:13:56 MST 2009
+	 Added missing #include for build on arm-linux-uclibc. -CG/CC
+
+Mon Feb 16 21:12:21 MST 2009
+	 Moved MHD_get_connection_info so that it is always defined,
+	 even if HTTPS support is not enabled. -CG
+
+Sun Feb  8 21:15:30 MST 2009
+	 Releasing libmicrohttpd 0.4.0. -CG
+
+Thu Feb  5 22:43:45 MST 2009
+	 Incompatible API change to allow 64-bit uploads and downloads.
+	 Clients must use "uint64_t" for the "pos"
+	 argument (MHD_ContentReaderCallback) and the "off"
+	 argument (MHD_PostDataIterator) and the "size" 
+	 argument (MHD_create_response_from_callback) now.
+	 Also, "unsigned int" was changed to "size_t" for
+	 the "upload_data_size" argument (MHD_AccessHandlerCallback),
+	 the argument to MHD_OPTION_CONNECTION_MEMORY_LIMIT,
+	 the "block_size" argument (MHD_create_response_from_callback),
+	 the "buffer_size" argument (MHD_create_post_processor) and
+	 the "post_data_len" argument (MHD_post_process).  You may
+	 need to #include <stdint.h> before <microhttpd.h> from now on. -CG
+	
+Thu Feb  5 20:21:08 MST 2009
+	 Allow getting address information about the connecting
+	 client after the accept call. -CG
+
+Mon Feb  2 22:21:48 MST 2009
+	 Fixed missing size adjustment for offsets for %-encoded
+	 arguments processed by the post processor (Mantis #1447). -CG/SN
+
+Fri Jan 23 16:57:21 MST 2009
+	 Support charset specification (ignore) after content-type
+	 when post-processing HTTP POST requests (Mantis #1443). -CG/SN
+
+Fri Dec 26 23:08:04 MST 2008
+	 Fixed broken check for identical connection address. -CG
+	 Making cookie parser more RFC2109 compliant (handle
+	 spaces around key, allow value to be optional). -CG
+
+Sat Dec  6 18:36:17 MST 2008
+	 Added configure option to disable checking for CURL support.
+	 Added MHD_OPTION to allow specification of custom logger. -CG
+
+Tue Nov 18 01:19:53 MST 2008
+	 Removed support for untested and/or broken SSL features
+	 and (largely useless) options. -CG
+
+Sun Nov 16 16:54:54 MST 2008
+	 Added option to get unparsed URI via callback. 
+	 Releasing GNU libmicrohttpd 0.4.0pre1. -CG
+
+Sun Nov 16 02:48:14 MST 2008
+	 Removed tons of dead code. -CG
+
+Sat Nov 15 17:34:24 MST 2008
+	 Added build support for code coverage analysis. -CG
+
+Sat Nov 15 00:31:33 MST 2008
+	 Removing (broken) support for HTTPS servers with
+	 anonymous (aka "no") certificates as well as
+	 various useless dead code. -CG
+
+Sat Nov  8 02:18:42 MST 2008
+	 Unset TCP_CORK at the end of transmitting a response
+	 to improve performance (on systems where this is
+	 supported). -MM
+
+Tue Sep 30 16:48:08 MDT 2008
+	 Make MHD useful to Cygwin users; detect IPv6 headers
+	 in configure.
+
+Sun Sep 28 14:57:46 MDT 2008
+	 Unescape URIs (convert "%ef%e4%45" to "中国"). -CG
+
+Wed Sep 10 22:43:59 MDT 2008
+	 Releasing GNU libmicrohttpd 0.4.0pre0. -CG
+
+Wed Sep 10 21:36:06 MDT 2008
+	 Fixed data race on closing sockets during 
+	 shutdown (in one-thread-per-connection mode). -CG
+
+Thu Sep  4 23:37:18 MDT 2008
+	 Fixed some boundary issues with processing
+	 chunked requests; removed memmove from a 
+	 number of spots, in favor of using an index into 
+	 the current buffer instead. -GS
+
+Sun Aug 24 13:05:41 MDT 2008
+	 Now handling clients returning 0 from response callback
+	 as specified in the documentation (abort if internal
+	 select is used, retry immediately if a thread per 
+	 connection is used). -CG
+
+Sun Aug 24 12:44:43 MDT 2008
+	 Added missing reason phrase. -SG
+
+Sun Aug 24 10:33:22 MDT 2008
+	 Fixed bug where MHD failed to transmit the response when
+	 the client decided not to send "100 CONTINUE" during
+	 a PUT/POST request. -CG
+
+Wed Jul 16 18:54:03 MDT 2008
+	 Fixed bug generating chunked responses with chunk sizes
+	 greater than 0xFFFFFF (would cause protocol violations). -CG
+
+Mon May 26 13:28:57 MDT 2008
+	 Updated and improved documentation.
+	 Releasing GNU libmicrohttpd 0.3.1. -CG
+
+Fri May 23 16:54:41 MDT 2008
+	 Fixed issue with postprocessor not handling URI-encoded
+	 values of more than 1024 bytes correctly. -CG
+	
+Mon May  5 09:18:29 MDT 2008
+	 Fixed date header (was off by 1900 years). -JP
+
+Sun Apr 13 01:06:20 MDT 2008
+	 Releasing GNU libmicrohttpd 0.3.0. -CG
+
+Sat Apr 12 21:34:26 MDT 2008
+	 Generate an internal server error if the programmer fails
+	 to handle upload data correctly.  Tweaked testcases to
+	 avoid running into the problem in the testcases.
+	 Completed zzuf-based fuzzing testcases.  -CG
+
+Sat Apr 12 15:14:05 MDT 2008
+	 Restructured the code (curl-testcases and zzuf testcases
+	 are now in different directories; code examples are in
+	 src/examples/).
+	 Fixed a problem (introduced in 0.2.3) with handling very 
+	 large requests (the code did not return proper error code).
+	 If "--enable-messages" is specified, the code now includes
+	 reasonable default HTML webpages for various build-in
+	 errors (such as request too large and malformed requests).
+	 Without that flag, the webpages returned will still be
+	 empty.
+	 Started to add zzuf-based fuzzing-testcases (these require 
+	 the zzuf and socat binaries to be installed). -CG
+
+Fri Apr 11 20:20:34 MDT 2008
+	 I hereby dub libmicrohttpd a GNU package. -Richard Stallman
+
+Sat Mar 29 22:36:09 MDT 2008
+	 Fixed bugs in handling of malformed HTTP requests
+	 (causing either NULL dereferences or connections to
+	 persist until time-out, if any). -CG
+
+	 Updated and integrated TexInfo documentation. -CG
+
+Tue Mar 25 13:40:53 MDT 2008
+	 Prevent multi-part post-processor from going to error 
+	 state when the input buffer is full and current token 
+	 just changes processor state without consuming any data.
+	 Also, the original implementation would not consume any 
+	 input in process_value_to_boundary if there is no new 
+	 line character in sight. -AS
+
+	 Remove checks for request method after it finished writing
+	 response footers as it's only _pipelined_ requests that 
+	 should not be allowed after POST or PUT requests.  Reusing 
+	 the existing connection is perfectly ok though.  And there 
+	 is no reliable way to detect pipelining on server side
+	 anyway so it is the client's responsibility to not send new 
+	 data before it gets a response after a POST operation. -AS
+
+	 Clarified license in man page. Releasing 
+         libmicrohttpd 0.2.3 -CG
+
+Sat Mar 22 01:12:38 MDT 2008
+	 Releasing libmicrohttpd 0.2.2. -CG
+
+Mon Feb 25 19:13:53 MST 2008
+	 Fixed a problem with sockets closed for reading ending up
+	 in the read set under certain circumstances. -CG
+
 Wed Jan 30 23:15:44 MST 2008
 	 Added support for nested multiparts to post processor. 
 	 Made sure that MHD does not allow pipelining for methods

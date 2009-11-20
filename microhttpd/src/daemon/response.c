@@ -1,6 +1,6 @@
 /*
      This file is part of libmicrohttpd
-     (C) 2007 Daniel Pittman and Christian Grothoff
+     (C) 2007, 2009 Daniel Pittman and Christian Grothoff
 
      This library is free software; you can redistribute it and/or
      modify it under the terms of the GNU Lesser General Public
@@ -175,8 +175,8 @@ MHD_get_response_header (struct MHD_Response *response, const char *key)
  * @return NULL on error (i.e. invalid arguments, out of memory)
  */
 struct MHD_Response *
-MHD_create_response_from_callback (size_t size,
-                                   unsigned int block_size,
+MHD_create_response_from_callback (uint64_t size,
+                                   size_t block_size,
                                    MHD_ContentReaderCallback crc,
                                    void *crc_cls,
                                    MHD_ContentReaderFreeCallback crfc)
@@ -190,7 +190,7 @@ MHD_create_response_from_callback (size_t size,
     return NULL;
   memset (retVal, 0, sizeof (struct MHD_Response));
   retVal->data = (void *) &retVal[1];
-  retVal->data_buffer_size = MHD_BUF_INC_SIZE;
+  retVal->data_buffer_size = block_size;
   if (pthread_mutex_init (&retVal->mutex, NULL) != 0)
     {
       free (retVal);
@@ -238,10 +238,10 @@ MHD_create_response_from_data (size_t size,
     {
       tmp = malloc (size);
       if (tmp == NULL)
-	{
-	  free(retVal);
-	  return NULL;
-	}
+        {
+          free (retVal);
+          return NULL;
+        }
       memcpy (tmp, data, size);
       must_free = 1;
       data = tmp;
