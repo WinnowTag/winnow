@@ -55,7 +55,7 @@ static ItemCache *item_cache;
 static Credentials classifier_credentials = {NULL, NULL};
 static Credentials item_cache_credentials = {NULL, NULL};
 static Credentials classification_credentials = {NULL, NULL};
-static TaggerCacheOptions tagger_cache_options = {"", &classifier_credentials};
+static TaggerCacheOptions tagger_cache_options = {NULL, &classifier_credentials};
 static TaggerCache *tagger_cache;
 static ClassificationEngineOptions ce_options = {1, 0.0, DEFAULT_MISSING_ITEM_TIMEOUT, NULL, &classifier_credentials};
 static ClassificationEngine *engine;
