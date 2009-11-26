@@ -1,5 +1,7 @@
 = Classifier Documentation =
 
+[[PageOutline]]
+
 This document describes the current architecture of the Peerworks classification system.  It doesn't discuss the details of the classification algorithm itself, instead it focuses on how that algorithm is used to process items, integrate with other applications and scale to meet the demands of classifying items using many users' tags.
 
 == Overview ==
@@ -253,22 +255,20 @@ A separate thread runs nightly which purges the in-memory cache of items older t
 
 === Cache Persistence ===
 
-Cache persistence is implemented using a combination of an [SQLite http://www.sqlite.org] database and files on the file system.  The persistent cache consists of a directory with the following structure:
+Cache persistence is implemented using a set of an [SQLite http://www.sqlite.org] databases.  The persistent cache consists of a directory with the following sqlite databases:
 
 {{{
 top-level/
   catalog.db
-  items/
-  tokens/
+  atom.db
+  tokens.db
 }}}
 
-The {{{catalog.db}}} file is an SQLite database that contains the metadata for each item in the cache.  The {{{items}}} directory contains the raw Atom XML data for each item and the {{{tokens}}} contains the feature extracted version of each item.
+The {{{catalog.db}}} database contains the metadata for each item in the cache and the map of token id to token strings.  The atom.db file contains to source atom entry xml for each item in the database. The tokens.db file contains the tokenized form of each item in the database.
 
-==== Metadata Catalog ====
+The database schema is shown here:
 
-The Item Cache Metadata Catalog is an SQLite file with the follow schema:
-
-[[Image(http://trac.winnow.peerworks.org/raw-attachment/wiki/ClassifierSoftwareDocumentation/CatalogSchema.2.png)]]
+[[Image(/raw-attachment/wiki/ClassifierSoftwareDocumentation/CatalogSchema5.png)]]
 
 All datetime columns are represented as real numbers in the [http://en.wikipedia.org/wiki/Julian_day Julian Day] format as [http://www.sqlite.org/cvstrac/wiki?p=DateAndTimeFunctions recommended] in the SQLite documentation.
 
@@ -279,17 +279,10 @@ Table and column definitions are as follows:
 Contains metadata for each entry in the database.
  
   id:: An integer surrogate key used to identify the item internally to the item cache. 
-  full_id:: A URI for the item that is defined in the atom:id element for the item.
+  full_id:: A URI for the item that is defined in the atom:id element for the item. This is a global identifier for the item.
   updated:: The datetime the item was updated, according to the atom:updated element for the item.
-  feed_id:: Id of the feed the item belongs to, if specified.
   created_at:: The datetime the item was added to the cache.
-
-===== feeds =====
-
-Provides a grouping of entries into feeds.  This is optional and will only get used if feeds are specified in the Atom Publishing calls used when populating the item cache.
-
-  id:: An integer id for the feed.
-  title: A human readable title for the feed.
+	last_used_at:: The datetime the item was last used to train a classifier, or null if never used.
 
 ===== random_backgrounds =====
 
@@ -306,15 +299,21 @@ Provides a mapping between the atomized version of a token and the string versio
 
 This table also has unique constraints on each column to ensure that you can't have duplicate tokens or mappings.
 
-==== Items Directory ====
+===== entry_atom =====
 
-The {{{items}}} directory within the item cache contains the raw atom content for each item.  The atom content for a given item is stored in a file using the catalog id for the entry with the extension {{{.atom}}}, for example, the item with a catalog id of {{{12345}}} would have it's raw content stored in {{{items/12345.atom}}}.  The content of the atom files is exactly the content that was used to publish the items into the cache.  It is stored as an atom entry document so the root element of the xml is an atom:entry element.
+Stores the raw atom xml content for each entry in the catalog.
 
-==== Tokens Directory ====
+  id:: The id of the entry. This is a foreign key to the entries.id column.
+  atom:: The Atom xml for the entry. This is the raw content of the item that is used to generate tokens.
 
-The {{{tokens}}} directory with the item cache contains the extracted features for each item.  The features for a given item are stored in a file using the catalog if for the entry with the extension {{{.tokens}}}, for example the item with a catalog id {{{12345}}} would have it features stored in {{{tokens/12345.tokens}}}.
+===== entry_tokens =====
 
-The tokens file is a binary format file where each token is represented by size bytes, so the files will be multiples of size is size.  The first 4 bytes represent a 32 bit integer containing the atomized token id for that feature.  The second two bytes represent a 16 bit short integer that corresponds to the frequency (or value) of that feature within the item.  The token file uses network byte order, big endian, for storage, so programs wishing to read or write token files must perform their own conversions to their native byte order.  The classifier uses the [http://www.gnu.org/software/libc/manual/html_node/Byte-Order.html ntoh*] family of functions to perform this conversion in a portable way.
+Stores the tokenized representation of the entries in the catalog.
+
+  id:: The id of the entry. This is a foreign key to the entries.id column.
+  tokens:: The tokenized representation of the item.
+
+The tokens column is a binary format where each token is represented by six bytes, so the size of the BLOB will be multiples of six.  The first 4 bytes of each token represent a 32 bit integer containing the atomized token id for that feature.  The second two bytes represent a 16 bit short integer that corresponds to the frequency (or value) of that feature within the item.  The token file uses network byte order, big endian, for storage, so programs wishing to read or write token files must perform their own conversions to their native byte order.  The classifier uses the [http://www.gnu.org/software/libc/manual/html_node/Byte-Order.html ntoh*] family of functions to perform this conversion in a portable way.
 
 == Classifier Document Formats ==
 
