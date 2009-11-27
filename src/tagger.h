@@ -146,7 +146,7 @@ typedef struct TAGGER_CACHE {
   TagRetriever tag_retriever;
   
   /* Function used to fetch tag index documents. This is really just a function pointer to help testing. */
-  int (*tag_index_retriever)(const char * tag_training_url, time_t last_updated, 
+  int (*tag_index_retriever)(const char * tag_index_url, time_t last_updated, 
                             const Credentials * credentials, 
                             char ** tag_document, char ** errmsg);
     

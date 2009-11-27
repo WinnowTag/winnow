@@ -496,20 +496,28 @@ int fetch_tags(TaggerCache * tagger_cache, Array ** a, char ** errmsg) {
                                                   tagger_cache->credentials,
                                                   &tag_document, errmsg);
     
-    if (urlrc == URL_OK && tag_document) {
-      /* Tag Index updated or fetched for the first time */
-      if (tagger_cache->tag_urls) {
-        free_array(tagger_cache->tag_urls);
-      }
+    if (urlrc == URL_OK && tag_document) {      
+      Array *new_urls = create_array(100);
+      time_t update_time;
+      rc = parse_tag_index(tag_document, new_urls, &update_time);
       
-      tagger_cache->tag_urls = create_array(100);
-      tagger_cache->tag_urls_last_updated = time(NULL);
-      rc = parse_tag_index(tag_document, tagger_cache->tag_urls, &tagger_cache->tag_urls_last_updated);
-      
-      if (rc == TAG_INDEX_FAIL && errmsg) {
-        *errmsg = strdup("Parser error in tag index");
+      if (rc == TAG_INDEX_FAIL) {
+        // If there are cached tags return them instead
+        if (tagger_cache->tag_urls) {
+          *a = tagger_cache->tag_urls;
+          rc = TAG_INDEX_OK;          
+        } else if (errmsg) {
+          *errmsg = strdup("Parser error in tag index");
+        }
       } else {
-        *a = tagger_cache->tag_urls;
+        // If we get here we have a new tags in a valid index
+        // so update the cached copy.
+        if (tagger_cache->tag_urls) {
+          free_array(tagger_cache->tag_urls);
+        }
+        tagger_cache->tag_urls_last_updated = update_time;
+        tagger_cache->tag_urls = new_urls;
+        *a = new_urls;
       }      
     } else if (tagger_cache->tag_urls) {
       /* Return the cached version */
