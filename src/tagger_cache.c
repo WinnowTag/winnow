@@ -352,7 +352,6 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
   if (tagger) *tagger = NULL;
   
   if (tagger_cache && tag_training_url) {
-    int tagger_is_new = false;
     Tagger *temp_tagger = NULL;
     
     int cache_rc = checkout_tagger(tagger_cache, tag_training_url, &temp_tagger);
@@ -361,7 +360,7 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
       if (errmsg) *errmsg = strdup(CHECKED_OUT_MSG);        
       rc = cache_rc;
     } else {
-      tagger_is_new = fetch_or_update_tagger(tagger_cache, tag_training_url, &temp_tagger, errmsg);
+      int tagger_is_new = fetch_or_update_tagger(tagger_cache, tag_training_url, &temp_tagger, errmsg);
             
       if (temp_tagger) {
         prepare_tagger(temp_tagger, tagger_cache->item_cache);
