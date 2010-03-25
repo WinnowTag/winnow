@@ -29,7 +29,6 @@
 #include "misc.h"
 #include "job_queue.h"
 #include "xml.h"
-#include "uri.h"
 #include "array.h"
 
 #define CURRENT_USER_VERSION 5

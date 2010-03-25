@@ -19,7 +19,6 @@
 #include <libxml/uri.h>
 #include <curl/curl.h>
 #include "xml.h"
-#include "uri.h"
 #include "logging.h"
 #include "hmac_sign.h"
 

@@ -50,7 +50,6 @@
 #include "xml_error_functions.h"
 
 #include "xml.h"
-#include "uri.h"
 #include "http_responses.h"
 
 typedef enum HTTP_METHOD {
