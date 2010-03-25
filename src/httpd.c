@@ -19,7 +19,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+
+#ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
+#endif
+
 #include <time.h>
 #include <sys/time.h>
 #include <regex.h>
@@ -30,7 +34,7 @@
 #include "misc.h"
 #include "git_revision.h"
 #define _bits_h_
-#include <json.h>
+#include <json/json.h>
 
 #define CONTENT_TYPE "application/xml"
 #define NOT_FOUND "<?xml version='1.0' ?>\n<errors><error>Resource not found.</error></errors>\n"
@@ -47,7 +51,6 @@
 
 #include "xml.h"
 #include "uri.h"
-#include "microhttpd/src/include/microhttpd.h"
 #include "http_responses.h"
 
 typedef enum HTTP_METHOD {

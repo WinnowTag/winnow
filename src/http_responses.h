@@ -11,7 +11,6 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
-#include "microhttpd/src/include/microhttpd.h"
 
 #define HTTP_NOT_FOUND(response)         \
   response->code = 404;                  \

@@ -17,7 +17,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <json.h>
+#include <json/json.h>
 #include "logging.h"
 #include "classification_engine.h"
 #include "httpd.h"

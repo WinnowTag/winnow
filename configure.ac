@@ -50,6 +50,15 @@ LIBS="$XML2_LIBS $LIBS"
 AC_CHECK_LIB(xml2, xmlReadFile, [], [AC_MSG_ERROR(libxml2 is missing xmlReadFile)])
 AX_LIB_SQLITE3([3.5.6])
 
+### Check for Judy
+AC_CHECK_LIB([Judy], [JudyLIns])
+
+### Check for libmicrohttpd
+AC_CHECK_LIB([microhttpd], [MHD_start_daemon, MHD_create_response_from_data, MHD_add_response_header, MHD_lookup_connection_value, MHD_queue_response, MHD_destroy_response])
+
+### Check for Json
+AC_CHECK_LIB([json], [json_object_is_type, json_object_from_file, json_object_object_get, json_object_put, json_object_get_string])
+
 # Unit testing library
 # if test "x$PKG_CONFIG" != "x"; then
 # PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])
@@ -62,7 +71,23 @@ AC_CHECK_CURL([7.15.1])
 
 ### Check for headers
 AC_HEADER_STDC
-AC_CHECK_HEADERS([sys/param.h errno.h stdarg.h stdbool.h uuid/uuid.h])
+AC_CHECK_HEADERS([sys/param.h errno.h stdarg.h stdbool.h uuid/uuid.h stdarg.h arpa/inet.h])
+
+AC_CHECK_HEADERS([Judy.h],[],[AC_MSG_ERROR(Judy.h is missing. Please install Judy.)])
+
+AC_CHECK_HEADERS([microhttpd.h],[],[AC_MSG_ERROR(microhttpd.h is missing. Please install libmicrohttpd.)],[
+
+#ifdef HAVE_STDARG_H
+#include <stdarg.h>
+#endif
+
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+
+])
+
+AC_CHECK_HEADERS([json/json.h],[],[AC_MSG_ERROR(json.h is missing. Please install json-c.)])
 
 ###### Setup libxml2 headers
 XML2_INCLUDE=$($XML2_CONFIG --cflags)
