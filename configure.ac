@@ -4,7 +4,6 @@ AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_CONFIG_LIBOBJ_DIR(src)
 AC_GNU_SOURCE
 AC_DEFINE_DIR([DATADIR], [datadir], [The place where data is installed])
-AC_CONFIG_SUBDIRS([microhttpd])
 
 ### Check for programs.
 AC_PROG_CC
