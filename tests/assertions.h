@@ -15,6 +15,10 @@
 #define assert_true(o) fail_unless(o, "expected to be true")
 #endif
 
+#ifndef assert_true_m
+#define assert_true_m(o, msg) fail_unless(o, "expected to be true: %s", msg)
+#endif
+
 #ifndef assert_null
 #define assert_null(o) fail_unless(o == NULL, "expected object to be null")
 #endif
