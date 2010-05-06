@@ -29,7 +29,7 @@ The classification engine depends on:
   * Judy 1.0.5
   * libmicrohttpd = 0.4.4
   * json-c = 0.7
-  * check 0.9.5 (Required for running unit tests, available as a macport).
+  * check >= 0.9.5 (Required for running unit tests, available as a macport).
   * libxml2
   * libcurl 
   
