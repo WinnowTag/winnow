@@ -59,6 +59,10 @@ AC_CHECK_LIB([microhttpd], [MHD_start_daemon, MHD_create_response_from_data, MHD
 ### Check for Json
 AC_CHECK_LIB([json], [json_object_is_type, json_object_from_file, json_object_object_get, json_object_put, json_object_get_string])
 
+### Check for SSL
+AC_CHECK_LIB([crypto], [BIO_new,BIO_write,BIO_push,BIO_free_all,BIO_ctrl,BIO_f_base64,BIO_s_mem,HMAC,EVP_sha1], [], 
+	[AC_MSG_ERROR(libcrypto is missing. This should be part of openssl)])
+
 # Unit testing library
 # if test "x$PKG_CONFIG" != "x"; then
 # PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])
