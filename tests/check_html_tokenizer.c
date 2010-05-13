@@ -14,26 +14,21 @@
 
 static void assertFeatures(const char *html, char * tokens[], int * frequencies, int size) {
 	int i,j;
-	Array *features;
+	Pvoid_t features;
 
 	features = html_tokenize(html);
-	// check'em
+
+	//assert_equal(size, features->size);
 
 	for (i = 0; i < size; i++) {
-		int found = false;
-
-		for (j = 0; j < features->size; j++) {
-			Feature * f = features->elements[j];
-			if (0 == strcmp(f->name, tokens[i])) {
-				assert_equal(f->frequency, frequencies[i]);
-				found = true;
-			}
-		}
-
-		assert_true_m(found, tokens[i]);
+		Word_t *PValue;
+		JSLG(PValue, features, tokens[i]);
+		assert_not_null_msg(PValue, tokens[i]);
+		assert_equal(frequencies[i], *PValue);
 	}
 
-	free_array(features);
+	Word_t rc;
+	JSLFA(rc, features);
 }
 
 START_TEST(should_split_text_from_html) {

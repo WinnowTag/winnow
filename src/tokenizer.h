@@ -9,14 +9,8 @@
 
 #ifndef TOKENIZER_H_
 #define TOKENIZER_H_
-#include "array.h"
+#include <Judy.h>
 
-typedef struct FEATURE {
-	char *name;
-	int frequency;
-} Feature;
-
-Array * html_tokenize(const char * html);
-void free_feature(Feature *);
+Pvoid_t html_tokenize(const char * html);
 
 #endif /* TOKENIZER_H_ */

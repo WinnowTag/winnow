@@ -27,6 +27,10 @@
 #define assert_not_null(o) fail_unless(o != NULL, "expected object to not be null")
 #endif
 
+#ifndef assert_not_null_msg
+#define assert_not_null_msg(o, m) fail_unless(o != NULL, "expected object to not be null: %s", m)
+#endif
+
 #ifndef assert_equal
 #define assert_equal(expected, actual) fail_unless(expected == actual, "expected %d but got %d", expected, actual)
 #endif
