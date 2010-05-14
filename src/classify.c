@@ -20,7 +20,6 @@
 #include "classification_engine.h"
 #include "httpd.h"
 #include "misc.h"
-#include "feature_extractor.h"
 #include "fetch_url.h"
 
 static void print_help() {
@@ -35,7 +34,7 @@ static ItemCacheOptions item_cache_options = {60, 1000, 0};
 static ItemCache *item_cache;
 static TaggerCacheOptions tagger_cache_options;
 static TaggerCache *tagger_cache;
-static ClassificationEngineOptions ce_options = {4, 0.9, 10, NULL};
+static ClassificationEngineOptions ce_options = {4, 0.9, NULL};
 static ClassificationEngine *engine;
 
 static int is_url(const char *path) {

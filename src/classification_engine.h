@@ -18,7 +18,6 @@ typedef struct CLASSIFICATION_ENGINE ClassificationEngine;
 typedef struct CLASSIFICATION_ENGINE_OPTIONS {
   int worker_threads;
   double positive_threshold;
-  int missing_item_timeout;
   char *performance_log;
   Credentials *credentials;
 } ClassificationEngineOptions;

@@ -28,8 +28,6 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            item_cache.h				       \
                            uuid.h                    \
                            git_revision.h            \
-                           feature_extractor.c       \
-                           feature_extractor.h       \
                            xml.c xml.h \
                            uri.h                     \
                            tagger.c tagger.h tagger_cache.c tagging.c tag_index.c \
