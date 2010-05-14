@@ -12,5 +12,6 @@
 #include <Judy.h>
 
 Pvoid_t html_tokenize(const char * html);
+Pvoid_t atom_tokenize(const char * atom);
 
 #endif /* TOKENIZER_H_ */

@@ -10,6 +10,8 @@
 #include <libxml/xmlreader.h>
 #include <libxml/tree.h>
 #include <libxml/uri.h>
+#include <libxml/xpath.h>
+#include <libxml/xpathInternals.h>
 #include "tokenizer.h"
 #include "logging.h"
 #include "buffer.h"
@@ -17,6 +19,7 @@
 #include <ctype.h>
 #include <Judy.h>
 #include <regex.h>
+#include "xml.h"
 
 // From http://www.daniweb.com/code/snippet216955.html
 int rreplace (char *buf, int size, regex_t *re, char *rp) {
@@ -90,8 +93,19 @@ static void foldcase(char * txt) {
 	}
 }
 
-static Pvoid_t tokenize_text(char * txt, int length) {
-	Pvoid_t features = (Pvoid_t) NULL;
+static Pvoid_t add_token(char *token, Pvoid_t features) {
+	Word_t *PValue;
+	int toklen = strlen(token);
+	char *feature = malloc(toklen * sizeof(char) + 3);
+	strncpy(feature, "t:", 3);
+	strncat(feature, token, toklen + 3);
+	JSLI(PValue, features, (unsigned char*) feature);
+	(*PValue)++;
+
+	return features;
+}
+
+static Pvoid_t tokenize_text(char * txt, int length, Pvoid_t features) {
 	char *token;
 
 	// Remove HTML entities
@@ -109,12 +123,7 @@ static Pvoid_t tokenize_text(char * txt, int length) {
 		if (token != '\0') {
 			int toklen = strlen(token) + 1; // +1 for \0
 			if (toklen > 2) {
-				Word_t *PValue;
-				char *feature = malloc(toklen * sizeof(char) + 2);
-				strncpy(feature, "t:", 3);
-				strncat(feature, token, toklen);
-				JSLI(PValue, features, (unsigned char*) feature);
-				(*PValue)++;
+				features = add_token(token, features);
 			}
 		}
 	}
@@ -183,24 +192,64 @@ static Pvoid_t tokenize_uris(htmlDocPtr doc, Pvoid_t features) {
 	return features;
 }
 
+Pvoid_t html_tokenize_into_features(const char * html, Pvoid_t features) {
+	xmlSubstituteEntitiesDefault(0);
+	htmlDocPtr doc = htmlParseDoc(BAD_CAST html, "UTF-8");
+
+	if (doc) {
+		Buffer *buf = extractText(doc);
+		features = tokenize_text(buf->buf, buf->length, features);
+		features = tokenize_uris(doc, features);
+		free_buffer(buf);
+		xmlFreeDoc(doc);
+	}
+
+	return features;
+}
+
 /** Tokenize a string of HTML.
  *
  * @param html The HTML string.
  * @return an Array of Features.
  */
 Pvoid_t html_tokenize(const char * html) {
-	Pvoid_t features;
-	xmlSubstituteEntitiesDefault(0);
-	htmlDocPtr doc = htmlParseDoc(BAD_CAST html, "UTF-8");
+	return html_tokenize_into_features(html, NULL);
+}
 
-	if (doc) {
-		Buffer *buf = extractText(doc);
-		features = tokenize_text(buf->buf, buf->length);
-		features = tokenize_uris(doc, features);
-		free_buffer(buf);
+Pvoid_t atom_tokenize(const char * atom) {
+	Pvoid_t features = NULL;
+
+	if (atom) {
+		xmlDocPtr doc = xmlParseDoc(BAD_CAST atom);
+		if (doc) {
+			xmlXPathContextPtr context = xmlXPathNewContext(doc);
+			xmlXPathRegisterNs(context, BAD_CAST "atom", BAD_CAST "http://www.w3.org/2005/Atom");
+
+			char *html = get_element_value(context, "/atom:entry/atom:content/text()");
+			if (html) {
+				features = html_tokenize_into_features(html, features);
+			}
+
+			char *title = get_element_value(context, "/atom:entry/atom:title/text()");
+			if (title) {
+				features = tokenize_text(title, strlen(title), features);
+			}
+
+			char *author = get_element_value(context, "/atom:entry/atom:author/atom:name/text()");
+			if (author) {
+				features = add_token(author, features);
+			}
+
+			char *link = get_attribute_value(context, "/atom:entry/atom:link[@rel='alternate']", "href");
+			if (link) {
+				features = tokenize_uri(link, features);
+			}
+
+			xmlXPathFreeContext(context);
+		}
+
+		xmlFreeDoc(doc);
 	}
-
-	xmlFreeDoc(doc);
 
 	return features;
 }
