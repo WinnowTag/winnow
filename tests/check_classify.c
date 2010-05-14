@@ -49,7 +49,7 @@ static void setup(void) {
   random_background = new_pool();
   item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
 
-  tagger = build_tagger(document);
+  tagger = build_tagger(document, item_cache);
   train_tagger(tagger, item_cache);
   tagger->probability_function = &naive_bayes_probability;
   tagger->classification_function = &mock_classify;

@@ -44,7 +44,7 @@ static void setup(void) {
   setup_fixture_path();
   read_document("fixtures/complete_tag.atom");
   item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
-  tagger = build_tagger(document);
+  tagger = build_tagger(document, item_cache);
   train_tagger(tagger, item_cache);
   tagger->probability_function = &probability_function;
   assert_equal(TAGGER_TRAINED, tagger->state);
@@ -75,12 +75,6 @@ START_TEST (test_precompute_with_trained_tagger_returns_TAGGER_PRECOMPUTED) {
 START_TEST (test_precompute_with_trained_tagger_sets_state_to_TAGGER_PRECOMPUTED) {
   precompute_tagger(tagger, random_background);
   assert_equal(TAGGER_PRECOMPUTED, tagger->state);
-} END_TEST
-
-START_TEST (test_precomputing_a_non_trained_tagger_results_in_a_sequence_error) {
-  tagger->state = TAGGER_PARTIALLY_TRAINED;
-  int rc = precompute_tagger(tagger, random_background);
-  assert_equal(TAGGER_SEQUENCE_ERROR, rc);
 } END_TEST
 
 START_TEST (test_precomputing_a_tagger_with_no_probability_function_results_in_a_sequence_error) {
@@ -175,7 +169,6 @@ tag_precompute_suite(void) {
   tcase_add_checked_fixture(tc_precomputer, setup, teardown);
   tcase_add_test(tc_precomputer, test_precompute_with_trained_tagger_returns_TAGGER_PRECOMPUTED);
   tcase_add_test(tc_precomputer, test_precompute_with_trained_tagger_sets_state_to_TAGGER_PRECOMPUTED);
-  tcase_add_test(tc_precomputer, test_precomputing_a_non_trained_tagger_results_in_a_sequence_error);
   tcase_add_test(tc_precomputer, precompute_creates_probabilities_for_each_token_in_the_pools);
   tcase_add_test(tc_precomputer, test_precompute_clears_out_training);
   //tcase_add_test(tc_precomputer, test_after_precompute_there_are_clues_for_every_token_in_the_pool);

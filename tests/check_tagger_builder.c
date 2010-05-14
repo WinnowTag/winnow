@@ -15,6 +15,8 @@
 #include "fixtures.h"
 
 static char * document;
+static ItemCacheOptions item_cache_options = {1, 3650, 2};
+static ItemCache * item_cache;
 
 static void read_document(void) {
   setup_fixture_path();
@@ -29,6 +31,9 @@ static void read_document(void) {
     document[size] = 0;
     fclose(file);
   }
+
+  system("rm -Rf /tmp/valid-copy && cp -Rf fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
+  item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
 }
 
 static void free_document(void) {
@@ -39,57 +44,57 @@ static void free_document(void) {
 }
 
 START_TEST (test_load_tagger_from_tag_definition_document_sets_last_classified) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   assert_equal(1208222183, tagger->last_classified);
 } END_TEST
 
 START_TEST (test_load_tagger_from_tag_definition_document_sets_updated) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   assert_equal(1206840258, tagger->updated);  
 } END_TEST
 
 START_TEST (test_load_tagger_from_tag_definition_document_sets_bias) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   assert_equal_f(1.2, tagger->bias);
 } END_TEST
 
 START_TEST (test_load_tagger_from_tag_definition_document_sets_training_url) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   assert_not_null(tagger->training_url);
   assert_equal_s("http://trunk.mindloom.org:80/seangeo/tags/a-religion/training.atom", tagger->training_url);
 } END_TEST
 
 START_TEST (test_load_tagger_from_tag_definition_document_sets_classifier_taggings_url) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   assert_not_null(tagger->classifier_taggings_url);
   assert_equal_s("http://localhost:8888/results", tagger->classifier_taggings_url);
 } END_TEST
         
 START_TEST (test_load_tagging_from_tag_definition_document_set_tagger_term) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   assert_not_null(tagger->term);
   assert_equal_s("a-religion", tagger->term);
 } END_TEST
         
 START_TEST (test_load_tagging_from_tag_definition_document_set_tagger_scheme) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   assert_not_null(tagger->scheme);
   assert_equal_s("http://trunk.mindloom.org:80/seangeo/tags/", tagger->scheme);
 } END_TEST
 
 START_TEST (test_load_tagger_from_tag_definition_document_sets_tag_id) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   assert_not_null(tagger->tag_id);
   assert_equal_s("http://trunk.mindloom.org:80/seangeo/tags/a-religion", tagger->tag_id);
 } END_TEST
 
 START_TEST (test_loads_right_number_of_positive_examples) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   assert_equal(4, tagger->positive_example_count);
 } END_TEST
 
 START_TEST (test_loads_right_positive_examples) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   assert_not_null(tagger->positive_examples);
   assert_equal_s("urn:peerworks.org:entry#753459", tagger->positive_examples[0]);
   assert_equal_s("urn:peerworks.org:entry#886294", tagger->positive_examples[1]);
@@ -98,12 +103,12 @@ START_TEST (test_loads_right_positive_examples) {
 } END_TEST
 
 START_TEST (test_loads_right_number_of_negative_examples) {
-  Tagger *tagger = build_tagger(document);  
+  Tagger *tagger = build_tagger(document, item_cache);
   assert_equal(1, tagger->negative_example_count);
 } END_TEST
 
 START_TEST (test_loads_right_negative_examples) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   assert_not_null(tagger->negative_examples);
   assert_equal_s("urn:peerworks.org:entry#880389", tagger->negative_examples[0]);
 } END_TEST

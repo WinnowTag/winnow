@@ -250,26 +250,6 @@ static int handle_not_found(ClassificationJob *job) {
 	return CLASSIFIER_FAIL;
 }
 
-static int handle_pending_item_addition(ClassificationJob *job, int missing_item_timeout) {
-	debug("TAGGER_PENDING_ITEM_ADDITION");
-	int rc = CLASSIFIER_REQUEUE;
-	time_t now = time(NULL);
-
-	/* If the job has been tried before and it is still missing items,
-	 * check to see if we have gone past to the missing-item-timeout.
-	 */
-	if (job->first_time_tried > 0 && (now - job->first_time_tried) > missing_item_timeout) {
-		job->state = CJOB_STATE_ERROR;
-		job->error = CJOB_ERROR_MISSING_ITEM_TIMEOUT;
-    NOW(job->completed_at);
-		rc = CLASSIFIER_FAIL;
-	} else if (job->first_time_tried < 0) {
-		job->first_time_tried = time(NULL);
-	}
-
-	return rc;
-}
-
 static int handle_checked_out(ClassificationJob *job) {
 	job->state = CJOB_STATE_ERROR;
 	job->error = CJOB_ERROR_CHECKED_OUT;
@@ -343,9 +323,6 @@ static int run_classifcation_job(ClassificationJob * job, ItemCache * item_cache
       break;
     case TAGGER_CHECKED_OUT:
       rc = handle_checked_out(job);
-      break;
-    case TAGGER_PENDING_ITEM_ADDITION:
-      rc = handle_pending_item_addition(job, opts->missing_item_timeout);
       break;
     default:
     	rc = CLASSIFIER_FAIL;

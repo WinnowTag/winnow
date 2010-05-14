@@ -81,6 +81,63 @@ static int load_positive_examples(Tagger *tagger, xmlXPathContextPtr ctx) {
   return rc;
 }
 
+/* Creates a ItemCacheEntry from an entry in this Tagger's atom document.
+ *
+ * This is used by get_missing_entries to create ItemCacheEntry objects for
+ * each of the items in the tag that were missing from the ItemCache.
+ */
+static ItemCacheEntry * create_entry(xmlXPathContextPtr ctx, char * entry_id) {
+  ItemCacheEntry * entry = NULL;
+  char xpath[265]; // TODO is this big enough for the xpath?
+  snprintf(xpath, 256, "/atom:feed/atom:entry/atom:id[text() = '%s']/..", entry_id);
+
+  xmlXPathObjectPtr xp = xmlXPathEvalExpression(BAD_CAST xpath, ctx);
+
+  if (!xmlXPathNodeSetIsEmpty(xp->nodesetval)) {
+    debug("Creating entry for missing item %s", entry_id);
+
+    /* Create a temporary XML document and copy the entry node into it so
+     * we can use the create_entry_from_atom_xml_document function which
+     * expects an entry element as the root node of the document.
+     */
+    xmlChar *atom;
+    int size;
+    xmlDocPtr doc = xmlNewDoc(BAD_CAST "1.0");
+    xmlDocSetRootElement(doc, xmlDocCopyNode(xp->nodesetval->nodeTab[0], doc, 1));
+    xmlDocDumpFormatMemory(doc, &atom, &size, 1);
+    entry = create_entry_from_atom_xml_document(doc, atom);
+    xmlFreeDoc(doc);
+    xmlFree(atom);
+
+    if (!entry) {
+      error("Couldn't create entry for %s", entry_id);
+    }
+  } else {
+    fatal("missing item %s in atom document - this should not happen", entry_id);
+  }
+
+  xmlXPathFreeObject(xp);
+
+  return entry;
+}
+
+static void add_missing_entries_from_array(char ** ids, int size, xmlXPathContextPtr ctx, ItemCache * item_cache) {
+	int i;
+
+	for (i = 0; i < size; i++) {
+		int free = 0;
+		Item * item = item_cache_fetch_item(item_cache, ids[i], &free);
+
+		if (!item) {
+			ItemCacheEntry *entry = create_entry(ctx, ids[i]);
+			item_cache_add_entry(item_cache, entry);
+			free_entry(entry);
+		} else if (free) {
+			free_item(item);
+		}
+	}
+}
+
 /** Builds a Tagger from an atom document.
  *
  * This will parse the atom document given by the 'atom' parameter and
@@ -90,7 +147,7 @@ static int load_positive_examples(Tagger *tagger, xmlXPathContextPtr ctx) {
  * TODO Document the atom format somewhere.
  * TODO Handle bad XML.
  */
-Tagger * build_tagger(const char * atom) {
+Tagger * build_tagger(const char * atom, ItemCache * item_cache) {
   Tagger * tagger = calloc(1, sizeof(struct TAGGER));
   
   if (tagger) {
@@ -117,6 +174,9 @@ Tagger * build_tagger(const char * atom) {
       }  else if (FAIL == load_negative_examples(tagger, ctx)) {
         // TODO unwind and return NULL
       }
+
+      add_missing_entries_from_array(tagger->positive_examples, tagger->positive_example_count, ctx, item_cache);
+      add_missing_entries_from_array(tagger->negative_examples, tagger->negative_example_count, ctx, item_cache);
             
       xmlXPathFreeContext(ctx);
       xmlFreeDoc(doc);
@@ -133,10 +193,8 @@ Tagger * build_tagger(const char * atom) {
   return tagger;
 }
 
-static void train_pool(Pool * pool, ItemCache * item_cache, char ** examples, 
-                       int size, char ** missing_examples, int * missing_size) {
+static void train_pool(Pool * pool, ItemCache * item_cache, char ** examples, int size) {
   int i;
-  *missing_size = 0;
   
   for (i = 0; i < size; i++) {
     int free_when_done = 0;
@@ -145,7 +203,7 @@ static void train_pool(Pool * pool, ItemCache * item_cache, char ** examples,
       pool_add_item(pool, item);
       if (free_when_done) free_item(item);
     } else {
-      missing_examples[(*missing_size)++] = examples[i];
+    	printf("Missing: %s\n", examples[i]);
     }
   }
 }
@@ -154,81 +212,14 @@ static int train(Tagger * tagger, ItemCache * item_cache) {
   tagger->state = TAGGER_TRAINED;    
   tagger->positive_pool = new_pool();
   tagger->negative_pool = new_pool();
-  // Allocate enough space to store all the negative examples in the missing_positive_examples array
-  tagger->missing_negative_examples = calloc(tagger->negative_example_count, sizeof(char*));
-  // Allocate enough space to store all the positive examples in the missing_positive_examples array
-  tagger->missing_positive_examples = calloc(tagger->positive_example_count, sizeof(char*));
 
   train_pool(tagger->positive_pool, item_cache, 
              tagger->positive_examples, 
-             tagger->positive_example_count, 
-             tagger->missing_positive_examples, 
-            &tagger->missing_positive_example_count);
+             tagger->positive_example_count);
   train_pool(tagger->negative_pool, item_cache, 
              tagger->negative_examples, 
-             tagger->negative_example_count,
-             tagger->missing_negative_examples, 
-            &tagger->missing_negative_example_count);
+             tagger->negative_example_count);
            
-  if (tagger->missing_positive_example_count > 0 || tagger->missing_negative_example_count > 0) {
-    tagger->state = TAGGER_PARTIALLY_TRAINED;
-  } else {
-    free(tagger->missing_positive_examples);
-    free(tagger->missing_negative_examples);
-    tagger->missing_positive_examples = NULL;
-    tagger->missing_negative_examples = NULL;
-  }
-  
-  return tagger->state;
-}
-
-static int partially_train(Tagger * tagger, ItemCache * item_cache) {
-  char ** missing_positive_examples = calloc(tagger->positive_example_count, sizeof(char*));
-  char ** missing_negative_examples = calloc(tagger->negative_example_count, sizeof(char*));
-  int missing_positive_example_count = 0;
-  int missing_negative_example_count = 0;
-  
-  train_pool(tagger->positive_pool, item_cache,
-             tagger->missing_positive_examples,
-             tagger->missing_positive_example_count,
-             missing_positive_examples,
-             &missing_positive_example_count);
-  train_pool(tagger->negative_pool, item_cache,
-            tagger->missing_negative_examples,
-            tagger->missing_negative_example_count,
-            missing_negative_examples,
-            &missing_negative_example_count);
-            
-  if (missing_positive_example_count == 0 && missing_negative_example_count == 0) {
-    tagger->state = TAGGER_TRAINED;
-    tagger->missing_positive_example_count = tagger->missing_negative_example_count = 0;
-    free(tagger->missing_positive_examples);
-    free(tagger->missing_negative_examples);
-    tagger->missing_positive_examples = tagger->missing_negative_examples = NULL;
-    free(missing_positive_examples);
-    free(missing_negative_examples);
-  } else {
-    tagger->state = TAGGER_PARTIALLY_TRAINED;    
-    tagger->missing_positive_example_count = missing_positive_example_count;
-    tagger->missing_negative_example_count = missing_negative_example_count;
-    free(tagger->missing_positive_examples);
-    free(tagger->missing_negative_examples);
-    
-    if (tagger->missing_positive_example_count > 0) {
-      tagger->missing_positive_examples = missing_positive_examples;
-    } else {
-      tagger->missing_positive_examples = NULL;
-      free(missing_positive_examples);
-    }
-    
-    if (tagger->missing_negative_example_count > 0) {
-      tagger->missing_negative_examples = missing_negative_examples;      
-    } else {
-      tagger->missing_negative_examples = NULL;
-      free(missing_negative_examples);
-    }
-  }
-  
   return tagger->state;
 }
 
@@ -266,9 +257,6 @@ TaggerState train_tagger(Tagger * tagger, ItemCache * item_cache) {
     switch (tagger->state) {
       case TAGGER_LOADED:
         state = train(tagger, item_cache);
-        break;
-      case TAGGER_PARTIALLY_TRAINED:
-        state = partially_train(tagger, item_cache);
         break;
       default:
         error("Tried to train an already trained tag.  This is probably programmer error.");
@@ -357,6 +345,8 @@ struct output {
   int size;
   char *data;
 };
+
+
 
 static size_t curl_read_function(void *ptr, size_t size, size_t nmemb, void *stream) {
   struct output *out = (struct output*) stream;
@@ -494,85 +484,6 @@ int update_taggings(const Tagger * tagger, Array *taggings, const Credentials * 
   return save_taggings(tagger, taggings, POST, credentials, errmsg);
 }
 
-/* Creates a ItemCacheEntry from an entry in this Tagger's atom document.
- *
- * This is used by get_missing_entries to create ItemCacheEntry objects for
- * each of the items in the tag that were missing from the ItemCache.
- */ 
-static ItemCacheEntry * create_entry(xmlXPathContextPtr ctx, char * entry_id) {
-  ItemCacheEntry * entry = NULL;
-  char xpath[265]; // TODO is this big enough for the xpath?
-  snprintf(xpath, 256, "/atom:feed/atom:entry/atom:id[text() = '%s']/..", entry_id);
-    
-  xmlXPathObjectPtr xp = xmlXPathEvalExpression(BAD_CAST xpath, ctx);
-
-  if (!xmlXPathNodeSetIsEmpty(xp->nodesetval)) {
-    debug("Creating entry for missing item %s", entry_id);
-    
-    /* Create a temporary XML document and copy the entry node into it so
-     * we can use the create_entry_from_atom_xml_document function which
-     * expects an entry element as the root node of the document.
-     */
-    xmlChar *atom;
-    int size;
-    xmlDocPtr doc = xmlNewDoc(BAD_CAST "1.0");
-    xmlDocSetRootElement(doc, xmlDocCopyNode(xp->nodesetval->nodeTab[0], doc, 1));
-    xmlDocDumpFormatMemory(doc, &atom, &size, 1);
-    entry = create_entry_from_atom_xml_document(doc, atom);
-    xmlFreeDoc(doc);
-    xmlFree(atom);
-    
-    if (!entry) {
-      error("Couldn't create entry for %s", entry_id);
-    }
-  } else {
-    fatal("missing item %s in atom document - this should not happen", entry_id);
-  }
-    
-  xmlXPathFreeObject(xp);
-
-  return entry;
-}
-
-/** Gets ItemCacheEntry objects for all the items that are missing
- *  from the item cache.
- *
- *  @param tagger The tagger to get the missing items from. This should
- *         be a tagger that is partially trained. If the tagger is not
- *         partially trained or had no missing items, this will be a no-op. 
- *  @param entries A array of ItemCacheEntry* that will be filled with
- *         the ItemCacheEntries for the missing items.  This should
- *         be big enough to hold all the missing items in the tagger, i.e.
- *         it should be tagger->missing_positive_example_count + 
- *         tagger->missing_negative_example_count in size.
- */
-int get_missing_entries(Tagger * tagger, ItemCacheEntry ** entries) {
-  int rc = OK;
-  
-  if (tagger && tagger->state == TAGGER_PARTIALLY_TRAINED) {
-    int i;
-    
-     xmlDocPtr doc = xmlParseDoc(BAD_CAST tagger->atom);
-     xmlXPathContextPtr ctx = xmlXPathNewContext(doc);
-     xmlXPathRegisterNs(ctx, BAD_CAST "atom", BAD_CAST ATOM);
-    
-    for (i = 0; i < tagger->missing_positive_example_count; i++) {
-      entries[i] = create_entry(ctx, tagger->missing_positive_examples[i]);
-    }
-    
-    for (i = 0; i < tagger->missing_negative_example_count; i++) {
-      entries[i + tagger->missing_positive_example_count] = create_entry(ctx, tagger->missing_negative_examples[i]);
-    }
-    
-    xmlXPathFreeContext(ctx);
-    xmlFreeDoc(doc);
-  } else {
-    rc = FAIL;
-  }
-  
-  return rc;
-}
-
 TaggerState prepare_tagger(Tagger *tagger, ItemCache *item_cache) {
   if (tagger && item_cache) {
     if (tagger->state != TAGGER_PRECOMPUTED) {      
@@ -612,9 +523,6 @@ void free_tagger(Tagger * tagger) {
       
       free(tagger->negative_examples);
     }
-    
-    if (tagger->missing_positive_examples) free(tagger->missing_positive_examples);
-    if (tagger->missing_negative_examples) free(tagger->missing_negative_examples);
     
     if (tagger->positive_pool) free_pool(tagger->positive_pool);
     if (tagger->negative_pool) free_pool(tagger->negative_pool);

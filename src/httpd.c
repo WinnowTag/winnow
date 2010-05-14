@@ -381,10 +381,6 @@ static int get_clues_handler(const HTTPRequest * request, HTTPResponse * respons
           response->content = "The classifier needs to load the tag to perform this operation. Please try again later.";
         }
         break;
-      case TAGGER_PENDING_ITEM_ADDITION:
-        response->code = MHD_HTTP_FAILED_DEPENDENCY;
-        response->content = "The classifier is missing some items required to perform this operation.  Please try again later.";
-        break;
       case TAGGER_CHECKED_OUT:
         response->code = MHD_HTTP_FAILED_DEPENDENCY;
         response->content = "The classifier is waiting on the tagger to become available.  Please try again later.";

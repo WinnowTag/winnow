@@ -73,7 +73,7 @@ static void setup_classification_functions(Tagger *tagger) {
  * @param errmsg Any errors will be put in here.
  * @return The fetched tagger or NULL if it couldn't be found or wasn't modified.
  */
-static Tagger * fetch_tagger(TagRetriever tag_retriever, const char * tag_training_url, 
+static Tagger * fetch_tagger(TagRetriever tag_retriever, ItemCache *item_cache, const char * tag_training_url,
                              time_t if_modified_since, const Credentials * credentials, char ** errmsg) {
   Tagger *tagger = NULL;
   
@@ -84,7 +84,7 @@ static Tagger * fetch_tagger(TagRetriever tag_retriever, const char * tag_traini
     int fetch_rc = tag_retriever(tag_training_url, if_modified_since, credentials, &tag_document, errmsg);
 
     if (fetch_rc == URL_OK && tag_document != NULL) {
-      tagger = build_tagger(tag_document);
+      tagger = build_tagger(tag_document, item_cache);
 
       if (tagger && tagger->state == TAGGER_LOADED) {
         /* Replace the training url with the url we actually used to fetch it,
@@ -234,27 +234,6 @@ int release_tagger(TaggerCache *tagger_cache, Tagger * tagger) {
   return rc;
 }
 
-/** If there are any missing entries in the tag definition, these are added to the item cache.
- */
-static int add_missing_entries_if_needed(ItemCache * item_cache, Tagger * tagger) {
-  if (tagger && tagger->state == TAGGER_PARTIALLY_TRAINED) {
-    int number_of_missing_entries = tagger->missing_positive_example_count + tagger->missing_negative_example_count;
-    ItemCacheEntry *entries[number_of_missing_entries];
-    memset(entries, 0, sizeof(entries));
-
-    if (!get_missing_entries(tagger, entries)) {
-      int i;
-
-      for (i = 0; i < number_of_missing_entries; i++) {
-        item_cache_add_entry(item_cache, entries[i]);
-        free_entry(entries[i]);
-      }
-    }
-  }
-  
-  return 0;
-}
-
 /* Figure out what state of tagger we have, if any, to determine what we return:
  *
  *  temp_tagger == NULL                     -> TAGGER_NOT_FOUND
@@ -267,9 +246,6 @@ int determine_return_state(Tagger *tagger, char ** errmsg) {
     return TAG_NOT_FOUND;
   } else if (tagger->state == TAGGER_PRECOMPUTED) {
     return TAGGER_OK;
-  } else if (tagger->state == TAGGER_PARTIALLY_TRAINED) {
-    if (errmsg) *errmsg = strdup("Some items need to be cached");
-    return TAGGER_PENDING_ITEM_ADDITION;    
   } else {
     if (errmsg) *errmsg = strdup("Unaccounted for tagger state");
     error("Unaccounted for tagger state: %i", tagger->state);
@@ -282,13 +258,13 @@ int determine_return_state(Tagger *tagger, char ** errmsg) {
 static int fetch_or_update_tagger(TaggerCache * tagger_cache, const char *tag_url, Tagger **tagger, char ** errmsg) {
   int updated = 0;
   
-  if (!(*tagger) && (*tagger = fetch_tagger(tagger_cache->tag_retriever, tag_url, -1, tagger_cache->credentials, errmsg))) {
+  if (!(*tagger) && (*tagger = fetch_tagger(tagger_cache->tag_retriever, tagger_cache->item_cache, tag_url, -1, tagger_cache->credentials, errmsg))) {
     updated = 1;
-  } else if (*tagger && (*tagger)->state != TAGGER_PARTIALLY_TRAINED) {
+  } else if (*tagger) {
     /* The tagger is cached, so we need to see if it has been updated, but only if it has no pending items. */
     Tagger *updated_tagger = NULL;
     
-    if ((updated_tagger = fetch_tagger(tagger_cache->tag_retriever, tag_url, (*tagger)->updated, tagger_cache->credentials, errmsg))) {
+    if ((updated_tagger = fetch_tagger(tagger_cache->tag_retriever, tagger_cache->item_cache, tag_url, (*tagger)->updated, tagger_cache->credentials, errmsg))) {
       updated = 1;
       *tagger = updated_tagger;          
     } else {
@@ -368,7 +344,6 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
       
       if (tagger_is_new) {        
         cache_tagger(tagger_cache, temp_tagger);
-        add_missing_entries_if_needed(tagger_cache->item_cache, temp_tagger);        
       }     
       
       rc = determine_return_state(temp_tagger, errmsg);

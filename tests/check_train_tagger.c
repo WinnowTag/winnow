@@ -35,13 +35,15 @@ static void read_document(const char * filename) {
 static void setup_complete(void) {
   setup_fixture_path();
   read_document("fixtures/complete_tag.atom");
-  item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
+  system("rm -Rf /tmp/valid-copy && cp -Rf fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
+  item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
 }
 
 static void setup_incomplete(void) {
   setup_fixture_path();
   read_document("fixtures/incomplete_tag.atom");
-  item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
+  system("rm -Rf /tmp/valid-copy && cp -Rf fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
+  item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
 }
 
 static void teardown(void) {
@@ -55,19 +57,19 @@ static void teardown(void) {
 
 /** Tests when all items are in the item cache */
 START_TEST (test_training_a_tag_with_all_items_in_the_cache_returns_TAGGER_TRAINED) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   TaggerState state = train_tagger(tagger, item_cache);
   assert_equal(TAGGER_TRAINED, state);
 } END_TEST
 
 START_TEST (test_training_a_tag_with_all_items_in_the_cache_sets_state_to_TAGGER_TRAINED) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   train_tagger(tagger, item_cache);
   assert_equal(TAGGER_TRAINED, tagger->state);
 } END_TEST
 
 START_TEST (test_train_merges_examples_into_pools) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   train_tagger(tagger, item_cache);
 
   assert_not_null(tagger->positive_pool);
@@ -80,92 +82,26 @@ START_TEST (test_train_merges_examples_into_pools) {
 } END_TEST
 
 START_TEST (test_training_twice_returns_SEQUENCE_ERROR) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   train_tagger(tagger, item_cache);
   TaggerState state = train_tagger(tagger, item_cache);
   assert_equal(TAGGER_SEQUENCE_ERROR, state);
 } END_TEST
 
-START_TEST (test_training_a_tagger_with_all_items_in_the_cache_has_zero_missing_item_counts) {
-  Tagger *tagger = build_tagger(document);
-  train_tagger(tagger, item_cache);
-  assert_equal(0, tagger->missing_positive_example_count);
-  assert_equal(0, tagger->missing_negative_example_count);
-} END_TEST
-
-START_TEST (test_completely_trained_tag_returns_no_missing_items) {
-  Tagger *tagger = build_tagger(document);
-  train_tagger(tagger, item_cache);
-  ItemCacheEntry *entries[3];
-  memset(entries, 0, sizeof(entries));
-  int rc = get_missing_entries(tagger, entries);
-  assert_equal(1, rc);
-  assert_null(entries[0]);
-  assert_null(entries[1]);
-  assert_null(entries[2]);
-} END_TEST
 
 /** Tests with missing items */
-START_TEST (test_training_a_tag_with_missing_items_returns_TAGGER_PARTIALLY_TRAINED) {
-  Tagger *tagger = build_tagger(document);
-  TaggerState state = train_tagger(tagger, item_cache);
-  assert_equal(TAGGER_PARTIALLY_TRAINED, state);
-} END_TEST
-
-START_TEST (test_training_a_tag_with_missing_items_sets_state_to_TAGGER_PARTIALLY_TRAINED) {
-  Tagger *tagger = build_tagger(document);
-  train_tagger(tagger, item_cache);
-  assert_equal(TAGGER_PARTIALLY_TRAINED, tagger->state);
-} END_TEST
 
 START_TEST (test_training_a_tag_with_missing_items_trains_items_exist) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   train_tagger(tagger, item_cache);
 
   assert_not_null(tagger->positive_pool);
-  assert_equal(171, pool_num_tokens(tagger->positive_pool));
-  assert_equal(303, pool_total_tokens(tagger->positive_pool));
+  assert_equal(180, pool_num_tokens(tagger->positive_pool));
+  assert_equal(312, pool_total_tokens(tagger->positive_pool));
 
   assert_not_null(tagger->negative_pool);
-  assert_equal(0, pool_num_tokens(tagger->negative_pool));
-  assert_equal(0, pool_total_tokens(tagger->negative_pool));
-} END_TEST
-
-START_TEST (test_training_a_tag_with_missing_items_stores_missing_positives) {
-  Tagger *tagger = build_tagger(document);
-  train_tagger(tagger, item_cache);
-  assert_equal(2, tagger->missing_positive_example_count);
-  assert_equal_s("urn:peerworks.org:entry#2", tagger->missing_positive_examples[0]);
-  assert_equal_s("urn:peerworks.org:entry#3", tagger->missing_positive_examples[1]);
-} END_TEST
-
-START_TEST (test_training_a_tag_with_missing_items_stores_missing_negatives) {
-  Tagger *tagger = build_tagger(document);
-  train_tagger(tagger, item_cache);
-  assert_equal(1, tagger->missing_negative_example_count);
-  assert_equal_s("urn:peerworks.org:entry#1", tagger->missing_negative_examples[0]);
-} END_TEST
-
-START_TEST (test_can_get_the_missing_item_cache_entries) {
-  Tagger *tagger = build_tagger(document);
-  train_tagger(tagger, item_cache);
-  ItemCacheEntry *entries[3];
-  memset(entries, 0, sizeof(entries));
-  get_missing_entries(tagger, entries);
-  assert_not_null(entries[0]);
-  assert_not_null(entries[1]);
-  assert_not_null(entries[2]);
-} END_TEST
-
-START_TEST (test_missing_item_cache_entries_include_the_ids) {
-  Tagger *tagger = build_tagger(document);
-  train_tagger(tagger, item_cache);
-  ItemCacheEntry *entries[3];
-  memset(entries, 0, sizeof(entries));
-  get_missing_entries(tagger, entries);
-  assert_equal_s("urn:peerworks.org:entry#2", item_cache_entry_full_id(entries[0]));
-  assert_equal_s("urn:peerworks.org:entry#3", item_cache_entry_full_id(entries[1]));
-  assert_equal_s("urn:peerworks.org:entry#1", item_cache_entry_full_id(entries[2]));
+  assert_equal(8, pool_num_tokens(tagger->negative_pool));
+  assert_equal(8, pool_total_tokens(tagger->negative_pool));
 } END_TEST
 
 static ItemCache *missing_item_cache;
@@ -181,43 +117,29 @@ static void teardown_item_cache_with_missing_items(void) {
 }
 
 START_TEST (test_retraining_with_item_cache_that_includes_missing_items_return_TAGGER_TRAINED) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   int rc = train_tagger(tagger, item_cache);
-  assert_equal(TAGGER_PARTIALLY_TRAINED, rc);
-  rc = train_tagger(tagger, missing_item_cache);
   assert_equal(TAGGER_TRAINED, rc);
 } END_TEST
 
 START_TEST (test_retraining_with_item_cache_that_includes_missing_items_sets_state_to_TAGGER_TRAINED) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   train_tagger(tagger, item_cache);
-  assert_equal(TAGGER_PARTIALLY_TRAINED, tagger->state);
-  train_tagger(tagger, missing_item_cache);
   assert_equal(TAGGER_TRAINED, tagger->state);
 } END_TEST
 
-START_TEST (test_retraining_with_item_cache_that_includes_missing_items_clears_missing_items) {
-  Tagger *tagger = build_tagger(document);
-  train_tagger(tagger, item_cache);
-  train_tagger(tagger, missing_item_cache);
-  assert_equal(0, tagger->missing_positive_example_count);
-  assert_equal(0, tagger->missing_negative_example_count);
-  assert_null(tagger->missing_positive_examples);
-  assert_null(tagger->missing_negative_examples);
-} END_TEST
-
 START_TEST (test_retraining_with_item_cache_that_includes_missing_items_adds_those_items_to_the_pools) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   train_tagger(tagger, item_cache);
   train_tagger(tagger, missing_item_cache);
 
   assert_not_null(tagger->positive_pool);
-  assert_equal(508, pool_num_tokens(tagger->positive_pool));
-  assert_equal(965, pool_total_tokens(tagger->positive_pool));
+  assert_equal(180, pool_num_tokens(tagger->positive_pool));
+  assert_equal(312, pool_total_tokens(tagger->positive_pool));
 
   assert_not_null(tagger->negative_pool);
-  assert_equal(54, pool_num_tokens(tagger->negative_pool));
-  assert_equal(74, pool_total_tokens(tagger->negative_pool));
+  assert_equal(8, pool_num_tokens(tagger->negative_pool));
+  assert_equal(8, pool_total_tokens(tagger->negative_pool));
 } END_TEST
 
 static void setup_item_cache_with_some_missing_items(void) {
@@ -230,45 +152,17 @@ static void teardown_item_cache_with_some_missing_items(void) {
   free_item_cache(missing_item_cache);
 }
 
-START_TEST (test_retraining_with_item_cache_that_includes_some_missing_items_return_TAGGER_PARTIALLY_TRAINED) {
-  Tagger *tagger = build_tagger(document);
-  int rc = train_tagger(tagger, item_cache);
-  assert_equal(TAGGER_PARTIALLY_TRAINED, rc);
-  rc = train_tagger(tagger, missing_item_cache);
-  assert_equal(TAGGER_PARTIALLY_TRAINED, rc);
-} END_TEST
-
-START_TEST (test_retraining_with_item_cache_that_includes_some_missing_items_sets_state_to_TAGGER_PARTIALLY_TRAINED) {
-  Tagger *tagger = build_tagger(document);
-  train_tagger(tagger, item_cache);
-  assert_equal(TAGGER_PARTIALLY_TRAINED, tagger->state);
-  train_tagger(tagger, missing_item_cache);
-  assert_equal(TAGGER_PARTIALLY_TRAINED, tagger->state);
-} END_TEST
-
-START_TEST (test_retraining_with_item_cache_that_includes_some_missing_items_resets_missing_items) {
-  Tagger *tagger = build_tagger(document);
-  train_tagger(tagger, item_cache);
-  train_tagger(tagger, missing_item_cache);
-  assert_equal(1, tagger->missing_positive_example_count);
-  assert_equal(0, tagger->missing_negative_example_count);
-  assert_not_null(tagger->missing_positive_examples);
-  assert_equal_s("urn:peerworks.org:entry#3", tagger->missing_positive_examples[0]);
-  assert_null(tagger->missing_negative_examples);
-} END_TEST
-
 START_TEST (test_retraining_with_item_cache_that_includes_some_missing_items_adds_those_items_to_the_pools) {
-  Tagger *tagger = build_tagger(document);
+  Tagger *tagger = build_tagger(document, item_cache);
   train_tagger(tagger, item_cache);
-  train_tagger(tagger, missing_item_cache);
 
   assert_not_null(tagger->positive_pool);
-  assert_equal(259, pool_num_tokens(tagger->positive_pool));
-  assert_equal(449, pool_total_tokens(tagger->positive_pool));
+  assert_equal(180, pool_num_tokens(tagger->positive_pool));
+  assert_equal(312, pool_total_tokens(tagger->positive_pool));
 
   assert_not_null(tagger->negative_pool);
-  assert_equal(54, pool_num_tokens(tagger->negative_pool));
-  assert_equal(74, pool_total_tokens(tagger->negative_pool));
+  assert_equal(8, pool_num_tokens(tagger->negative_pool));
+  assert_equal(8, pool_total_tokens(tagger->negative_pool));
 } END_TEST
 
 Suite *
@@ -281,33 +175,21 @@ tag_loading_suite(void) {
   tcase_add_test(tc_complete_tag, test_training_a_tag_with_all_items_in_the_cache_sets_state_to_TAGGER_TRAINED);
   tcase_add_test(tc_complete_tag, test_train_merges_examples_into_pools);
   tcase_add_test(tc_complete_tag, test_training_twice_returns_SEQUENCE_ERROR);
-  tcase_add_test(tc_complete_tag, test_training_a_tagger_with_all_items_in_the_cache_has_zero_missing_item_counts);
-  tcase_add_test(tc_complete_tag, test_completely_trained_tag_returns_no_missing_items);
 
   TCase *tc_incomplete_tag = tcase_create("incomplete_tag.atom");
   tcase_add_checked_fixture(tc_incomplete_tag, setup_incomplete, teardown);
-  tcase_add_test(tc_incomplete_tag, test_training_a_tag_with_missing_items_returns_TAGGER_PARTIALLY_TRAINED);
-  tcase_add_test(tc_incomplete_tag, test_training_a_tag_with_missing_items_sets_state_to_TAGGER_PARTIALLY_TRAINED);
   tcase_add_test(tc_incomplete_tag, test_training_a_tag_with_missing_items_trains_items_exist);
-  tcase_add_test(tc_incomplete_tag, test_training_a_tag_with_missing_items_stores_missing_positives);
-  tcase_add_test(tc_incomplete_tag, test_training_a_tag_with_missing_items_stores_missing_negatives);
-  tcase_add_test(tc_incomplete_tag, test_can_get_the_missing_item_cache_entries);
-  tcase_add_test(tc_incomplete_tag, test_missing_item_cache_entries_include_the_ids);
 
   TCase *tc_incomplete_tag_after_adding_items = tcase_create("incomplete_tag.atom after adding missing items");
   tcase_add_checked_fixture(tc_incomplete_tag_after_adding_items, setup_incomplete, teardown);
   tcase_add_checked_fixture(tc_incomplete_tag_after_adding_items, setup_item_cache_with_missing_items, teardown_item_cache_with_missing_items);
   tcase_add_test(tc_incomplete_tag_after_adding_items, test_retraining_with_item_cache_that_includes_missing_items_return_TAGGER_TRAINED);
   tcase_add_test(tc_incomplete_tag_after_adding_items, test_retraining_with_item_cache_that_includes_missing_items_sets_state_to_TAGGER_TRAINED);
-  tcase_add_test(tc_incomplete_tag_after_adding_items, test_retraining_with_item_cache_that_includes_missing_items_clears_missing_items);
   tcase_add_test(tc_incomplete_tag_after_adding_items, test_retraining_with_item_cache_that_includes_missing_items_adds_those_items_to_the_pools);
 
   TCase *tc_incomplete_tag_after_adding_some_items = tcase_create("incomplete_tag.atom after adding some missing items");
   tcase_add_checked_fixture(tc_incomplete_tag_after_adding_some_items, setup_incomplete, teardown);
   tcase_add_checked_fixture(tc_incomplete_tag_after_adding_some_items, setup_item_cache_with_some_missing_items, teardown_item_cache_with_some_missing_items);
-  tcase_add_test(tc_incomplete_tag_after_adding_some_items, test_retraining_with_item_cache_that_includes_some_missing_items_return_TAGGER_PARTIALLY_TRAINED);
-  tcase_add_test(tc_incomplete_tag_after_adding_some_items, test_retraining_with_item_cache_that_includes_some_missing_items_sets_state_to_TAGGER_PARTIALLY_TRAINED);
-  tcase_add_test(tc_incomplete_tag_after_adding_some_items, test_retraining_with_item_cache_that_includes_some_missing_items_resets_missing_items);
   tcase_add_test(tc_incomplete_tag_after_adding_some_items, test_retraining_with_item_cache_that_includes_some_missing_items_adds_those_items_to_the_pools);
 
   suite_add_tcase(s, tc_complete_tag);
