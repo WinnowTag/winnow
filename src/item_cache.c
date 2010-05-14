@@ -30,6 +30,7 @@
 #include "job_queue.h"
 #include "xml.h"
 #include "array.h"
+#include "tokenizer.h"
 
 #define CURRENT_USER_VERSION 5
 #define FETCH_ITEM_SQL "select full_id, id, strftime('%s', updated) from entries where full_id = ?"
@@ -145,22 +146,6 @@ struct ITEM_CACHE {
 
   /* The Random Background pool. */
   Pool *random_background;
-
-  /************************************
-   *  Feature Extraction Members
-   */
-
-  /* Queue for entries to get converted into items. */
-  Queue *feature_extraction_queue;
-
-  /* Function for feature extraction */
-  FeatureExtractor feature_extractor;
-
-  /* Additional data for the feature extractor */
-  void *feature_extractor_memo;
-
-  /* Thread which handles the feature extraction */
-  pthread_t *feature_extraction_thread;
 
   /************************************
    *  In-memory cache updating members
@@ -766,22 +751,21 @@ static void * cache_updating_func(void *memo) {
 
     if (job) {
       do {
+
         switch (job->type) {
           case ADD:
             job->item->time = time(NULL);
-            if (CLASSIFIER_OK == item_cache_save_item(item_cache, job->item)) {
-              if (CLASSIFIER_OK == item_cache_add_item(item_cache, job->item)) {
-                items_added++;
-              } else {
-                debug("No enough tokens to add to the classification item cache: %i", job->item->id);
-                free_item(job->item);
-              }
-            }
-            break;
-          default:
-            fatal("Got unknown cache updating job type");
-            break;
-        }
+						if (CLASSIFIER_OK == item_cache_add_item(item_cache, job->item)) {
+							items_added++;
+						} else {
+							debug("No enough tokens to add to the classification item cache: %s\n", job->item->id);
+							free_item(job->item);
+						}
+						break;
+					default:
+						fatal("Got unknown cache updating job type");
+						break;
+				}
 
         free(job);
 
@@ -1089,7 +1073,6 @@ int item_cache_create(ItemCache **item_cache, const char * cache_directory, cons
   (*item_cache)->items_in_order = NULL;
   (*item_cache)->random_background = NULL;
   (*item_cache)->loaded = false;
-  (*item_cache)->feature_extraction_queue = new_queue();
   (*item_cache)->update_queue = new_queue();
   (*item_cache)->shutting_down = 0;
 
@@ -1123,11 +1106,6 @@ void free_item_cache(ItemCache *item_cache) {
 
   if (item_cache) {
     item_cache->shutting_down = 1;
-
-    if (item_cache->feature_extraction_thread) {
-      info("Stopping feature extractor");
-      pthread_join(*item_cache->feature_extraction_thread, NULL);
-    }
 
     if (item_cache->cache_updating_thread) {
       info("Stopping cache updater");
@@ -1183,7 +1161,6 @@ void free_item_cache(ItemCache *item_cache) {
 
     pthread_mutex_destroy(&item_cache->db_access_mutex);
     pthread_rwlock_destroy(&item_cache->cache_lock);
-    free_queue(item_cache->feature_extraction_queue);
     free_queue(item_cache->update_queue);
 
     free(item_cache->cache_directory);
@@ -1247,19 +1224,6 @@ int item_cache_load(ItemCache *item_cache) {
  */
 int item_cache_cached_size(ItemCache *item_cache) {
   return item_cache->cached_size;
-}
-
-/** Set the FeatureExtractor to use for extracting features from an Entry.
- *
- * @param item_cache The item cache to use the feature extractor with.
- * @param feature_extractor The FeatureExtractor to use to convert ItemCacheEntry instances to Item instances.
- */
-int item_cache_set_feature_extractor(ItemCache * item_cache, FeatureExtractor feature_extractor, void *memo) {
-  if (item_cache) {
-    item_cache->feature_extractor = feature_extractor;
-    item_cache->feature_extractor_memo = memo;
-  }
-  return CLASSIFIER_OK;
 }
 
 /** Returns true if the item cache has been loaded into memory.
@@ -1368,32 +1332,52 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
   int rc = CLASSIFIER_OK;
 
   if (item_cache && entry) {
-    pthread_mutex_lock(&item_cache->db_access_mutex);
-    int is_new_entry = _is_new_entry(item_cache, entry);
+	pthread_mutex_lock(&item_cache->db_access_mutex);
+	int is_new_entry = _is_new_entry(item_cache, entry);
 
-    if (is_new_entry) {
-      insert_entry(item_cache, entry);
-    } else {
-      update_entry(item_cache, entry);
-    }
+	if (is_new_entry) {
+	  insert_entry(item_cache, entry);
+	} else {
+	  update_entry(item_cache, entry);
+	}
 
-    if (save_entry_xml(item_cache, entry)) {
-      rc = CLASSIFIER_FAIL;
-    }
+	if (save_entry_xml(item_cache, entry)) {
+	  rc = CLASSIFIER_FAIL;
+	}
 
-    // We don't want to extract features for items we already have.
-    // TODO Handle updates to features for items somehow?
-    if (rc == CLASSIFIER_OK) {
-      if (is_new_entry) {
-        debug("Adding %s to feature_extraction queue", entry->full_id);
-        q_enqueue(item_cache->feature_extraction_queue, copy_entry(entry));
-      } else if (!entry_has_tokens(item_cache, entry)) {
-        debug("Adding %s to feature_extraction queue", entry->full_id);
-        q_enqueue(item_cache->feature_extraction_queue, copy_entry(entry));
-      }
-    }
+	pthread_mutex_unlock(&item_cache->db_access_mutex);
 
-    pthread_mutex_unlock(&item_cache->db_access_mutex);
+	// We don't want to extract features for items we already have.
+	// TODO Handle updates to features for items somehow?
+
+	if (rc == CLASSIFIER_OK && (is_new_entry || !entry_has_tokens(item_cache, entry))) {
+		debug("tokenizing entry %s", entry->full_id);
+		if (entry->atom) {
+			Pvoid_t features = atom_tokenize(entry->atom);
+			if (features) {
+				Item *item = create_item(entry->full_id, entry->id, entry->updated);
+				item->tokens = NULL;
+
+				PWord_t PValue;
+				uint8_t token[512];
+				token[0] = '\0';
+
+				JSLF(PValue, features, token);
+				while (PValue != NULL) {
+					int atomizedId = item_cache_atomize(item_cache, token);
+					item_add_token(item, atomizedId, *PValue);
+					JSLN(PValue, features, token);
+				}
+
+				if (CLASSIFIER_OK == item_cache_save_item(item_cache, item)) {
+					UpdateJob *job = create_add_job(item);
+					q_enqueue(item_cache->update_queue, job);
+					debug("Added to update queue");
+				}
+			}
+		}
+	}
+
   }
 
   return rc;
@@ -1545,75 +1529,6 @@ int item_cache_start_purger(ItemCache * item_cache, int purge_interval) {
       if (pthread_create(item_cache->purge_thread,NULL, item_cache_purge_thread_func, item_cache)) {
         fatal("Could not start purge thread");
         rc = CLASSIFIER_FAIL;
-      }
-    }
-  }
-
-  return rc;
-}
-
-/** Returns the number of ItemCacheEntry instances in the feature extraction queue.
- */
-int item_cache_feature_extraction_queue_size(const ItemCache *item_cache) {
-  int size = 0;
-  if (item_cache) {
-    size = q_size(item_cache->feature_extraction_queue);
-  }
-  return size;
-}
-
-/** Feature extraction thread function.
- *
- * This handles taking an ItemCacheEntry off the feature_extraction queue,
- * calling the feature_extractor and putting the result on the cache_updating
- * queue.
- */
-static void * feature_extraction_thread_func(void *memo) {
-  ItemCache * item_cache = (ItemCache*) memo;
-  info("feature extractor thread started");
-
-  while (!item_cache->shutting_down) {
-    ItemCacheEntry *entry = q_dequeue_or_wait(item_cache->feature_extraction_queue, 1);
-    if (entry) {
-      debug("Got entry off feature_extraction_queue");
-      Item *item = item_cache->feature_extractor(item_cache, entry, item_cache->feature_extractor_memo);
-      if (item) {
-        UpdateJob *job = create_add_job(item);
-        q_enqueue(item_cache->update_queue, job);
-        debug("Update added to update_queue");
-      } else {
-        error("Got null back from feature extraction queue for %s.", entry->full_id);
-      }
-      free_entry(entry);
-    }
-  }
-
-  info("feature extractor thread ended");
-  return NULL;
-}
-
-/** Starts the item cache feature extractor.
- *
- *  This requires a feature_extractor to be set on the item cache.
- *  This can not be called twice.
- *
- */
-int item_cache_start_feature_extractor(ItemCache *item_cache) {
-  int rc = CLASSIFIER_OK;
-  if (item_cache) {
-    if (item_cache->feature_extraction_thread != NULL) {
-      fatal("Tried to start feature extractor more than once.");
-      rc = CLASSIFIER_FAIL;
-    } else if (item_cache->feature_extractor == NULL) {
-      fatal("Tried to start feature extractor without a feature extractor assigned.");
-      rc = CLASSIFIER_FAIL;
-    } else {
-      item_cache->feature_extraction_thread = malloc(sizeof(pthread_t));
-      if (item_cache->feature_extraction_thread) {
-        if (pthread_create(item_cache->feature_extraction_thread, NULL, feature_extraction_thread_func, item_cache)) {
-          fatal("Error creating feature_extraction_thread");
-          rc = CLASSIFIER_FAIL;
-        }
       }
     }
   }

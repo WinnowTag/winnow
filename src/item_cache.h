@@ -31,12 +31,10 @@ typedef struct ITEM_CACHE ItemCache;
 typedef struct ITEM_CACHE_ENTRY ItemCacheEntry;
 
 typedef int (*ItemIterator) (const Item *item, void *memo);
-typedef Item* (*FeatureExtractor) (ItemCache *item_cache, const ItemCacheEntry * entry, void *memo);
 typedef void (*UpdateCallback) (ItemCache * item_cache, void *memo);
 
 extern int          item_cache_initialize         (const char *dbfile, char *error);
 extern int          item_cache_create             (ItemCache **is, const char *db_file, const ItemCacheOptions * options);
-extern int          item_cache_set_feature_extractor (ItemCache * item_cache, FeatureExtractor feature_extractor, void *memo);
 extern int          item_cache_load               (ItemCache *item_cache);
 extern int          item_cache_loaded             (const ItemCache *item_cache);
 extern int          item_cache_cached_size        (ItemCache *item_cache);
@@ -50,8 +48,6 @@ extern int          item_cache_add_item           (ItemCache *item_cache, Item *
 extern int          item_cache_save_item          (ItemCache *item_cache, Item *item);
 extern int          item_cache_start_purger       (ItemCache *item_cache, int purge_interval);
 extern int          item_cache_purge_old_items    (ItemCache *item_cache);
-extern int          item_cache_feature_extraction_queue_size (const ItemCache *item_cache);
-extern int          item_cache_start_feature_extractor (ItemCache *item_cache);
 extern int          item_cache_start_cache_updater     (ItemCache *item_cache);
 extern int          item_cache_update_queue_size  (const ItemCache * item_cache);
 extern int          item_cache_set_update_callback(ItemCache *item_cache, UpdateCallback callback, void *memo);

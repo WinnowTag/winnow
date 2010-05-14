@@ -411,22 +411,6 @@ START_TEST (test_failed_deletion_doesnt_delete_tokens) {
   sqlite3_close(db);
 } END_TEST
 
-START_TEST (test_adding_entry_causes_it_to_be_added_to_the_tokenization_queue) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
-  item_cache_add_entry(item_cache, entry);
-  assert_equal(1, item_cache_feature_extraction_queue_size(item_cache));
-} END_TEST
-
-START_TEST (test_adding_existing_entry_doesnt_tokenize_if_the_entry_is_tokenized) {
-  char * existing = read_document("fixtures/existing_entry.atom");
-  ItemCacheEntry *entry = create_entry_from_atom_xml(existing);
-  int rc1 = item_cache_add_entry(item_cache, entry);
-  int rc2 = item_cache_add_entry(item_cache, entry);
-  assert_equal(CLASSIFIER_OK, rc1);
-  assert_equal(CLASSIFIER_OK, rc2);
-  assert_equal(0, item_cache_feature_extraction_queue_size(item_cache));
-} END_TEST
-
 #include <sched.h>
 #include <sys/unistd.h>
 int tokens[][2] = {1, 2, 3, 4, 5, 6, 7, 8};
@@ -549,9 +533,6 @@ START_TEST (test_save_item_stores_it_in_the_database) {
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
 
-  rc = item_cache_save_item(item_cache, item);
-  assert_equal(CLASSIFIER_OK, rc);
-
   int id = get_entry_id("/tmp/valid-copy/catalog.db", "urn:peerworks.org:entry#1");
 
   sqlite3 *db;
@@ -563,7 +544,7 @@ START_TEST (test_save_item_stores_it_in_the_database) {
   assert_equal(SQLITE_ROW, rc);
   char* tokens = (char*) sqlite3_column_blob(stmt, 0);
   assert_not_null(tokens);
-  assert_equal(4 * 6 /* num tokens * TOKEN_BYTES */, sqlite3_column_bytes(stmt, 0));
+  assert_equal(8 * 6 /* num tokens * TOKEN_BYTES */, sqlite3_column_bytes(stmt, 0));
   sqlite3_finalize(stmt);
   sqlite3_close(db);
 } END_TEST
@@ -574,17 +555,18 @@ START_TEST (test_save_item_stores_the_correct_tokens) {
   int rc = item_cache_add_entry(item_cache, entry);
   assert_equal(CLASSIFIER_OK, rc);
 
-  rc = item_cache_save_item(item_cache, item);
-  assert_equal(CLASSIFIER_OK, rc);
-
   int freeit;
   Item *new_item = item_cache_fetch_item(item_cache, "urn:peerworks.org:entry#1", &freeit);
   assert_not_null(new_item);
   assert_true(freeit);
-  assert_equal(2, item_get_token_frequency(new_item, 1));
-  assert_equal(4, item_get_token_frequency(new_item, 3));
-  assert_equal(6, item_get_token_frequency(new_item, 5));
-  assert_equal(8, item_get_token_frequency(new_item, 7));
+  assert_equal(1, item_get_token_frequency(new_item, 1247));
+  assert_equal(1, item_get_token_frequency(new_item, 1248));
+  assert_equal(1, item_get_token_frequency(new_item, 1249));
+  assert_equal(1, item_get_token_frequency(new_item, 1250));
+  assert_equal(1, item_get_token_frequency(new_item, 1251));
+  assert_equal(2, item_get_token_frequency(new_item, 1252));
+  assert_equal(1, item_get_token_frequency(new_item, 1253));
+  assert_equal(1, item_get_token_frequency(new_item, 1254));
 } END_TEST
 
 
@@ -593,94 +575,17 @@ START_TEST (test_save_item_without_an_entry_wont_store_it_in_the_database) {
   assert_equal(CLASSIFIER_FAIL, rc);
 } END_TEST
 
-/* Feature Extraction tests */
-static int tokenizer_called_with;
-static Item *tokenized_item;
-
-static Item * mock_feature_extractor(ItemCache * item_cache, const ItemCacheEntry * entry, void *ignore) {
-  tokenizer_called_with = item_cache_entry_id(entry);
-  return tokenized_item;
-}
-
-static void setup_feature_extraction(void) {
-  setup_fixture_path();
-  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
-  item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
-  item_cache_set_feature_extractor(item_cache, mock_feature_extractor, NULL);
-  item_cache_load(item_cache);
-  item_cache_start_feature_extractor(item_cache);
-
-  tokenized_item = create_item_with_tokens_and_time((unsigned char*) "id:9", tokens, 4, (time_t) 1178683198L);
-  entry_document = read_document("fixtures/entry.atom");
-}
-
-static void teardown_feature_extraction(void) {
-  teardown_fixture_path();
-  free_item_cache(item_cache);
-}
-
-START_TEST (test_adding_entry_results_in_calling_the_tokenizer_with_the_entry) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
-  item_cache_add_entry(item_cache, entry);
-  sleep(1);
-  assert_equal(item_cache_entry_id(entry), tokenizer_called_with);
-} END_TEST
-
-START_TEST (test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_update_queue) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
-  item_cache_add_entry(item_cache, entry);
-  sleep(1);
-  assert_equal(1, item_cache_update_queue_size(item_cache));
-} END_TEST
-
-/* NULL feature extractor */
-
-static Item * null_feature_extractor(ItemCache *item_cache, const ItemCacheEntry * entry, void *ignore) {
-  return NULL;
-}
-
-static void setup_null_feature_extraction(void) {
-  setup_fixture_path();
-  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
-  item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
-  item_cache_set_feature_extractor(item_cache, null_feature_extractor, NULL);
-  item_cache_load(item_cache);
-  item_cache_start_feature_extractor(item_cache);
-
-  tokenized_item = create_item_with_tokens_and_time((unsigned char*) "9", tokens, 4, (time_t) 1178683198L);
-  entry_document = read_document("fixtures/entry.atom");
-}
-
-static void teardown_null_feature_extraction(void) {
-  teardown_fixture_path();
-  free_item_cache(item_cache);
-}
-
-START_TEST (test_null_feature_extraction) {
-  ItemCacheEntry *entry = create_entry_from_atom_xml(entry_document);
-  item_cache_add_entry(item_cache, entry);
-  sleep(1);
-  assert_equal(0, item_cache_update_queue_size(item_cache));
-} END_TEST
-
-
 /* Cache updating tests */
 static int item_id = 9;
 static char * entry_document2;
-static Item * mock_feature_extractor2(ItemCache *item_cache, const ItemCacheEntry * entry, void *ignore) {
-  return create_item_with_tokens_and_time((unsigned char *) item_cache_entry_full_id(entry), tokens, 4, (time_t) 1178683198L);;
-}
 
 static void setup_full_update(void) {
   setup_fixture_path();
   system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
   item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
-  item_cache_set_feature_extractor(item_cache, mock_feature_extractor2, NULL);
   item_cache_load(item_cache);
-  item_cache_start_feature_extractor(item_cache);
   item_cache_start_cache_updater(item_cache);
 
-  tokenized_item = create_item_with_tokens_and_time((unsigned char*) "9", tokens, 4, (time_t) 1178683198L);
   entry_document = read_document("fixtures/entry.atom");
   entry_document2 = read_document("fixtures/entry2.atom");
 }
@@ -744,16 +649,6 @@ START_TEST (test_update_callback) {
   assert_equal(&memo, memo_ref);
 } END_TEST
 
-START_TEST (test_update_callback_not_triggered_for_invalid_item) {
-  memo_ref = NULL;
-  int memo = 21;
-  item_cache_set_update_callback(item_cache, update_callback, &memo);
-  ItemCacheEntry *entry1 = create_entry_from_atom_xml(entry_document);
-
-  item_cache_add_entry(item_cache, entry1);
-  sleep(1);
-  assert_equal(NULL, memo_ref);
-} END_TEST
 
 /* Cache pruning */
 time_t purge_time;
@@ -1060,8 +955,6 @@ item_cache_suite(void) {
    tcase_add_test(modification, test_destroying_an_entry_removes_it_from_the_database_file);
    tcase_add_test(modification, test_cant_delete_an_item_that_is_used_in_the_random_background);
    tcase_add_test(modification, test_failed_deletion_doesnt_delete_tokens);
-   tcase_add_test(modification, test_adding_entry_causes_it_to_be_added_to_the_tokenization_queue);
-   tcase_add_test(modification, test_adding_existing_entry_doesnt_tokenize_if_the_entry_is_tokenized);
    
    TCase *loaded_modification = tcase_create("loaded modification");
    tcase_add_checked_fixture(loaded_modification, setup_loaded_modification, teardown_loaded_modification);
@@ -1078,22 +971,12 @@ item_cache_suite(void) {
    tcase_add_test(loaded_modification, test_save_item_without_an_entry_wont_store_it_in_the_database);
    tcase_add_test(loaded_modification, test_save_item_stores_the_correct_tokens);
    
-   TCase *feature_extraction = tcase_create("feature extraction");
-   tcase_add_checked_fixture(feature_extraction, setup_feature_extraction, teardown_feature_extraction);
-   tcase_add_test(feature_extraction, test_adding_entry_results_in_calling_the_tokenizer_with_the_entry);
-   tcase_add_test(feature_extraction, test_adding_entry_and_tokenizing_it_results_in_it_being_stored_in_update_queue);
-   
-   TCase *null_feature_extraction = tcase_create("null feature extraction");
-   tcase_add_checked_fixture(null_feature_extraction, setup_null_feature_extraction, teardown_null_feature_extraction);
-   tcase_add_test(null_feature_extraction, test_null_feature_extraction);
-   
    TCase *full_update = tcase_create("full update");
    tcase_add_checked_fixture(full_update, setup_full_update, teardown_full_update);
    tcase_set_timeout(full_update, 5);
    tcase_add_test(full_update, test_update_callback);
    tcase_add_test(full_update, test_adding_multiple_entries_causes_item_added_to_cache);
    tcase_add_test(full_update, test_adding_entry_causes_item_added_to_cache);
-   tcase_add_test(full_update, test_update_callback_not_triggered_for_invalid_item);
    tcase_add_test(full_update, test_adding_entry_causes_tokens_to_be_added_to_the_db);
  
   TCase *purging = tcase_create("purging");
@@ -1133,8 +1016,6 @@ item_cache_suite(void) {
   suite_add_tcase(s, rndbg);
   suite_add_tcase(s, modification);
   suite_add_tcase(s, loaded_modification);
-  suite_add_tcase(s, feature_extraction);
-  suite_add_tcase(s, null_feature_extraction);
   suite_add_tcase(s, full_update);
   suite_add_tcase(s, purging);
   suite_add_tcase(s, atomization);

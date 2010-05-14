@@ -25,7 +25,7 @@ START_TEST (test_fetching_from_a_file) {
   int rc = fetch_url(url, 0, NULL, &data, NULL);
   assert_equal(URL_OK, rc);
   assert_not_null(data);
-  assert_equal(920, strlen(data));
+  assert_equal(928, strlen(data));
 } END_TEST
 
 START_TEST (test_fetching_non_existent_file_returns_null) {

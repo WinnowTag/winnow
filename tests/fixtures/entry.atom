@@ -13,5 +13,5 @@
       <uri>http://example.org/</uri>
       <email>f8dy@example.com</email>
     </author>    
-    <content type="html" xml:lang="en" xml:base="http://diveintomark.org/">&lt;p&gt;&lt;i&gt;This is an example&lt;/i&gt;&lt;/p&gt;</content>
+    <content type="html" xml:lang="en" xml:base="http://diveintomark.org/">&lt;p&gt;&lt;i&gt;This is an example example&lt;/i&gt;&lt;/p&gt;</content>
 </entry>

@@ -14,7 +14,7 @@ static char * read_document(const char * filename) {
 
   if (NULL != (file = fopen(filename, "r"))) {
     fseek(file, 0, SEEK_END);
-    int size = ftell(file);
+    int size = ftell(file) + 1;
     out = calloc(size, sizeof(char));
     fseek(file, 0, SEEK_SET);
     fread(out, sizeof(char), size, file);

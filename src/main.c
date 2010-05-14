@@ -226,8 +226,6 @@ static int start_classifier(const char * db_file, const char * tokenizer_url) {
     return EXIT_FAILURE;
   } else {
     item_cache_load(item_cache);
-    item_cache_set_feature_extractor(item_cache, tokenize_entry, tokenizer_url);
-    item_cache_start_feature_extractor(item_cache);
     item_cache_start_cache_updater(item_cache);
     item_cache_start_purger(item_cache, 60 * 60 * 24);
 
