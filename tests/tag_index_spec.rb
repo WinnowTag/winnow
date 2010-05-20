@@ -66,12 +66,10 @@ end
 
 describe "after item addition" do
   before(:each) do
-    start_tokenizer
     @http = TestHttpServer.new(:port => 8888)
   end
 
   after(:each) do
-    stop_tokenizer
     stop_classifier
   end
 

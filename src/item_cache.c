@@ -1369,6 +1369,9 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
 					JSLN(PValue, features, token);
 				}
 
+				Word_t rc;
+				JSLFA(rc, PValue);
+
 				if (CLASSIFIER_OK == item_cache_save_item(item_cache, item)) {
 					UpdateJob *job = create_add_job(item);
 					q_enqueue(item_cache->update_queue, job);

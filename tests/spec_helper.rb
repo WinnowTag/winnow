@@ -151,7 +151,6 @@ def start_classifier(opts = {})
     classifier = File.join(ENV['PWD'], '../src/classifier')
   end
   classifier_cmd = "#{classifier} --pid /tmp/classifier-test.pid " +
-                                     "--tokenizer-url http://localhost:8010/tokenize " +
                                      "-o /tmp/classifier-item_cache_spec.log " +
                                      "--performance-log /tmp/perf.log " +
                                      "--cache-update-wait-time 1 " +
@@ -159,7 +158,6 @@ def start_classifier(opts = {})
                                      "--load-items-since #{options[:load_items_since]} " +
                                      "--min-tokens #{options[:min_tokens] or 0} " +
                                      "--positive-threshold #{options[:positive_threshold] or 0} " +
-                                     "--missing-item-timeout #{options[:missing_item_timeout] or 60} " +
                                      "--db #{Database} #{tag_index} #{credentials}"
                                        
   if options[:malloc_log]
@@ -187,15 +185,6 @@ def stop_classifier
   else
     system("kill -9 `cat /tmp/classifier-test.pid`")
   end
-end
-
-def start_tokenizer
-  system("tokenizer_control start -- -p8010 #{Database}")
-  sleep(1)
-end
-
-def stop_tokenizer
-  system("tokenizer_control stop")
 end
 
 def create_job(training_url)

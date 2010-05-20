@@ -12,30 +12,25 @@ require File.dirname(__FILE__) + '/spec_helper'
 describe 'the classifier' do
   before(:each) do
     start_classifier(:malloc_log => true, :load_items_since => 336)
-    start_tokenizer
   end
   
   after(:each) do
-    stop_tokenizer
     stop_classifier
   end
   
   it 'should not leak memory after adding an item' do
     create_entry
-    sleep(3)
     'classifier'.should not_leak
   end
   
   it 'should not leak memory after adding a duplicate item' do
     create_entry
     create_entry
-    sleep(3)
     'classifier'.should not_leak
   end
   
   it "should not leak memory after adding a large item" do
     create_big_entry
-    sleep(3)
     'classifier'.should not_leak
   end
   
@@ -46,7 +41,6 @@ describe 'the classifier' do
     
     xit "should not leak memory while processing a classification job" do
       run_job
-      sleep(1)
       'classifier'.should have_no_more_than_leaks(1)
     end
   end
@@ -55,12 +49,10 @@ end
 describe 'the classifier with a high mintokens' do
   before(:each) do
     start_classifier(:malloc_log => true, :min_tokens => 100)
-    start_tokenizer
     sleep(0.5)
   end
   
   after(:each) do
-    stop_tokenizer
     stop_classifier
   end
   

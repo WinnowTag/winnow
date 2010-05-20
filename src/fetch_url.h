@@ -24,7 +24,7 @@
  *  Should support file and http at least.
  */
 static int fetch_url(const char * url, time_t if_modified_since, const Credentials * credentials, char ** data, char ** errmsg) {
-  debug("fetching %s", url);
+  info("fetching %s", url);
   int rc;
   char curlerr[CURL_ERROR_SIZE];
   struct RESPONSE response;

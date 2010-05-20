@@ -101,7 +101,7 @@ static Pvoid_t add_token(char *token, Pvoid_t features) {
 	strncat(feature, token, toklen + 3);
 	JSLI(PValue, features, (unsigned char*) feature);
 	(*PValue)++;
-
+	free(feature);
 	return features;
 }
 
@@ -150,6 +150,7 @@ static Pvoid_t add_url_component(char * uri, Pvoid_t features) {
 		strncat(token, uri, size);
 		JSLI(PValue, features, (unsigned char*) token);
 		(*PValue)++;
+		free(token);
 	}
 
 	return features;
@@ -188,6 +189,8 @@ static Pvoid_t tokenize_uris(htmlDocPtr doc, Pvoid_t features) {
 			}
 		}
 	}
+
+	xmlFreeTextReader(reader);
 
 	return features;
 }
@@ -228,21 +231,25 @@ Pvoid_t atom_tokenize(const char * atom) {
 			char *html = get_element_value(context, "/atom:entry/atom:content/text()");
 			if (html) {
 				features = html_tokenize_into_features(html, features);
+				xmlFree(html);
 			}
 
 			char *title = get_element_value(context, "/atom:entry/atom:title/text()");
 			if (title) {
 				features = tokenize_text(title, strlen(title), features);
+				xmlFree(title);
 			}
 
 			char *author = get_element_value(context, "/atom:entry/atom:author/atom:name/text()");
 			if (author) {
 				features = add_token(author, features);
+				xmlFree(author);
 			}
 
 			char *link = get_attribute_value(context, "/atom:entry/atom:link[@rel='alternate']", "href");
 			if (link) {
 				features = tokenize_uri(link, features);
+				xmlFree(link);
 			}
 
 			xmlXPathFreeContext(context);

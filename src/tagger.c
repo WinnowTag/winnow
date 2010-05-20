@@ -407,7 +407,7 @@ static int xml_for_tagger(const Tagger *tagger, const Array *list, struct output
 #define POST 2
 
 static int save_taggings(const Tagger *tagger, Array *taggings, int method, const Credentials * credentials, char ** errmsg) {
-  int rc;
+  int rc = OK;
   
   if (tagger && tagger->classifier_taggings_url) {
     info("save_taggings: %s", tagger->classifier_taggings_url);
@@ -416,12 +416,10 @@ static int save_taggings(const Tagger *tagger, Array *taggings, int method, cons
     struct output tagger_xml;
     memset(&tagger_xml, 0, sizeof(tagger_xml));
     xml_for_tagger(tagger, taggings, &tagger_xml);
-    debug("XML is %i but lixml says it is %i ", strlen(tagger_xml.data), tagger_xml.size);
 
     http_headers = curl_slist_append(http_headers, "Content-Type: application/atom+xml");
     http_headers = curl_slist_append(http_headers, "Expect:");
     http_headers = curl_slist_append(http_headers, "Connection: close");
-    
     
     if (valid_credentials(credentials)) {
       char *method_s = method == PUT ? "PUT" : method == POST ? "POST" : "";
@@ -441,7 +439,6 @@ static int save_taggings(const Tagger *tagger, Array *taggings, int method, cons
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, http_headers);    
     curl_easy_setopt(curl, CURLOPT_USERAGENT, ua);
     curl_easy_setopt(curl, CURLOPT_URL, tagger->classifier_taggings_url);
-    //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
     curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlerr);
     
@@ -451,18 +448,22 @@ static int save_taggings(const Tagger *tagger, Array *taggings, int method, cons
       curl_easy_setopt(curl, CURLOPT_READFUNCTION, &curl_read_function);
       curl_easy_setopt(curl, CURLOPT_READDATA, &tagger_xml);
     } else if (method == POST) {      
-      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, tagger_xml.data);
-      curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, tagger_xml.size);
+    	curl_easy_setopt(curl, CURLOPT_POST, 1);
+    	curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, tagger_xml.size);
+      curl_easy_setopt(curl, CURLOPT_READFUNCTION, &curl_read_function);
+      curl_easy_setopt(curl, CURLOPT_READDATA, &tagger_xml);
     } else {
       fatal("Got something other than PUT or POST for method. This is a bug.");
       rc = FAIL;
     }
-        
+
     if (rc != FAIL && curl_easy_perform(curl)) {
       error("URL %s not accessible: %s", tagger->classifier_taggings_url, curlerr);
       rc = FAIL;
     } else {
-      debug("save_taggings success");
+    	long code = 0;
+    	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
+      info("save_taggings success %i: %s", code, curlerr);
       rc = OK;
     }
   

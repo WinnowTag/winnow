@@ -78,17 +78,8 @@ describe "The Classifier's Item Cache" do
   end
   
   describe "entry tokenization" do
-    before(:each) do
-      start_tokenizer
-    end
-    
-    after(:each) do
-      system("tokenizer_control stop")
-    end
-    
     it "should tokenize the item" do
       create_entry
-      sleep(1)
       id = @sqlite.get_first_value("select id from entries where full_id = 'urn:peerworks.org:entries#1111'")
       @sqlite.get_first_value("select tokens from tokens.entry_tokens where id = #{id}").should_not be_nil
     end
@@ -96,7 +87,6 @@ describe "The Classifier's Item Cache" do
     it "should insert tokens on the correct item when an item is added twice" do
       create_entry
       create_entry
-      sleep(1)
       id = @sqlite.get_first_value("select id from entries where full_id = 'urn:peerworks.org:entries#1111'")
       @sqlite.get_first_value("select tokens from tokens.entry_tokens where id = #{id}").should_not be_nil
     end
@@ -104,7 +94,6 @@ describe "The Classifier's Item Cache" do
     it "should tokenize an existing item if it doesn't have tokens" do
       @sqlite.execute("insert into entries (full_id) values ('urn:peerworks.org:entries#1111')")
       create_entry
-      sleep(1)
       id = @sqlite.get_first_value("select id from entries where full_id = 'urn:peerworks.org:entries#1111'")
       @sqlite.get_first_value("select tokens from tokens.entry_tokens where id = #{id}").should_not be_nil
     end

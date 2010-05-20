@@ -106,25 +106,14 @@ describe "get_clues" do
     end
   end
   
-  it "should return 424 if the tag is incomplete" do
+  it "should still work if the tag is incomplete" do
     tag = "file:#{File.join(File.expand_path(File.dirname(__FILE__)), 'fixtures', 'incomplete_tag.atom')}"
     classifier_http do |http|
       http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag).code.should == "424" # The first request triggers the fetching
     end
-      sleep(1)
+    sleep(1)
     classifier_http do |http|
-      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag).code.should == "424"
-    end
-  end
-  
-  it "should return a message if the tag is incomplete" do
-    tag = "file:#{File.join(File.expand_path(File.dirname(__FILE__)), 'fixtures', 'incomplete_tag.atom')}"
-    classifier_http do |http|
-      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag).code.should == "424" # The first request triggers the fetching
-    end
-      sleep(1)
-    classifier_http do |http|
-      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag).body.should == "The classifier is missing some items required to perform this operation.  Please try again later."
+      http.send_request('GET', '/classifier/clues?item=urn:peerworks.org:entry#709254&tag=' + tag).code.should == "200"
     end
   end
 end
