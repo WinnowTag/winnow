@@ -82,11 +82,13 @@ static int load_bogus_tag_index(const char * tag_index_url, time_t last_updated,
 }
 
 static void setup_fetcher(void) {
+	setup_fixture_path();
   tagger_cache = create_tagger_cache(NULL, &options);
   tagger_cache->tag_index_retriever = load_tag_index_document;
 }
 
 static void teardown_fetcher(void) {
+	teardown_fixture_path();
   free_tagger_cache(tagger_cache);
 }
 
