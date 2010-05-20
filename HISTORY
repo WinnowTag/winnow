@@ -2,6 +2,7 @@
 
 * Fixed problems on Snow Leopard.
 * Update to latest libmicrohttpd.
+* Added a C based tokenizer and removed support for external tokenizer service.
 
 === 1.7.1 (5 March 2009)
 
