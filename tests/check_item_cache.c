@@ -787,121 +787,6 @@ START_TEST (test_globalize_a_new_token) {
   assert_equal_s("new", s);
 } END_TEST
 
-/* XML parsing of items. */
-
-START_TEST (test_returns_null_for_bogus_xml) {
-  Item *item = item_from_xml(item_cache, "bogus");
-  assert_null(item);
-} END_TEST
-
-START_TEST (test_returns_null_when_missing_id) {
-  char *xml = "<?xml version=\"1.0\"?>\n"
-              "<item xmlns=\"http://peerworks.org/classifier\">"
-              "  <feature key=\"t:astring\" value=\"4\"/>"
-              "  <feature key=\"t:another-string\" value=\"5\"/>"
-              "  <feature key=\"URLSeg:www.example.org\" value=\"1\"/>"
-              "</item>\n";
-  Item *item = item_from_xml(item_cache, xml);
-  assert_null(item);
-} END_TEST
-
-START_TEST (test_returns_null_when_id_empty) {
-  char *xml = "<?xml version=\"1.0\"?>\n"
-              "<item xmlns=\"http://peerworks.org/classifier\">"
-              "  <id></id>"
-              "  <feature key=\"t:astring\" value=\"4\"/>"
-              "  <feature key=\"t:another-string\" value=\"5\"/>"
-              "  <feature key=\"URLSeg:www.example.org\" value=\"1\"/>"
-              "</item>\n";
-  Item *item = item_from_xml(item_cache, xml);
-  assert_null(item);
-} END_TEST
-
-START_TEST (test_returns_null_when_missing_values) {
-  char *xml = "<?xml version=\"1.0\"?>\n"
-              "<item xmlns=\"http://peerworks.org/classifier\">"
-              "  <id>urn:item#11</id>"
-              "  <feature key=\"t:astring\" value=\"4\"/>"
-              "  <feature key=\"t:another-string\"/>"
-              "  <feature key=\"URLSeg:www.example.org\" value=\"1\"/>"
-              "</item>\n";
-  Item *item = item_from_xml(item_cache, xml);
-  assert_null(item);
-} END_TEST
-
-START_TEST (test_returns_null_when_values_empty) {
-  char *xml = "<?xml version=\"1.0\"?>\n"
-              "<item xmlns=\"http://peerworks.org/classifier\">"
-              "  <id>urn:item#11</id>"
-              "  <feature key=\"t:astring\" value=\"\"/>"
-              "  <feature key=\"t:another-string\" value=\"5\"/>"
-              "  <feature key=\"URLSeg:www.example.org\" value=\"1\"/>"
-              "</item>\n";
-  Item *item = item_from_xml(item_cache, xml);
-  assert_null(item);
-} END_TEST
-
-START_TEST (test_returns_null_when_values_not_an_int) {
-  char *xml = "<?xml version=\"1.0\"?>\n"
-              "<item xmlns=\"http://peerworks.org/classifier\">"
-              "  <id>urn:item#11</id>"
-              "  <feature key=\"t:astring\" value=\"foo\"/>"
-              "  <feature key=\"t:another-string\" value=\"5\"/>"
-              "  <feature key=\"URLSeg:www.example.org\" value=\"1\"/>"
-              "</item>\n";
-  Item *item = item_from_xml(item_cache, xml);
-  assert_null(item);
-} END_TEST
-
-START_TEST (test_returns_null_when_missing_key) {
-  char *xml = "<?xml version=\"1.0\"?>\n"
-              "<item xmlns=\"http://peerworks.org/classifier\">"
-              "  <id>urn:item#11</id>"
-              "  <feature value=\"4\"/>"
-              "  <feature key=\"t:another-string\"/>"
-              "  <feature key=\"URLSeg:www.example.org\" value=\"1\"/>"
-              "</item>\n";
-  Item *item = item_from_xml(item_cache, xml);
-  assert_null(item);
-} END_TEST
-
-START_TEST (test_returns_null_when_keys_empty) {
-  char *xml = "<?xml version=\"1.0\"?>\n"
-              "<item xmlns=\"http://peerworks.org/classifier\">"
-              "  <id>urn:item#11</id>"
-              "  <feature key=\"\" value=\"\"/>"
-              "  <feature key=\"t:another-string\" value=\"5\"/>"
-              "  <feature key=\"URLSeg:www.example.org\" value=\"1\"/>"
-              "</item>\n";
-  Item *item = item_from_xml(item_cache, xml);
-  assert_null(item);
-} END_TEST
-
-START_TEST (test_returns_correct_item_for_correct_xml) {
-  char *xml = "<?xml version=\"1.0\"?>\n"
-              "<item xmlns=\"http://peerworks.org/classifier\">"
-              "  <id>urn:peerworks.org:entry#11</id>"
-              "  <feature key=\"t:astring\" value=\"4\"/>"
-              "  <feature key=\"t:another-string\" value=\"5\"/>"
-              "  <feature key=\"URLSeg:www.example.org\" value=\"1\"/>"
-              "</item>\n";
-  Item *item = item_from_xml(item_cache, xml);
-  assert_not_null(item);
-  assert_equal_s("urn:peerworks.org:entry#11", item_get_id(item));
-  assert_equal(3, item_get_num_tokens(item));
-
-  int astring = item_cache_atomize(item_cache, "t:astring");
-  int another_string = item_cache_atomize(item_cache, "t:another-string");
-  int urlseg = item_cache_atomize(item_cache, "URLSeg:www.example.org");
-
-  short frequency = item_get_token_frequency(item, astring);
-  assert_equal(4, frequency);
-  frequency = item_get_token_frequency(item, another_string);
-  assert_equal(5, frequency);
-  frequency = item_get_token_frequency(item, urlseg);
-  assert_equal(1, frequency);
-  free_item(item);
-} END_TEST
 
 Suite *
 item_cache_suite(void) {
@@ -997,18 +882,6 @@ item_cache_suite(void) {
   tcase_add_test(atomization, test_globalize_a_missing_token_returns_NULL);
   tcase_add_test(atomization, test_globalize_a_new_token);
 
-  TCase *item_from_xml = tcase_create("item_from_xml");
-  tcase_add_checked_fixture(item_from_xml, setup_cache, teardown_item_cache);
-  tcase_add_test(item_from_xml, test_returns_null_for_bogus_xml);
-  tcase_add_test(item_from_xml, test_returns_correct_item_for_correct_xml);
-  tcase_add_test(item_from_xml, test_returns_null_when_missing_key);
-  tcase_add_test(item_from_xml, test_returns_null_when_missing_values);
-  tcase_add_test(item_from_xml, test_returns_null_when_missing_id);
-  tcase_add_test(item_from_xml, test_returns_null_when_keys_empty);
-  tcase_add_test(item_from_xml, test_returns_null_when_values_empty);
-  tcase_add_test(item_from_xml, test_returns_null_when_values_not_an_int);
-  tcase_add_test(item_from_xml, test_returns_null_when_id_empty);
-
   suite_add_tcase(s, tc_case);
   suite_add_tcase(s, fetch_item_case);
   suite_add_tcase(s, load);
@@ -1019,7 +892,6 @@ item_cache_suite(void) {
   suite_add_tcase(s, full_update);
   suite_add_tcase(s, purging);
   suite_add_tcase(s, atomization);
-  suite_add_tcase(s, item_from_xml);
   return s;
 }
 
