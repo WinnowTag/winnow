@@ -649,7 +649,7 @@ Httpd * httpd_start(HttpConfig *config, ClassificationEngine *ce, ItemCache *ite
     COMPILE_REGEX(&httpd->item_cache_feed_items_regex,        "^/feed_items/([0-9]+)$");
     COMPILE_REGEX(&httpd->get_clues_regex,                    "^/classifier/clues");
 
-    httpd->mhd = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG,
+    httpd->mhd = MHD_start_daemon(MHD_USE_THREAD_PER_CONNECTION | MHD_USE_DEBUG,
                                   httpd->config->port,
                                   access_policy,
                                   (void*) httpd->config->allowed_ip,

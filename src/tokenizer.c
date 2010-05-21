@@ -132,12 +132,15 @@ static Pvoid_t tokenize_text(char * txt, int length, Pvoid_t features) {
 }
 
 static Buffer *extractText(htmlDocPtr doc) {
+		char * term = "\0";
     Buffer *buf = new_buffer(256);
     xmlTextReaderPtr reader = xmlReaderWalker(doc);
     while(xmlTextReaderRead(reader)){
         processNode(reader, buf);
     }
     xmlFreeTextReader(reader);
+
+    buffer_in(buf, term, 1);
     return buf;
 }
 

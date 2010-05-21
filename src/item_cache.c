@@ -529,7 +529,6 @@ static int fetch_tokens_for(ItemCache * item_cache, Item * item) {
       error("Could not bind item->key to stmt: %s", item_cache_errmsg(item_cache));
       tokens_loaded = -1;
     } else if (SQLITE_ROW != sqlite3_step(item_cache->fetch_tokens_stmt)) {
-      error("Could not execute stmt: %s", item_cache_errmsg(item_cache));
       tokens_loaded = -1;
     } else {
       int blob_size = sqlite3_column_bytes(item_cache->fetch_tokens_stmt, 0);
@@ -1321,6 +1320,15 @@ const Pool * item_cache_random_background(ItemCache * item_cache)  {
   return random_background;
 }
 
+#include <sys/time.h>
+#include <time.h>
+
+static float tdiff(struct timeval from, struct timeval to) {
+  double from_d = from.tv_sec + (from.tv_usec / 1000000.0);
+  double to_d = to.tv_sec + (to.tv_usec / 1000000.0);
+  return to_d - from_d;
+}
+
 /** Adds an entry to the item cache.
  *
  * This immediately stores the item in the database.
@@ -1330,7 +1338,8 @@ const Pool * item_cache_random_background(ItemCache * item_cache)  {
 // :id, :full_id, :title, :author, :alternate, :self, :spider, :content, :updated, :feed_id, :created_at
 int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
   int rc = CLASSIFIER_OK;
-
+  struct timeval start;
+  gettimeofday(&start, NULL);
   if (item_cache && entry) {
 	pthread_mutex_lock(&item_cache->db_access_mutex);
 	int is_new_entry = _is_new_entry(item_cache, entry);
@@ -1347,6 +1356,10 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
 
 	pthread_mutex_unlock(&item_cache->db_access_mutex);
 
+	struct timeval inserted;
+	gettimeofday(&inserted, NULL);
+	debug("insertion: %.7fs", tdiff(start, inserted));
+
 	// We don't want to extract features for items we already have.
 	// TODO Handle updates to features for items somehow?
 
@@ -1357,6 +1370,10 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
 			if (features) {
 				Item *item = create_item(entry->full_id, entry->id, entry->updated);
 				item->tokens = NULL;
+
+				struct timeval tokenized;
+				gettimeofday(&tokenized, NULL);
+				debug("tokenized %.7fs", tdiff(inserted, tokenized));
 
 				PWord_t PValue;
 				uint8_t token[512];
@@ -1369,14 +1386,22 @@ int item_cache_add_entry(ItemCache *item_cache, ItemCacheEntry *entry) {
 					JSLN(PValue, features, token);
 				}
 
+				struct timeval atomized;
+				gettimeofday(&atomized, NULL);
+				debug("atomized %.7fs", tdiff(tokenized, atomized));
+				     
 				Word_t rc;
-				JSLFA(rc, PValue);
+				JSLFA(rc, features);
 
 				if (CLASSIFIER_OK == item_cache_save_item(item_cache, item)) {
 					UpdateJob *job = create_add_job(item);
 					q_enqueue(item_cache->update_queue, job);
 					debug("Added to update queue");
 				}
+
+				struct timeval complete;
+				gettimeofday(&complete, NULL);
+				debug("complete %.7fs", tdiff(atomized, complete));
 			}
 		}
 	}
