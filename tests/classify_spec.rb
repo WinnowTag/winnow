@@ -17,12 +17,12 @@ describe "Classify" do
     end
 
     it "should classify a file" do
-      classify(FixBase + "/valid", 'file:' + FixBase + "/file_tag.atom")
+      classify(Database, 'file:' + FixBase + "/file_tag.atom")
       File.exist?("/tmp/taggings.atom").should be_true
     end
 
     xit "should have taggings for each entry" do
-      classify(FixBase + "/valid", 'file:' + FixBase + "/file_tag.atom")
+      classify(Database, 'file:' + FixBase + "/file_tag.atom")
       Atom::Feed.load_feed(File.open("/tmp/taggings.atom")).should have(10).entries    
     end
   end
@@ -34,7 +34,7 @@ describe "Classify" do
     end
     
     it "should classify all files" do
-      classify(FixBase + "/valid", File.dirname(__FILE__) + '/fixtures/tag_dir')
+      classify(Database, File.dirname(__FILE__) + '/fixtures/tag_dir')
       Dir.glob("/tmp/taggings/*.atom").size.should == Dir.glob(FixBase + "/tag_dir/*.atom").size
     end
   end

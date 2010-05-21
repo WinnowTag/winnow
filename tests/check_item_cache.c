@@ -16,6 +16,7 @@
 #include "../src/misc.h"
 #include "../src/item_cache.h"
 #include "../src/logging.h"
+#include <sqlite3.h>
 
 static ItemCacheOptions item_cache_options = {1, 3650, 2};
 
@@ -40,7 +41,8 @@ START_TEST (creating_with_empty_db_file_fails) {
 START_TEST (create_with_valid_db) {
   setup_fixture_path();
   ItemCache *item_cache;
-  int rc = item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
+  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
+  int rc = item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   assert_equal(CLASSIFIER_OK, rc);
   teardown_fixture_path();
 } END_TEST
@@ -121,6 +123,23 @@ START_TEST (test_fetch_item_after_load_contains_tokens) {
   assert_equal(76, item_get_num_tokens(item));
 } END_TEST
 
+START_TEST (test_fetch_item_should_update_the_last_used_tstamp) {
+	Item * item = item_cache_fetch_item(item_cache, (unsigned char*) "urn:peerworks.org:entry#890806", &free_when_done);
+
+	sqlite3 *db;
+	sqlite3_stmt *stmt;
+	sqlite3_open_v2("/tmp/valid-copy/catalog.db", &db, SQLITE_OPEN_READONLY, NULL);
+	sqlite3_prepare_v2(db, "select last_used_at from entries where full_id = 'urn:peerworks.org:entry#890806'", -1, &stmt, NULL);
+	if (SQLITE_ROW != sqlite3_step(stmt)) {
+		fail("Could not get record");
+	} else {
+		double tstamp = sqlite3_column_double(stmt, 0);
+		assert_true(tstamp > 0);
+	}
+
+	sqlite3_close(db);
+} END_TEST
+
 /* Test loading the item cache */
 START_TEST (test_load_loads_the_right_number_of_items) {
   int rc = item_cache_load(item_cache);
@@ -147,7 +166,8 @@ START_TEST (test_load_respects_min_tokens) {
 /* Test iteration */
 void setup_iteration(void) {
   setup_fixture_path();
-  item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
+  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
+  item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   item_cache_load(item_cache);
 }
 
@@ -240,7 +260,6 @@ START_TEST (test_random_background_has_right_count_for_a_token) {
 } END_TEST
 
 /* Item Cache modification */
-#include <sqlite3.h>
 
 static char *entry_document;
 
@@ -808,6 +827,7 @@ item_cache_suite(void) {
    tcase_add_test(fetch_item_case, test_fetch_item_after_load_contains_tokens);
    tcase_add_test(fetch_item_case, test_free_when_done_is_true_when_the_item_is_not_in_the_memory_cache);
    tcase_add_test(fetch_item_case, test_free_when_done_is_false_when_the_item_is_in_the_memory_cache);
+   tcase_add_test(fetch_item_case, test_fetch_item_should_update_the_last_used_tstamp);
    
    TCase *load = tcase_create("load");
    tcase_add_checked_fixture(load, setup_cache, teardown_item_cache);

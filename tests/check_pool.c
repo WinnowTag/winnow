@@ -20,7 +20,8 @@ static int free_when_done;
 static void setup(void) {
   item_cache_options.cache_update_wait_time = 1;
   setup_fixture_path();
-  item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
+  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
+  item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   item_cache_load(item_cache);
 }
 

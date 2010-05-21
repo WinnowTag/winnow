@@ -49,6 +49,7 @@
 #define FETCH_ENTRY_TOKENS  "select tokens from token.entry_tokens where id = ?"
 #define INSERT_ENTRY_TOKENS "insert into token.entry_tokens values (?, ?)"
 #define DELETE_ENTRY_TOKENS "delete from token.entry_tokens where id = ?"
+#define TOUCH_ITEM_SQL "update entries set last_used_at = julianday('now') where full_id = ?"
 #define TOKEN_BYTES 6
 #define PROCESSING_LIMIT 200
 
@@ -116,6 +117,7 @@ struct ITEM_CACHE {
   sqlite3_stmt *insert_tokens_stmt;
   sqlite3_stmt *fetch_tokens_stmt;
   sqlite3_stmt *delete_tokens_stmt;
+  sqlite3_stmt *touch_item_stmt;
 
   /* Mutex for database access.
    *
@@ -361,7 +363,8 @@ static int create_prepared_statements(ItemCache *item_cache) {
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_ATOM_XML_SQL,        -1, &item_cache->delete_atom_xml_stmt,       NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, INSERT_ENTRY_TOKENS,        -1, &item_cache->insert_tokens_stmt,         NULL) ||
       SQLITE_OK != sqlite3_prepare_v2( item_cache->db, FETCH_ENTRY_TOKENS,        -1, &item_cache->fetch_tokens_stmt,         NULL) ||
-      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_ENTRY_TOKENS,        -1, &item_cache->delete_tokens_stmt,         NULL)) {
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, DELETE_ENTRY_TOKENS,        -1, &item_cache->delete_tokens_stmt,         NULL) ||
+      SQLITE_OK != sqlite3_prepare_v2( item_cache->db, TOUCH_ITEM_SQL,						 -1, &item_cache->touch_item_stmt,            NULL)) {
     fatal("Unable to prepare statment: \"%s\"", item_cache_errmsg(item_cache));
     rc = CLASSIFIER_FAIL;
   }
@@ -1130,6 +1133,7 @@ void free_item_cache(ItemCache *item_cache) {
       sqlite3_finalize(item_cache->delete_atom_xml_stmt);
       sqlite3_finalize(item_cache->delete_tokens_stmt);
       sqlite3_finalize(item_cache->insert_tokens_stmt);
+      sqlite3_finalize(item_cache->touch_item_stmt);
       sqlite3_close(item_cache->db);
     }
 
@@ -1236,6 +1240,16 @@ int item_cache_loaded(const ItemCache *item_cache) {
   return item_cache->loaded;
 }
 
+void touch_item(ItemCache *item_cache, const unsigned char * id) {
+	if (item_cache && id) {
+		pthread_mutex_lock(&item_cache->db_access_mutex);
+		sqlite3_bind_text(item_cache->touch_item_stmt, 1, id, -1, NULL);
+		sqlite3_step(item_cache->touch_item_stmt);
+		sqlite3_reset(item_cache->touch_item_stmt);
+		pthread_mutex_unlock(&item_cache->db_access_mutex);
+	}
+}
+
 /** Fetch an item from the cache.
  *
  * @param item_cache The ItemCache to get the item from.
@@ -1271,6 +1285,8 @@ Item * item_cache_fetch_item(ItemCache *item_cache, const unsigned char * id, in
 
     pthread_mutex_unlock(&item_cache->db_access_mutex);
   }
+
+  touch_item(item_cache, id);
 
   return item;
 }

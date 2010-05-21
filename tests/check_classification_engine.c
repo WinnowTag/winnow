@@ -34,7 +34,8 @@ static ClassificationEngineOptions opts = {1, 0.0, NULL};
 
 static void setup_engine() {
   setup_fixture_path();
-  item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
+  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
+  item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   item_cache_load(item_cache);
   tagger_cache = create_tagger_cache(item_cache, NULL);
   tagger_cache->tag_retriever = &fetch_url;
@@ -136,7 +137,7 @@ START_TEST (remove_classification_job_wont_removes_the_job_from_the_engines_job_
 
 START_TEST(test_engine_initialization) {
   ItemCache *item_cache;
-  item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
+  item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   item_cache_load(item_cache);
   tagger_cache = create_tagger_cache(item_cache, NULL);
   ClassificationEngine *engine = create_classification_engine(item_cache, tagger_cache, &opts);
@@ -147,7 +148,7 @@ START_TEST(test_engine_initialization) {
 
 START_TEST(test_engine_starting_and_stopping) {
   ItemCache *item_cache;
-  item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
+  item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
   item_cache_load(item_cache);
   tagger_cache = create_tagger_cache(item_cache, NULL);
 

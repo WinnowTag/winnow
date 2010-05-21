@@ -47,7 +47,8 @@ static void setup(void) {
   setup_fixture_path();
   read_document("fixtures/complete_tag.atom");
   random_background = new_pool();
-  item_cache_create(&item_cache, "fixtures/valid", &item_cache_options);
+  system("rm -Rf /tmp/valid-copy && cp -R fixtures/valid /tmp/valid-copy && chmod -R 755 /tmp/valid-copy");
+  item_cache_create(&item_cache, "/tmp/valid-copy", &item_cache_options);
 
   tagger = build_tagger(document, item_cache);
   train_tagger(tagger, item_cache);
