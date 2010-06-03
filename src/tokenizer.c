@@ -184,13 +184,13 @@ static Pvoid_t tokenize_uris(htmlDocPtr doc, Pvoid_t features) {
 			char *uri = (char *) xmlTextReaderGetAttribute(reader, BAD_CAST "href");
 			if (uri) {
 				features = tokenize_uri(uri, features);
-        free(uri);
+				free(uri);
 			}
 
 			uri = (char*) xmlTextReaderGetAttribute(reader, BAD_CAST "src");
 			if (uri) {
 				features = tokenize_uri(uri, features);
-        free(uri);
+				free(uri);
 			}
 		}
 	}

@@ -230,7 +230,7 @@ int release_tagger(TaggerCache *tagger_cache, Tagger * tagger) {
     debug("releasing tagger %s", tagger->training_url);
     rc = release_tagger_by_url(tagger_cache, (uint8_t*) tagger->training_url);
   }
-  
+
   return rc;
 }
 
@@ -342,9 +342,9 @@ int get_tagger(TaggerCache * tagger_cache, const char * tag_training_url, Tagger
         prepare_tagger(temp_tagger, tagger_cache->item_cache);
       }
       
-      if (tagger_is_new) {        
+      if (tagger_is_new) {
         cache_tagger(tagger_cache, temp_tagger);
-      }     
+      }
       
       rc = determine_return_state(temp_tagger, errmsg);
             

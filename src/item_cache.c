@@ -1111,12 +1111,16 @@ void free_item_cache(ItemCache *item_cache) {
 
     if (item_cache->cache_updating_thread) {
       info("Stopping cache updater");
+      pthread_detach(*item_cache->cache_updating_thread);
       pthread_cancel(*item_cache->cache_updating_thread);
+      free(item_cache->cache_updating_thread);
     }
 
     if (item_cache->purge_thread) {
       info("Stopping cache purger");
+      pthread_detach(*item_cache->purge_thread);
       pthread_cancel(*item_cache->purge_thread);
+      free(item_cache->purge_thread);
     }
 
     if (item_cache->db) {
@@ -1134,6 +1138,7 @@ void free_item_cache(ItemCache *item_cache) {
       sqlite3_finalize(item_cache->delete_tokens_stmt);
       sqlite3_finalize(item_cache->insert_tokens_stmt);
       sqlite3_finalize(item_cache->touch_item_stmt);
+      sqlite3_finalize(item_cache->fetch_tokens_stmt);
       sqlite3_close(item_cache->db);
     }
 

@@ -413,6 +413,17 @@ void free_classification_engine(ClassificationEngine *engine) {
     pthread_mutex_destroy(engine->suspension_notification_mutex);
     pthread_mutex_destroy(engine->perf_log_mutex);
 
+    free(engine->classification_suspension_cond);
+    free(engine->suspension_notification_cond);
+    free(engine->classification_suspension_mutex);
+    free(engine->suspension_notification_mutex);
+    free(engine->perf_log_mutex);
+    free(engine->classification_jobs_mutex);
+
+    if (engine->classification_worker_threads) {
+      free(engine->classification_worker_threads);
+    }
+
     free_queue(engine->classification_job_queue);
     free(engine);
   }
@@ -574,9 +585,11 @@ int ce_stop(ClassificationEngine * engine) {
     for (i = 0; i < engine->options->worker_threads; i++) {
       debug("joining thread %i", engine->classification_worker_threads[i]);
       pthread_join(engine->classification_worker_threads[i], NULL);
+      pthread_detach(engine->classification_worker_threads[i]);
     }
     debug("Returned from cw join");
-    
+
+    pthread_detach(engine->flusher);
     pthread_cancel(engine->flusher);
   }
 
