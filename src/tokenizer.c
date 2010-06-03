@@ -60,6 +60,8 @@ static int replace(char *buf, int size, const char * pattern, char *rp) {
 	    fatal("Error compiling REGEX: %s", buffer);
 	} else if (rreplace(buf, size, &regex, rp)) {
 		fatal("Error doing regex replace");
+	} else {
+	  regfree(&regex);
 	}
 
 	return 0;
