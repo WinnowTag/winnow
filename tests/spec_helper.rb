@@ -26,6 +26,8 @@ CLASSIFIER_URL = "http://localhost:8008"
 ROOT = File.expand_path(File.dirname(__FILE__))
 Database = '/tmp/classifier-copy'
 
+gem 'activeresource'
+gem 'activerecord'
 require 'active_record'
 require 'active_resource'
 class Tagging < ActiveRecord::Base; end
@@ -164,6 +166,7 @@ def start_classifier(opts = {})
     @classifier_pid = fork do
        STDERR.close
       ENV['MallocStackLogging'] = '1'
+      ENV['MallocScribble'] = '1'
       classifier_cmd = "#{classifier_cmd}"    
       exec(classifier_cmd)
     end
@@ -225,7 +228,7 @@ class MemoryLeaks
   
   def matches?(target)
     @target = target
-    @result = `leaks -exclude regcomp -exclude JudySLIns -exclude xmlSetStructuredErrorFunc #{@target}`
+    @result = `leaks #{@target} -exclude xmlSetStructuredErrorFunc -exclude JudySLIns -exclude JudyLIns` # `leaks -exclude regcomp -exclude JudySLIns -exclude xmlSetStructuredErrorFunc #{@target}`
     if @result =~ /(\d+) leaks?/
       @leaks = @result.scan(/Leak:/).size 
       @leaks <= @n
