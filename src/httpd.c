@@ -667,4 +667,13 @@ Httpd * httpd_start(HttpConfig *config, ClassificationEngine *ce, ItemCache *ite
 void httpd_stop(Httpd *httpd) {
   MHD_stop_daemon(httpd->mhd);
   httpd->mhd = NULL;
+
+  regfree(&httpd->start_job_regex);
+  regfree(&httpd->job_status_regex);
+  regfree(&httpd->about_regex);
+  regfree(&httpd->item_cache_create_feed_items_regex);
+  regfree(&httpd->item_cache_feed_items_regex);
+  regfree(&httpd->get_clues_regex);
+
+  free(httpd);
 }
