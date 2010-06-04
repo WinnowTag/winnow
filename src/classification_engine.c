@@ -584,9 +584,9 @@ int ce_stop(ClassificationEngine * engine) {
     int i;
     for (i = 0; i < engine->options->worker_threads; i++) {
       debug("joining thread %i", engine->classification_worker_threads[i]);
-      //      pthread_join(engine->classification_worker_threads[i], NULL);
-      pthread_detach(engine->classification_worker_threads[i]);
-      pthread_cancel(engine->classification_worker_threads[i]);
+      pthread_join(engine->classification_worker_threads[i], NULL);
+      //pthread_detach(engine->classification_worker_threads[i]);
+      //pthread_cancel(engine->classification_worker_threads[i]);
     }
     debug("Returned from cw join");
 
