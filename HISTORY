@@ -1,3 +1,7 @@
+=== 1.8.3 (4 June 2010)
+
+* Fixed a bunch of memory leaks.
+
 === 1.8.2 (21 May 2010)
 
 * Record last used at whenever an item is fetched.
