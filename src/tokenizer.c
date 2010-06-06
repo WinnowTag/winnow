@@ -60,6 +60,8 @@ static int replace(char *buf, int size, const char * pattern, char *rp) {
 	    fatal("Error compiling REGEX: %s", buffer);
 	} else if (rreplace(buf, size, &regex, rp)) {
 		fatal("Error doing regex replace");
+	} else {
+	  regfree(&regex);
 	}
 
 	return 0;
@@ -184,11 +186,13 @@ static Pvoid_t tokenize_uris(htmlDocPtr doc, Pvoid_t features) {
 			char *uri = (char *) xmlTextReaderGetAttribute(reader, BAD_CAST "href");
 			if (uri) {
 				features = tokenize_uri(uri, features);
+				free(uri);
 			}
 
 			uri = (char*) xmlTextReaderGetAttribute(reader, BAD_CAST "src");
 			if (uri) {
 				features = tokenize_uri(uri, features);
+				free(uri);
 			}
 		}
 	}

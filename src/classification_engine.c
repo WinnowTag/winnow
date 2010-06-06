@@ -413,6 +413,17 @@ void free_classification_engine(ClassificationEngine *engine) {
     pthread_mutex_destroy(engine->suspension_notification_mutex);
     pthread_mutex_destroy(engine->perf_log_mutex);
 
+    free(engine->classification_suspension_cond);
+    free(engine->suspension_notification_cond);
+    free(engine->classification_suspension_mutex);
+    free(engine->suspension_notification_mutex);
+    free(engine->perf_log_mutex);
+    free(engine->classification_jobs_mutex);
+
+    if (engine->classification_worker_threads) {
+      free(engine->classification_worker_threads);
+    }
+
     free_queue(engine->classification_job_queue);
     free(engine);
   }
@@ -574,9 +585,12 @@ int ce_stop(ClassificationEngine * engine) {
     for (i = 0; i < engine->options->worker_threads; i++) {
       debug("joining thread %i", engine->classification_worker_threads[i]);
       pthread_join(engine->classification_worker_threads[i], NULL);
+      //pthread_detach(engine->classification_worker_threads[i]);
+      //pthread_cancel(engine->classification_worker_threads[i]);
     }
     debug("Returned from cw join");
-    
+
+    pthread_detach(engine->flusher);
     pthread_cancel(engine->flusher);
   }
 
@@ -737,11 +751,11 @@ void *classification_worker_func(void *engine_vp) {
 
   while (!q_empty(job_queue) || ce->is_running) {
     if (wait_if_suspended(ce)) break;
-    trace("About to wait on queue, thread %i", pthread_self());
+    //    debug("About to wait on queue, thread %i", pthread_self());
     ClassificationJob *job = (ClassificationJob*) q_dequeue_or_wait(job_queue, 1);
-    trace("Returned from queue, thread %i", pthread_self());
+    //    debug("Returned from queuae, thread %i", pthread_self());
 
-    if (job) {
+    if (job && ce->is_running) {
       debug("%i got job off queue: %s", pthread_self(), job->id);
 
       /* Only proceed if the job is not cancelled */

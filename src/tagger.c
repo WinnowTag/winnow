@@ -463,7 +463,7 @@ static int save_taggings(const Tagger *tagger, Array *taggings, int method, cons
     } else {
     	long code = 0;
     	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
-      info("save_taggings success %i: %s", code, curlerr);
+      info("save_taggings success: %i", code);
       rc = OK;
     }
   
@@ -500,6 +500,7 @@ TaggerState prepare_tagger(Tagger *tagger, ItemCache *item_cache) {
 }
 
 void free_tagger(Tagger * tagger) {
+  debug("Free tagger");
   if (tagger) {
     if (tagger->tag_id)                  free(tagger->tag_id);
     if (tagger->training_url)            free(tagger->training_url);

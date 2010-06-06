@@ -161,6 +161,11 @@ void termination_handler(int sig) {
       free_classification_engine(engine);
     }
 
+    if (tagger_cache) {
+      fprintf(stderr, "\tClosing tagger cache\n");
+      free_tagger_cache(tagger_cache);
+    }
+
     if (item_cache) {
       fprintf(stderr, "\tClosing database.\n");
       free_item_cache(item_cache);

@@ -218,16 +218,20 @@ struct curl_slist * hmac_sign(const char * method, const char * path, struct cur
 
 int hmac_auth(const char * method, const char * path, struct curl_slist *headers, const Credentials * credentials) {
   int authenticated = 0;
-  struct auth_data auth;
+  struct auth_data auth = {NULL, NULL};
   memset(&auth, 0, sizeof(auth));
     
   if (extract_authentication_data(headers, &auth)) {
     char * computed_signature = build_signature(method, path, headers, credentials->secret_key);
     debug("computed = '%s'", computed_signature);
     authenticated = strcmp(auth.access_id, credentials->access_id) == 0 && strcmp(auth.signature, computed_signature) == 0;    
+    free(computed_signature);
   } else {
     debug("No authentication data");
   }
+
+  if (auth.access_id) free(auth.access_id);
+  if (auth.signature) free(auth.signature);
   
   return authenticated;
 }

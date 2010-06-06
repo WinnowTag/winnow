@@ -75,6 +75,7 @@ START_TEST(cancelling_a_job_removes_it_from_the_system_once_a_worker_gets_to_it)
   cjob_cancel(job);
   assert_equal(1, ce_num_waiting_jobs(ce));
   ce_start(ce);
+  sleep(1);
   ce_stop(ce);
   assert_equal(0, ce_num_waiting_jobs(ce));
   assert_equal(0, ce_num_jobs_in_system(ce));
