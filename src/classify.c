@@ -15,7 +15,6 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
-#include "git_revision.h"
 #include "logging.h"
 #include "classification_engine.h"
 #include "httpd.h"
@@ -113,7 +112,7 @@ int main(int argc, char ** argv) {
 			print_help();
 			return EXIT_SUCCESS;
 		case 'v':
-			printf("%s, build: %s\n", PACKAGE_STRING, git_revision);
+			printf("%s\n", PACKAGE_STRING);
 			return EXIT_SUCCESS;
 		}
 	}

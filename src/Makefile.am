@@ -27,7 +27,6 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            item_cache.c      				 \
                            item_cache.h				       \
                            uuid.h                    \
-                           git_revision.h            \
                            xml.c xml.h \
                            tagger.c tagger.h tagger_cache.c tagging.c tag_index.c \
                            array.h array.c \
@@ -39,14 +38,12 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            tokenizer.h tokenizer.c
 
 libclassifier_la_LIBADD = @LTLIBOBJS@
-       
-BUILT_SOURCES=git_revision.h
-CLEANFILES=git_revision.h
+
 bin_PROGRAMS = classifier classify
-classifier_SOURCES = git_revision.h main.c 
+classifier_SOURCES = main.c 
 classifier_LDADD = libclassifier.la
 
-classify_SOURCES = git_revision.h classify.c 
+classify_SOURCES =classify.c 
 classify_LDADD = libclassifier.la
 
 #cls_bench_SOURCES = bench.c
@@ -60,7 +57,5 @@ endif
 
 # noinst_PROGRAMS = cls_bench
 
-git_revision.h:
-	echo "static const char *git_revision = \"`git rev-parse --short HEAD`\";" > git_revision.h
 
 
