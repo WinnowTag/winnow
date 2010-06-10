@@ -32,6 +32,7 @@ The classification engine depends on:
   * check >= 0.9.5 (Required for running unit tests, available as a macport).
   * libxml2
   * libcurl 
+  * sqlite3 (3.6.23.1 works fine)
   
 Judy, libmicrohttpd and json-c are all provided as part of the build system for the classifier
 and should not require any action on behalf of the user.  libxml2 and libcurl should both come
