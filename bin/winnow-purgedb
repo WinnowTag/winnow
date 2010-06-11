@@ -60,7 +60,7 @@ end
 
 puts "Will purge '#{database}' of items older than #{purge_time} days"
 puts "Some might not be deleted if they are part of the random background."
-print "This is #{ids_to_purge.size} items, continue? (y/n): "
+print "This is #{ids_to_purge.size} items, continue? (y/N): "
 input = $stdin.gets
 deleted = 0
 
