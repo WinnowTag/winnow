@@ -1,1 +1,1 @@
-bin_SCRIPTS = winnow-purgedb
+dist_bin_SCRIPTS = winnow-purgedb
