@@ -1,5 +1,5 @@
 m4_include([m4/version.m4])
-AC_INIT([classifier], VERSION_NUMBER, [info@peerworks.org])
+AC_INIT([winnow], VERSION_NUMBER, [info@peerworks.org])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_CONFIG_LIBOBJ_DIR(src)

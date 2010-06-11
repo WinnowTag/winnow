@@ -1,4 +1,4 @@
-lib_LTLIBRARIES = libclassifier.la
+lib_LTLIBRARIES = libwinnow.la
 
 # Force path to be $(libdir) on all linkages.
 # This seems to fix a problem on Linux with:
@@ -14,7 +14,7 @@ lib_LTLIBRARIES = libclassifier.la
 LDFLAGS = -rpath $(libdir) @SQLITE3_LDFLAGS@ @CURL_LIBS@
 CFLAGS = -Wall @SQLITE3_CFLAGS@ @CURL_CFLAGS@ 
 
-libclassifier_la_SOURCES = classifier.c classifier.h \
+libwinnow_la_SOURCES = classifier.c classifier.h \
                            logging.h logging.c       \
                            pool.c                    \
                            clue.h clue.c             \
@@ -37,22 +37,22 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            buffer.c buffer.h \
                            tokenizer.h tokenizer.c
 
-libclassifier_la_LIBADD = @LTLIBOBJS@
+libwinnow_la_LIBADD = @LTLIBOBJS@
 
-bin_PROGRAMS = classifier classify
-classifier_SOURCES = main.c 
-classifier_LDADD = libclassifier.la
+bin_PROGRAMS = winnow classify
+winnow_SOURCES = main.c 
+winnow_LDADD = libwinnow.la
 
 classify_SOURCES =classify.c 
-classify_LDADD = libclassifier.la
+classify_LDADD = libwinnow.la
 
 #cls_bench_SOURCES = bench.c
-#cls_bench_LDADD = libclassifier.la
+#cls_bench_LDADD = libwinnow.la
 
 if DEBUG
-classifier_CFLAGS = -g3 -D_DEBUG -gdwarf-2
-classifier_LDFLAGS = -static
-libclassifier_la_CFLAGS = -g3 -D_DEBUG -gdwarf-2
+winnow_CFLAGS = -g3 -D_DEBUG -gdwarf-2
+winnow_LDFLAGS = -static
+libwinnow_la_CFLAGS = -g3 -D_DEBUG -gdwarf-2
 endif
 
 # noinst_PROGRAMS = cls_bench

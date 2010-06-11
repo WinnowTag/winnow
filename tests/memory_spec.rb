@@ -22,18 +22,18 @@ describe 'the classifier' do
   
   it 'should not leak memory after adding an item' do
     create_entry
-    'classifier'.should not_leak
+    'winnow'.should not_leak
   end
   
   it 'should not leak memory after adding a duplicate item' do
     create_entry
     create_entry
-    'classifier'.should not_leak
+    'winnow'.should not_leak
   end
   
   it "should not leak memory after adding a large item" do
     create_big_entry
-    'classifier'.should not_leak
+    'winnow'.should not_leak
   end
   
   describe "job functionality" do
@@ -57,7 +57,7 @@ describe 'the classifier' do
 
       job.progress.should >= 100
       job.destroy
-      'classifier'.should not_leak #have_no_more_than_leaks(1)
+      'winnow'.should not_leak #have_no_more_than_leaks(1)
     end
   end
 end
@@ -73,12 +73,12 @@ describe 'the classifier with a high mintokens' do
   end
   
   it "should not leak memory after removing all small items" do
-    'classifier'.should not_leak
+    'winnow'.should not_leak
   end
   
   it "should not leak memory after adding a small item" do
     create_entry
     create_entry(:id => '1112')
-    'classifier'.should not_leak
+    'winnow'.should not_leak
   end
 end

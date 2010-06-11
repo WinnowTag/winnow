@@ -179,3 +179,4 @@ microhttpd/src/examples/refuse_post_example
 microhttpd/src/testcurl/daemon_options_test
 microhttpd/src/testcurl/libcurl_version_check.a
 tests/check_html_tokenizer
+src/winnow
