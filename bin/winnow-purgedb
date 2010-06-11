@@ -1,0 +1,89 @@
+#!/usr/bin/env ruby
+
+require 'rubygems'
+gem 'sqlite3-ruby'
+gem 'progressbar'
+require 'sqlite3'
+require 'progressbar'
+require 'optparse'
+
+purge_time = 3600
+
+OptionParser.new do |opts|
+  opts.banner = <<BANNER
+Purge a winnow database of item older than a given date.
+
+Usage: #{File.basename($0)} <item_cache_directory>
+
+Options are:
+BANNER
+  opts.separator ""
+  opts.on("-s", "--since", :REQUIRED, "How many days of items to keep.") {|s| purge_time = s }
+  opts.separator "Common Options:"
+  opts.separator ""
+  opts.on("-h", "--help", "Show this help message.") { puts opts; exit }
+  
+  opts.parse!(ARGV)
+
+  if ARGV.size != 1
+    puts opts; exit
+  end
+end
+
+def vacuum(dir, db)
+  puts "Vacuuming the #{db} database..."
+  dbase = SQLite3::Database.new(File.join(dir, "#{db}.db"))
+  dbase.execute("VACUUM")
+  dbase.close
+end
+
+database = ARGV.first
+catalog = SQLite3::Database.new(File.join(database, 'catalog.db'))
+catalog.execute("attach '#{File.join(database, 'atom.db')}' as atom")
+catalog.execute("attach '#{File.join(database, 'tokens.db')}' as tokens")
+
+query = <<END 
+    select id from entries 
+    where 
+      updated < (julianday('now') - #{purge_time})
+      and (
+        last_used_at is null or 
+        last_used_at < (julianday('now') - #{purge_time})
+      )
+      and id not in (select entry_id from random_backgrounds)
+END
+
+ids_to_purge = []
+catalog.execute(query) do |r|
+  ids_to_purge << r.first.to_i
+end
+
+puts "Will purge '#{database}' of items older than #{purge_time} days"
+puts "Some might not be deleted if they are part of the random background."
+print "This is #{ids_to_purge.size} items, continue? (y/n): "
+input = $stdin.gets
+deleted = 0
+
+if ['Y', 'y'].include?(input.chomp)
+  pb = ProgressBar.new("Purging from item cache", ids_to_purge.size)
+  catalog.transaction do
+    ids_to_purge.each do |id|
+      catalog.execute("delete from entries where id = ?", id)
+      catalog.execute("delete from atom.entry_atom where id = ?", id)
+      catalog.execute("delete from tokens.entry_tokens where id = ?", id)
+      pb.inc
+      deleted += 1
+    end
+  end
+  pb.finish
+
+  puts "Deleted #{deleted} entries."
+  catalog.close
+  
+  vacuum(database, 'catalog')
+  vacuum(database, 'atom')
+  vacuum(database, 'tokens')
+  puts "Done!"
+else
+  puts "Cancelled."
+end
