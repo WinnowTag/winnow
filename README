@@ -1,13 +1,20 @@
-Copyright (c) 2007, The Kaphan Foundation.
+Copyright (c) 2007-2010 The Kaphan Foundation
 
-This file contains instructions for running and configuring the Peerworks Classification Engine.
+This file contains instructions for running and configuring the Winnow content recommendation engine.
 
 For information on building and installing the engine see the INSTALL file.
 
 Obtaining an item cache
 ============================================
 
-TODO: These instructions are probably only relevant for Winnow development.  We should generalize it for others.
+These instructions are most relevant to doing Winnow development in the context
+of the complete winnowTag web application which is composed of the two Rails
+apps winnowTag (the winnowtag.org UI) and the Collector (which harvests
+feeds), Winnow, and other scripts.
+
+TODO: Generalize these instructions so they are more applicable to developers
+who are only using Winnow, and remove the obsolete references to copies of
+item_cache.
 
 With the classifier-tools package it is possible to build an item cache using a collector install as a source.
 This is done using the classifier-import script, like so:

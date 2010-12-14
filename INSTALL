@@ -4,15 +4,15 @@ Installation Instructions
 Copyright (C) 1994, 1995, 1996, 1999, 2000, 2001, 2002, 2004, 2005,
 2006 Free Software Foundation, Inc.
 
-Copyright (C) 2008, The Kaphan Foundation.
+Copyright (c) 2008-2010 The Kaphan Foundation
 
 This file is free documentation; the Free Software Foundation gives
 unlimited permission to copy, distribute and modify it.
 
 
-This file contains instructions for building and installing the Peerworks Classification Engine.
+This file contains instructions for building and installing the Winnow content recommendation engine.
 
-For information on how to run and configure the classification engine see README.
+For information on how to run and configure Winnow see README.
 
 Getting the Classifier 
 ====================================================
@@ -34,17 +34,16 @@ The classification engine depends on:
   * libcurl 
   * sqlite3 (3.6.23.1 works fine)
   
-Judy, libmicrohttpd and json-c are all provided as part of the build system for the classifier
-and should not require any action on behalf of the user.  libxml2 and libcurl should both come
-standard as part of most distributions of Linux and are included on OSX. If you get errors related
-to missing libxml or libcurl headers you may need to install the libxml-devel or libcurl-devel
+libxml2 and libcurl should both come standard as part of most distributions of
+Linux and are included on OSX. If you get errors related to missing libxml or
+libcurl headers you may need to install the libxml-devel or libcurl-devel
 packages for your system.
  
 Installing the Build System
 ====================================================
 
-If you are building from a Git clone you first need to install the build system using autoreconf.
-These tools should be available on most Unixes.
+If you are building from a Git clone you first need to install the build system
+using autoreconf. These tools should be available on most Unixes.
 
 This step is not required if you are build from a distribution tarball.
 
