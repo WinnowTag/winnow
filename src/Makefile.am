@@ -1,4 +1,4 @@
-lib_LTLIBRARIES = libclassifier.la
+lib_LTLIBRARIES = libwinnow.la
 
 # Force path to be $(libdir) on all linkages.
 # This seems to fix a problem on Linux with:
@@ -14,7 +14,7 @@ lib_LTLIBRARIES = libclassifier.la
 LDFLAGS = -rpath $(libdir) @SQLITE3_LDFLAGS@ @CURL_LIBS@
 CFLAGS = -Wall @SQLITE3_CFLAGS@ @CURL_CFLAGS@ 
 
-libclassifier_la_SOURCES = classifier.c classifier.h \
+libwinnow_la_SOURCES = classifier.c classifier.h \
                            logging.h logging.c       \
                            pool.c                    \
                            clue.h clue.c             \
@@ -27,7 +27,6 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            item_cache.c      				 \
                            item_cache.h				       \
                            uuid.h                    \
-                           git_revision.h            \
                            xml.c xml.h \
                            tagger.c tagger.h tagger_cache.c tagging.c tag_index.c \
                            array.h array.c \
@@ -38,29 +37,25 @@ libclassifier_la_SOURCES = classifier.c classifier.h \
                            buffer.c buffer.h \
                            tokenizer.h tokenizer.c
 
-libclassifier_la_LIBADD = @LTLIBOBJS@
-       
-BUILT_SOURCES=git_revision.h
-CLEANFILES=git_revision.h
-bin_PROGRAMS = classifier classify
-classifier_SOURCES = git_revision.h main.c 
-classifier_LDADD = libclassifier.la
+libwinnow_la_LIBADD = @LTLIBOBJS@
 
-classify_SOURCES = git_revision.h classify.c 
-classify_LDADD = libclassifier.la
+bin_PROGRAMS = winnow classify
+winnow_SOURCES = main.c 
+winnow_LDADD = libwinnow.la
+
+classify_SOURCES =classify.c 
+classify_LDADD = libwinnow.la
 
 #cls_bench_SOURCES = bench.c
-#cls_bench_LDADD = libclassifier.la
+#cls_bench_LDADD = libwinnow.la
 
 if DEBUG
-classifier_CFLAGS = -g3 -D_DEBUG -gdwarf-2
-classifier_LDFLAGS = -static
-libclassifier_la_CFLAGS = -g3 -D_DEBUG -gdwarf-2
+winnow_CFLAGS = -g3 -D_DEBUG -gdwarf-2
+winnow_LDFLAGS = -static
+libwinnow_la_CFLAGS = -g3 -D_DEBUG -gdwarf-2
 endif
 
 # noinst_PROGRAMS = cls_bench
 
-git_revision.h:
-	echo "static const char *git_revision = \"`git rev-parse --short HEAD`\";" > git_revision.h
 
 

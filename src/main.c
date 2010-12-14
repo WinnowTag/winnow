@@ -36,7 +36,6 @@
 #include "classification_engine.h"
 #include "httpd.h"
 #include "misc.h"
-#include "git_revision.h"
 #include "fetch_url.h"
 #include "xml_error_functions.h"
 
@@ -364,7 +363,7 @@ int main(int argc, char **argv) {
         printHelp();
         exit(0);
       case 'v':
-        printf("%s, build: %s\n", PACKAGE_STRING, git_revision);
+        printf("%s\n", PACKAGE_STRING);
         exit(EXIT_SUCCESS);
         break;
       default:

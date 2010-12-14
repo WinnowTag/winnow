@@ -1,4 +1,5 @@
-AC_INIT([classifier], [1.8.3], [contact@winnowtag.org])
+m4_include([m4/version.m4])
+AC_INIT([winnow], VERSION_NUMBER, [contact@winnowtag.org])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_CONFIG_LIBOBJ_DIR(src)
@@ -75,7 +76,7 @@ AC_CHECK_CURL([7.15.1])
 
 ### Check for headers
 AC_HEADER_STDC
-AC_CHECK_HEADERS([sys/param.h errno.h stdarg.h stdbool.h uuid/uuid.h stdarg.h arpa/inet.h])
+AC_CHECK_HEADERS([sys/param.h errno.h stdarg.h stdbool.h uuid/uuid.h stdarg.h arpa/inet.h sys/types.h])
 
 AC_CHECK_HEADERS([Judy.h],[],[AC_MSG_ERROR(Judy.h is missing. Please install Judy.)])
 
@@ -89,6 +90,9 @@ AC_CHECK_HEADERS([microhttpd.h],[],[AC_MSG_ERROR(microhttpd.h is missing. Please
 #include <arpa/inet.h>
 #endif
 
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
 ])
 
 AC_CHECK_HEADERS([json/json.h],[],[AC_MSG_ERROR(json.h is missing. Please install json-c.)])

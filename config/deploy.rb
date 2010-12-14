@@ -45,7 +45,6 @@ namespace :deploy do
   
   desc "Package the latest version"
   task :package do
-    system("rm -f src/git_revision.h")
     system("make dist")
   end
   

@@ -1,0 +1,84 @@
+#!/usr/bin/env ruby
+
+require 'rubygems'
+gem 'sqlite3-ruby'
+gem 'progressbar'
+require 'sqlite3'
+require 'progressbar'
+require 'optparse'
+require 'set'
+
+purge_time = 3600
+
+OptionParser.new do |opts|
+  opts.banner = <<BANNER
+Purge a winnow database of token ids which are no longer used.
+
+Usage: #{File.basename($0)} <item_cache_directory>
+
+Options are:
+BANNER
+  opts.separator ""
+  opts.separator "Common Options:"
+  opts.separator ""
+  opts.on("-h", "--help", "Show this help message.") { puts opts; exit }
+  
+  opts.parse!(ARGV)
+
+  if ARGV.size != 1
+    puts opts; exit
+  end
+end
+
+database = ARGV.first
+token_ids = Set.new
+
+tokens = SQLite3::Database.new(File.join(database, 'tokens.db'))
+rows = tokens.get_first_value("select count(*) from entry_tokens").to_i
+
+pb = ProgressBar.new("Collecting", rows)
+tokens.execute("select tokens from entry_tokens") do |r|
+  blob = r.first
+  if blob
+    blob.unpack("Nn" * (blob.size / 6)).each_with_index do |token, index|
+      if index % 2 == 0
+        token_ids << token
+      end
+    end
+  end
+  pb.inc
+end
+pb.finish
+tokens.close
+
+catalog = SQLite3::Database.new(File.join(database, 'catalog.db'))
+all_tokens = []
+catalog.execute("select id from tokens") do |r|
+  all_tokens << r.first.to_i
+end
+
+tokens_to_delete = all_tokens - token_ids.to_a
+
+puts "Will remove #{tokens_to_delete.size} token entries of #{all_tokens.size}"
+print "Continue? (y/N): "
+input = $stdin.gets
+deleted = 0
+
+if ['Y', 'y'].include?(input.chomp)
+  pb = ProgressBar.new("Removing", tokens_to_delete.size)
+  catalog.transaction do 
+    tokens_to_delete.each do |token|
+      catalog.execute("delete from tokens where id = ?", token)
+      pb.inc
+    end
+  end
+  pb.finish
+  
+  puts "Vacuuming catalog"
+  catalog.execute("vacuum")
+  catalog.close
+else
+  puts "Cancelled"
+end
+
+

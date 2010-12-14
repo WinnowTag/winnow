@@ -46,7 +46,6 @@
 #include "tagger.h"
 #include "logging.h"
 #include "misc.h"
-#include "git_revision.h"
 #define _bits_h_
 #include <json/json.h>
 
@@ -178,7 +177,6 @@ static xmlChar * xml_for_about(void) {
   xmlDocSetRootElement(doc, root);
 
   add_element(root, "version", "string", "%s", PACKAGE_VERSION);
-  add_element(root, "git_revision", "string", "%s", git_revision);
 
   xmlDocDumpFormatMemory(doc, &buffer, &buffersize, 1);
   xmlFreeDoc(doc);

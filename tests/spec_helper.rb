@@ -163,7 +163,7 @@ def start_classifier(opts = {})
   credentials = "--credentials #{opts[:credentials]}" if opts[:credentials]
   
   if ENV['srcdir']
-    classifier = File.join(ENV['PWD'], '../src/classifier')
+    classifier = File.join(ENV['PWD'], '../src/winnow')
   end
   classifier_cmd = "#{classifier} --pid /tmp/classifier-test.pid " +
                                      "-o /tmp/classifier-item_cache_spec.log " +
