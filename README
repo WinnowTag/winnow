@@ -4,34 +4,56 @@ This file contains instructions for running and configuring the Winnow content r
 
 For information on building and installing the engine see the INSTALL file.
 
-Obtaining an item cache
+Please see the pages of the wiki our github repository http://github.com/WinnowTag/winnow/wiki
+for detailed explanations of Winnow's architecture and operation.
+
+Creating an item cache
 ============================================
 
-These instructions are most relevant to doing Winnow development in the context
-of the complete winnowTag web application which is composed of the two Rails
-apps winnowTag (the winnowtag.org UI) and the Collector (which harvests
-feeds), Winnow, and other scripts.
+Before running Winnow, you'll need to create the persistent item cache. This is a directory
+"item_cache" containing the three sqlite3 databases atom.db, tokens.db and catalog.db. See the
+"Item Cache" document page in the github repository wiki for more information.
 
-TODO: Generalize these instructions so they are more applicable to developers
-who are only using Winnow, and remove the obsolete references to copies of
-item_cache.
+To initialize the database schemas, use sqlite3 to execute the SQL shown below in each
+corresponding newly created sqlite3 database file.
 
-With the classifier-tools package it is possible to build an item cache using a collector install as a source.
-This is done using the classifier-import script, like so:
+After you've used the classifier on a sufficient number of items, you'll need to set up the random
+background. The classifier accuracy will be poor until you do this. See the section "Setting up
+random background" at the end of this file.
 
-  classifier-import --url http://collector.wizztag.org/service --out item_cache_dir --since 10.days
+TODO: Create a script that does this.
+TODO: Provide a reasonably small item_cache already populated and with random background
+initialized that can be used for testing and initial development.
 
-This will download all items fetched in the last 10 days and build and item cache out of them.  The downside
-is that this can take quite a while since it is involves lots of HTTP requests that add quite a bit of latency
-to the process if it is running over the Internet.  A better and faster solution is to obtain a recent copy
-of the item cache and use that.  There will be a relatively up-to-date copy available on S3 at the following URL:
+atom.db
+-------
+CREATE TABLE entry_atom (id integer not null primary key, atom BLOB);
 
-  https://s3.amazonaws.com:443/classifier_db/item_cache.tar.gz
+tokens.db
+---------
+CREATE TABLE entry_tokens (id integer not null primary key, tokens BLOB);
 
-You can download and extract that file and you will have a pre-built and tokenized item cache that you can start using straight
-away.
-
-Warning: The above item cache is quite large, about 4GB when uncompressed.  If needed I will provide a smaller version.
+catalog.db
+----------
+CREATE TABLE entries (id integer NOT NULL PRIMARY KEY, full_id text, updated real, created_at real, last_used_at real);
+CREATE TABLE "random_backgrounds" (
+  "entry_id" integer NOT NULL PRIMARY KEY,
+  constraint "random_backgrounds_entry_id" foreign key ("entry_id")
+    references "entries" ("id")
+);
+CREATE TABLE "tokens" (
+  "id"       integer NOT NULL PRIMARY KEY,
+  "token"    text    NOT NULL UNIQUE
+);
+CREATE UNIQUE INDEX entries_full_id on entries(full_id);
+CREATE INDEX entries_last_used_at on entries(last_used_at);
+CREATE INDEX entries_updated on entries(updated);
+CREATE TRIGGER random_backgrounds_entry_id
+  BEFORE DELETE ON entries
+  FOR EACH ROW BEGIN
+      SELECT RAISE(ROLLBACK, 'delete on table "entries" violates foreign key constraint "random_backgrounds_entry_id"')
+      WHERE (SELECT entry_id FROM random_backgrounds WHERE entry_id = OLD.id) IS NOT NULL;
+  END;
 
 Running the Classifier
 ============================================
@@ -42,20 +64,37 @@ of the build instructions this is likely in your PATH.
 Run "classifier -h" to see a list of supported arguments.
 
 A typical usage will be to start the classifier on a specified port and item cache directory
-and a positive cutoff threshold of 0.9. You probably also want a log file to be generated. This will be enough for most development cases.  
+and a positive cutoff threshold of 0.9. You probably also want a log file to be generated. This
+will be enough for most development cases.  
 
 This can be done using the following command:
 
  classifier --db <item_cache_dir> --port 8008 -t 0.9 --log-file classifier.log
 
-You can then tail -f classifier.log to see the log messages the classifier produces. Once a message appears in the log saying
-the classifier has completed initialization you can then access it's http server on port 8008.  Initialization can sometimes
-take a few minutes depending on the size of the item cache and whether the file system has cached item cache file access.
+You can then tail -f classifier.log to see the log messages the classifier produces. Once a message
+appears in the log saying the classifier has completed initialization you can then access it's http
+server on port 8008.  Initialization can sometimes take a few minutes depending on the size of the
+item cache and whether the file system has cached item cache file access.
 
-Once things are up and running Winnow will be able to talk to the classifier using the standard classifier UI elements.  You can
-also do a simple test by entering http://localhost:8009/classifier.xml into a web browser to make sure everything is working.
+Once things are up and running Winnow will be able to talk to the classifier using the standard
+classifier UI elements.  You can also do a simple test by entering
+http://localhost:8009/classifier.xml into a web browser to make sure everything is working.
 
 Shutting it down
 =============================================
 
 The classifier is shutdown by sending it a SIGTERM signal. This can be done using CTRL-C or kill <pid>.
+
+Setting up the random background
+=============================================
+
+After you have classified more than 1000-5000 items, set up the random background. This is done by
+executing the following SQL in the item.db sqlite3 database:
+
+INSERT INTO RANDOM_BACKGROUNDS SELECT ID FROM ENTRIES ORDER BY random() LIMIT N
+
+...where N is the size that you want. We recommend between 1000 and 5000 items depending upon the
+size of the corpus that you classify. For winnowtag.org, which works with over 3/4 million items,
+we use a random background of 5000 items.
+
+Until you set up the random background, Winnow's classification accuracy will be poor.
