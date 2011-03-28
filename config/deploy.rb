@@ -1,4 +1,4 @@
-set :application, "classifier"
+set :application, "winnow"
 set :repository,  "set your repository location here"
 
 # If you aren't deploying to /u/apps/#{application} on the target
@@ -27,7 +27,7 @@ namespace :deploy do
   
   def dirname
     if ENV['version']
-      "classifier-#{ENV['version']}"
+      "#{application}-#{ENV['version']}"
     else
       raise ArgumentError, "You must specify the version to deploy using version=X.Y.Z"
     end
