@@ -26,6 +26,7 @@ describe 'the classifier' do
   before(:each) do
     start_classifier(:malloc_log => true, :load_items_since => 336)
     @http = TestHttpServer.new(:port => 8888)
+    sleep(0.5)
   end
   
   after(:each) do

@@ -157,7 +157,7 @@ def start_classifier(opts = {})
   system("chmod -R 755 #{Database}") 
   system("rm -f /tmp/classifier-test.pid")  
   system("rm -f /tmp/perf.log")
-  classifier = File.join(ROOT, "../src/classifier")
+  classifier = File.join(ROOT, "../src/winnow")
   
   tag_index = "--tag-index #{opts[:tag_index]}" if opts[:tag_index]
   credentials = "--credentials #{opts[:credentials]}" if opts[:credentials]

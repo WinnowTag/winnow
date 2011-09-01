@@ -260,7 +260,7 @@ describe "Job Processing with an incomplete tag" do
   it "should result in new items in the item cache" do
     job_results('incomplete_tag.atom')
     sqlite = SQLite3::Database.open("#{Database}/catalog.db")
-    sqlite.get_first_value("select count(*) from entries").should == '13'
+    sqlite.get_first_value("select count(*) from entries").should == 13
     sqlite.close
   end
   

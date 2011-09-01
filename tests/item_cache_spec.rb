@@ -63,7 +63,7 @@ describe "The Classifier's Item Cache" do
     
     it "should store entry in the database" do
       create_entry
-      @sqlite.get_first_value("select count(*) from entries where full_id = 'urn:peerworks.org:entries#1111'").should == "1"
+      @sqlite.get_first_value("select count(*) from entries where full_id = 'urn:peerworks.org:entries#1111'").should == 1
     end
     
     it "should store the XML in the database" do
@@ -119,7 +119,7 @@ describe "The Classifier's Item Cache" do
     
     it "should remove the entry from the database" do
       create_entry.destroy!
-      @sqlite.get_first_value("select count(*) from entries where id = 1111").should == "0"
+      @sqlite.get_first_value("select count(*) from entries where id = 1111").should == 0
     end
     
     it "should remove the XML from the cache" do
