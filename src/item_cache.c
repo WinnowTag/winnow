@@ -775,17 +775,17 @@ static void * cache_updating_func(void *memo) {
         switch (job->type) {
           case ADD:
             job->item->time = time(NULL);
-						if (CLASSIFIER_OK == item_cache_add_item(item_cache, job->item)) {
-							items_added++;
-						} else {
-							debug("No enough tokens to add to the classification item cache: %s\n", job->item->id);
-							free_item(job->item);
-						}
-						break;
-					default:
-						fatal("Got unknown cache updating job type");
-						break;
-				}
+            if (CLASSIFIER_OK == item_cache_add_item(item_cache, job->item)) {
+	      items_added++;
+	    } else {
+	      debug("No enough tokens to add to the classification item cache: %s\n", job->item->id);
+	      free_item(job->item);
+	    }
+	   break;
+	 default:
+	   fatal("Got unknown cache updating job type");
+	   break;
+        }
 
         free(job);
 
